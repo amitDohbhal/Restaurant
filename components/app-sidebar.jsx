@@ -50,6 +50,23 @@ const data = {
     },
     { divider: true },
     {
+      name: "Upload Basic Info",
+      url: "/admin/upload_basic_info",
+      icon: Image,
+    },
+    { divider: true },
+    {
+      name: "Room Info",
+      url: "/admin/room_info",
+      icon: Image,
+    },
+    {
+      name: "Room Invoice",
+      url: "/admin/room_invoice",
+      icon: Image,
+    },
+    { divider: true },
+    {
       name: "Create Management",
       url: "/admin/create_management",
       icon: User,
@@ -59,25 +76,13 @@ const data = {
       url: "/admin/edit_management",
       icon: User,
     },
-    { divider: true },
+    // { divider: true },
 
-    {
-      name: "Add Direct Product",
-      url: "/admin/add_direct_product",
-      icon: Plus,
-    },
-    { divider: true },
-
-    {
-      name: "Add Brand Name",
-      url: "/admin/add_brand_name",
-      icon: Plus,
-    },
-    {
-      name: "Link Product To Brand Category",
-      url: "/admin/link_product_to_brand",
-      icon: Plus,
-    },
+    // {
+    //   name: "Add Direct Product",
+    //   url: "/admin/add_direct_product",
+    //   icon: Plus,
+    // },
     { divider: true },
     {
       name: "Create Discount",
