@@ -1,9 +1,9 @@
 // Product.js - Mongoose Product Model for AddDirectProduct Page
 import mongoose from 'mongoose';
 const ProductSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  code: { type: String, required: true },
-  slug: { type: String, required: true },
+  RoomNo: { type: String, required: true },
+  RoomType: { type: String, required: true },
+  slug: { type: String },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuBar' },
   isDirect: { type: Boolean, default: false },
   active: { type: Boolean, default: true },

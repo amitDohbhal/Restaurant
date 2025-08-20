@@ -21,14 +21,14 @@ export async function POST(req) {
     await connectDB();
     const body = await req.json();
     // Accept all relevant fields
-    const { title, code, isDirect, categoryTag, ...rest } = body;
-    if (!title || !code) {
+    const { RoomNo, RoomType, isDirect, categoryTag, ...rest } = body;
+    if (!RoomNo || !RoomType) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
     }
     // If explicitly direct, ignore categoryTag
     let productData = {
-      title,
-      code,
+      RoomNo,
+      RoomType,
       isDirect: true,
       ...rest
     };

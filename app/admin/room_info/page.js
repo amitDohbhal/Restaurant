@@ -1,4 +1,4 @@
-import RoomInfo from "@/components/Admin/RoomInfo"
+import ProductProfile from "@/components/Admin/ProductProfile"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 
 const page = () => {
@@ -11,7 +11,7 @@ const page = () => {
             </header>
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
                 <h1 className="text-4xl px-12 font-semibold">Room Info</h1>
-                <RoomInfo />
+                <ProductProfile />
             </div>
         </SidebarInset>
     )

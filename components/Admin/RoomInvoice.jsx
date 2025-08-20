@@ -5,13 +5,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../ui/select';
 import { Textarea } from "@/components/ui/textarea";
+import { statesIndia } from '@/lib/IndiaStates';
+import toast from 'react-hot-toast';
+import SimpleModal from '../SimpleModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '../ui/dialog';
 const planTypes = [
   { label: 'EP ( Room Only )', value: 'EP' },
   { label: 'CP ( Include Breakfast Only )', value: 'CP' },
   { label: 'MAP ( Breakfast + Lunch / Dinner )', value: 'MAP' },
   { label: 'AP ( Include All Meals )', value: 'AP' },
 ];
-
+// DetailBox helper for view modal
+const DetailBox = ({ label, value }) => (
+  <div className="mb-2 border border-black rounded-md px-5 py-2">
+    <div className="font-semibold text-gray-700">{label}</div>
+    <div className="text-gray-600">{value}</div>
+  </div>
+);
 const RoomInvoice = () => {
   const [form, setForm] = useState({
     roomNumber: '',
@@ -36,15 +52,36 @@ const RoomInvoice = () => {
     companyGst: '',
     anyCompany: '',
   });
-
   const [roomInfoList, setRoomInfoList] = useState([]);
-
+  const [invoices, setInvoices] = useState([]);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [viewInvoice, setViewInvoice] = useState(null);
+  const [printInvoice, setPrintInvoice] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const fetchInvoices = async () => {
+    try {
+      const res = await fetch('/api/roomInvoice');
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setInvoices(data);
+      } else if (res.ok && Array.isArray(data.data)) {
+        setInvoices(data.data);
+      } else {
+        setInvoices([]);
+      }
+    } catch (err) {
+      setInvoices([]);
+      toast.error('Failed to fetch invoices');
+    }
+  };
   useEffect(() => {
-    fetch('/api/roomInfo')
+    fetch('/api/product')
       .then(res => res.json())
       .then(data => setRoomInfoList(Array.isArray(data) ? data : []));
+    fetchInvoices();
   }, []);
-
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -53,16 +90,28 @@ const RoomInvoice = () => {
   useEffect(() => {
     const selectedRoom = roomInfoList.find(r => String(r.RoomNo) === String(form.roomNumber));
     if (selectedRoom) {
-      setForm(f => ({ ...f, roomType: selectedRoom.type }));
+      setForm(f => ({ ...f, roomType: selectedRoom.RoomType }));
     }
   }, [form.roomNumber, roomInfoList]);
 
   return (
-    <div className="max-w-4xl mx-auto bg-white border border-black rounded p-4 mt-4">
+    <div className="w-[50vw] mx-auto bg-white border border-black rounded p-4 mt-4">
       <div className="flex flex-wrap gap-4 mb-2">
         <div className="flex-1 min-w-[200px]">
           <Label className="block text-sm font-semibold">Room Number</Label>
-          <Select name="roomNumber" value={form.roomNumber} onValueChange={value => setForm(f => ({ ...f, roomNumber: value }))} className="w-full rounded border border-black px-3 py-1">
+          <Select
+            name="roomNumber"
+            value={form.roomNumber}
+            onValueChange={value => {
+              const selectedRoom = roomInfoList.find(room => String(room.RoomNo) === value);
+              setForm(f => ({
+                ...f,
+                roomNumber: value,
+                roomType: selectedRoom ? selectedRoom.RoomType : ''
+              }));
+            }}
+            className="w-full rounded border border-black px-3 py-1"
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
@@ -75,14 +124,24 @@ const RoomInvoice = () => {
         </div>
         <div className="flex-1 min-w-[200px]">
           <Label className="block text-sm font-semibold">Room Type</Label>
-          <Select name="roomType" value={form.roomType} onValueChange={value => setForm(f => ({ ...f, roomType: value }))} className="w-full rounded border border-black px-3 py-1">
+          <Select
+            name="roomType"
+            value={form.roomType}
+            disabled={!!form.roomNumber}
+            className="w-full rounded border border-black px-3 py-1 bg-gray-900 !text-black"
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Auto Select" />
+              <SelectValue placeholder="Room Type" />
             </SelectTrigger>
             <SelectContent>
-              {Array.from(new Set(roomInfoList.map(room => room.type))).map(type => (
-                <SelectItem key={type} value={type}>{type}</SelectItem>
-              ))}
+              {form.roomNumber && (
+                (() => {
+                  const selectedRoom = roomInfoList.find(room => String(room.RoomNo) === form.roomNumber);
+                  return selectedRoom ? (
+                    <SelectItem value={selectedRoom.RoomType}>{selectedRoom.RoomType}</SelectItem>
+                  ) : null;
+                })()
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -90,17 +149,17 @@ const RoomInvoice = () => {
       <div className="flex flex-wrap gap-4 mb-2 items-end">
         <div className="flex-1 min-w-[200px]">
           <Label className="block text-sm font-semibold">Room Price</Label>
-          <Input type="number" name="roomPrice" value={form.roomPrice} onChange={handleChange} placeholder="Input" className="w-full rounded border border-black px-3 py-1" />
+          <Input type="number" name="roomPrice" value={form.roomPrice} onChange={handleChange} placeholder="Enter Room Price" className="w-full rounded border border-black px-3 py-1" />
         </div>
         <span className="text-md py-2">/ Per Night</span>
         <div className="flex-1 min-w-[200px]">
           <Label className="block text-sm font-semibold">Plan type</Label>
-          <Select name="planType" value={form.planType} onChange={handleChange} className="w-full rounded border border-black px-3 py-1">
+          <Select name="planType" value={form.planType} onValueChange={value => setForm(f => ({ ...f, planType: value }))} className="w-full rounded border border-black px-3 py-1">
             <SelectTrigger>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
-              {planTypes.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+              {planTypes.map(p => <SelectItem key={p.label} value={p.label}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -117,51 +176,89 @@ const RoomInvoice = () => {
         </div>
         <div className="flex-1 min-w-[200px]">
           <Label className="block text-sm font-semibold">Total Days</Label>
-          <Input type="number" name="totalDays" value={form.totalDays} onChange={handleChange} placeholder="Type Input" className="w-full rounded border border-black px-3 py-1" />
+          <Input type="number" name="totalDays" value={form.totalDays} onChange={handleChange} placeholder="Enter Total Days" className="w-full rounded border border-black px-3 py-1" />
         </div>
       </div>
       <hr className="border-cyan-500 my-2" />
       <div className="flex flex-wrap gap-4 mb-2">
         <div className="flex-1 min-w-[200px]">
           <Label className="block text-sm font-semibold">Tax CGST</Label>
-          <Select name="cgst" value={form.cgst} onChange={handleChange} className="w-full rounded border border-black px-3 py-1">
-            <SelectTrigger>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Add options dynamically */}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <Label className="block text-sm font-semibold">Tax SGST</Label>
-          <Select name="sgst" value={form.sgst} onChange={handleChange} className="w-full rounded border border-black px-3 py-1">
-            <SelectTrigger>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Add options dynamically */}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <hr className="border-cyan-500 my-2" />
-      <div className="flex flex-wrap gap-4 mb-2">
-        <div className="flex-1 min-w-[120px]">
-          <Label className="block text-sm font-semibold">Guest Name</Label>
           <div className="flex gap-2">
-            <Input type="text" name="guestFirst" value={form.guestFirst} onChange={handleChange} placeholder="First" className="rounded border border-black px-2 py-1 w-1/3" />
-            <Input type="text" name="guestMiddle" value={form.guestMiddle} onChange={handleChange} placeholder="Middle" className="rounded border border-black px-2 py-1 w-1/3" />
-            <Input type="text" name="guestLast" value={form.guestLast} onChange={handleChange} placeholder="Last" className="rounded border border-black px-2 py-1 w-1/3" />
+            <div className="flex-1">
+              <Input
+                type="number"
+                name="cgstPercent"
+                value={form.cgstPercent || ''}
+                onChange={e => setForm(f => ({ ...f, cgstPercent: e.target.value, cgstAmount: '' }))}
+                placeholder="%"
+                className="w-full rounded border border-black px-3 py-1"
+                min="0"
+                max="100"
+                disabled={!!form.cgstAmount} // Disable if cgstAmount has value
+              />
+            </div>
+            <div className="flex-1">
+              <Input
+                type="number"
+                name="cgstAmount"
+                value={form.cgstAmount || ''}
+                onChange={e => setForm(f => ({ ...f, cgstAmount: e.target.value, cgstPercent: '' }))}
+                placeholder="Amount"
+                className="w-full rounded border border-black px-3 py-1"
+                min="0"
+                disabled={!!form.cgstPercent} // Disable if cgstPercent has value
+              />
+            </div>
           </div>
         </div>
         <div className="flex-1 min-w-[200px]">
+          <Label className="block text-sm font-semibold">Tax SGST</Label>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Input
+                type="number"
+                name="sgstPercent"
+                value={form.sgstPercent || ''}
+                onChange={e => setForm(f => ({ ...f, sgstPercent: e.target.value, sgstAmount: '' }))}
+                placeholder="%"
+                className="w-full rounded border border-black px-3 py-1"
+                min="0"
+                max="100"
+                disabled={!!form.sgstAmount} // Disable if sgstAmount has value
+              />
+            </div>
+            <div className="flex-1">
+              <Input
+                type="number"
+                name="sgstAmount"
+                value={form.sgstAmount || ''}
+                onChange={e => setForm(f => ({ ...f, sgstAmount: e.target.value, sgstPercent: '' }))}
+                placeholder="Amount"
+                className="w-full rounded border border-black px-3 py-1"
+                min="0"
+                disabled={!!form.sgstPercent} // Disable if sgstPercent has value
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      <hr className="border-cyan-500 my-2" />
+      <div className="flex-1 min-w-[150px]">
+        <Label className="block text-sm font-semibold">Guest Name</Label>
+        <div className="flex gap-2">
+          <Input type="text" name="guestFirst" value={form.guestFirst} onChange={handleChange} placeholder="First" className="rounded border border-black px-2 py-1 w-1/3" />
+          <Input type="text" name="guestMiddle" value={form.guestMiddle} onChange={handleChange} placeholder="Middle" className="rounded border border-black px-2 py-1 w-1/3" />
+          <Input type="text" name="guestLast" value={form.guestLast} onChange={handleChange} placeholder="Last" className="rounded border border-black px-2 py-1 w-1/3" />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-4 mb-2">
+        <div className="flex-1 min-w-[120px]">
           <Label className="block text-sm font-semibold">Email Id</Label>
           <Input type="email" name="email" value={form.email} onChange={handleChange} placeholder="Select" className="w-full rounded border border-black px-3 py-1" />
         </div>
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-[150px]">
           <Label className="block text-sm font-semibold">Contact Number</Label>
-          <Input type="text" name="contact" value={form.contact} onChange={handleChange} placeholder="Auto Select" className="w-full rounded border border-black px-3 py-1" />
+          <Input type="text" name="contact" value={form.contact} onChange={handleChange} placeholder="Enter Contact Number" className="w-full rounded border border-black px-3 py-1" />
         </div>
       </div>
       <div className="flex flex-wrap gap-4 mb-2">
@@ -171,11 +268,25 @@ const RoomInvoice = () => {
         </div>
         <div className="flex-1 min-w-[120px]">
           <Label className="block text-sm font-semibold">Pin Code</Label>
-          <Input type="text" name="pin" value={form.pin} onChange={handleChange} placeholder="Pin Code" className="w-full rounded border border-black px-3 py-1" />
+          <Input type="number" name="pin" value={form.pin} onChange={handleChange} placeholder="Pin Code" className="w-full rounded border border-black px-3 py-1" />
         </div>
         <div className="flex-1 min-w-[120px]">
           <Label className="block text-sm font-semibold">Select State</Label>
-          <Input type="text" name="state" value={form.state} onChange={handleChange} placeholder="Select State" className="w-full rounded border border-black px-3 py-1" />
+          <Select
+            name="state"
+            value={form.state}
+            onValueChange={value => setForm(f => ({ ...f, state: value }))}
+            className="w-full rounded border border-black px-3 py-1"
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select State" />
+            </SelectTrigger>
+            <SelectContent>
+              {statesIndia.map((state) => (
+                <SelectItem key={state} value={state}>{state}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="mb-2">
@@ -193,9 +304,204 @@ const RoomInvoice = () => {
           <Input type="text" name="companyGst" value={form.companyGst} onChange={handleChange} placeholder="First" className="w-full rounded border border-black px-3 py-1" />
         </div>
       </div>
+
+
       <div className="mt-4">
-        <button className="bg-orange-500 text-black font-bold px-8 py-2 rounded shadow hover:bg-orange-600 transition-all" type="button">
-          Data Save
+        <label className="block mb-2 font-semibold">Payment Method</label>
+        <select
+          name="paymentMode"
+          value={form.paymentMode || ''}
+          onChange={handleChange}
+          className="w-full rounded border border-black px-3 py-2 mb-4"
+        >
+          <option value="">Select Payment Method</option>
+          <option value="cash">Cash</option>
+          <option value="online">Online</option>
+        </select>
+        <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-2 rounded shadow mr-2">
+          {isEditing ? 'Update Invoice' : 'Save Invoice'}
+        </Button>
+        {isEditing && (
+          <Button type="button" className="bg-gray-300 hover:bg-gray-400 text-black font-bold px-8 py-2 rounded shadow" onClick={() => { setForm({ roomNumber: '', roomType: '', roomPrice: '', planType: '', checkIn: '', checkOut: '', totalDays: '', cgstPercent: '', cgstAmount: '', sgstPercent: '', sgstAmount: '', guestFirst: '', guestMiddle: '', guestLast: '', email: '', contact: '', city: '', pin: '', state: '', address: '', company: '', companyGst: '', anyCompany: '', paymentMode: '' }); setIsEditing(false); }}>
+            Cancel Edit
+          </Button>
+        )}
+        <button
+          onClick={async () => {
+            // Validation
+            const requiredFields = [
+              'roomNumber', 'roomType', 'roomPrice', 'planType', 'checkIn', 'checkOut', 'totalDays',
+              'guestFirst', 'email', 'contact', 'city', 'pin', 'state'
+            ];
+            for (const field of requiredFields) {
+              if (!form[field] || form[field].toString().trim() === '') {
+                toast.error('Please fill all required fields.');
+                return;
+              }
+            }
+            // CGST: Only one filled, and at least one
+            if (!(form.cgstPercent || form.cgstAmount)) {
+              toast.error('Please fill either CGST percent or amount.');
+              return;
+            }
+            if (form.cgstPercent && form.cgstAmount) {
+              toast.error('Fill only one: CGST percent or amount.');
+              return;
+            }
+            // SGST: Only one filled, and at least one
+            if (!(form.sgstPercent || form.sgstAmount)) {
+              toast.error('Please fill either SGST percent or amount.');
+              return;
+            }
+            if (form.sgstPercent && form.sgstAmount) {
+              toast.error('Fill only one: SGST percent or amount.');
+              return;
+            }
+            if (form.paymentMode === 'cash') {
+              try {
+                const res = await fetch('/api/roomInvoice', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    ...form,
+                    cgstPercent: form.cgstPercent || null,
+                    cgstAmount: form.cgstAmount || null,
+                    sgstPercent: form.sgstPercent || null,
+                    sgstAmount: form.sgstAmount || null,
+                  }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                  toast.success('Room Invoice saved successfully!');
+                  setForm({
+                    roomNumber: '', roomType: '', roomPrice: '', planType: '', checkIn: '', checkOut: '', totalDays: '',
+                    cgstPercent: '', cgstAmount: '', sgstPercent: '', sgstAmount: '', guestFirst: '', guestMiddle: '', guestLast: '',
+                    email: '', contact: '', city: '', pin: '', state: '', address: '', company: '', companyGst: '', anyCompany: '',
+                    paymentMode: '',
+                  });
+                  fetchInvoices();
+                } else {
+                  toast.error(data.error || 'Failed to save Room Invoice.');
+                }
+              } catch (err) {
+                toast.error('Failed to save Room Invoice.');
+              }
+            } else if (form.paymentMode === 'online') {
+              // Razorpay integration
+              const loadRazorpayScript = () => {
+                return new Promise((resolve) => {
+                  if (document.getElementById('razorpay-sdk')) {
+                    return resolve(true);
+                  }
+                  const script = document.createElement('script');
+                  script.id = 'razorpay-sdk';
+                  script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                  script.onload = () => resolve(true);
+                  script.onerror = () => resolve(false);
+                  document.body.appendChild(script);
+                });
+              };
+              const roomPrice = parseFloat(form.roomPrice) || 0;
+              let cgst = 0;
+              let sgst = 0;
+              if (form.cgstPercent) cgst = (roomPrice * parseFloat(form.cgstPercent) / 100);
+              else if (form.cgstAmount) cgst = parseFloat(form.cgstAmount);
+              if (form.sgstPercent) sgst = (roomPrice * parseFloat(form.sgstPercent) / 100);
+              else if (form.sgstAmount) sgst = parseFloat(form.sgstAmount);
+              const totalAmount = roomPrice + cgst + sgst;
+              const loaded = await loadRazorpayScript();
+              if (!loaded) {
+                toast.error('Failed to load Razorpay SDK.');
+                return;
+              }
+              // Create Razorpay order via backend
+              let orderData;
+              try {
+                const orderRes = await fetch('/api/razorpay', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    amount: Math.round(totalAmount * 100),
+                    currency: 'INR',
+                    receipt: `ROOM-${Date.now()}`,
+                    notes: { roomNumber: form.roomNumber, guest: form.guestFirst }
+                  })
+                });
+                orderData = await orderRes.json();
+                if (!orderRes.ok || !orderData.id) {
+                  toast.error(orderData.error || 'Failed to create payment order.');
+                  return;
+                }
+              } catch (err) {
+                toast.error('Failed to create Razorpay order.');
+                return;
+              }
+              // Open Razorpay modal
+              const options = {
+                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+                amount: Math.round(totalAmount * 100),
+                currency: 'INR',
+                name: 'Hotel Shivan Residence',
+                description: `Room Invoice Payment`,
+                order_id: orderData.id,
+                handler: async function (response) {
+                  // Save invoice with Razorpay details
+                  try {
+                    const res = await fetch('/api/roomInvoice', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        ...form,
+                        cgstPercent: form.cgstPercent || null,
+                        cgstAmount: form.cgstAmount || null,
+                        sgstPercent: form.sgstPercent || null,
+                        sgstAmount: form.sgstAmount || null,
+                        paymentMode: 'online',
+                        razorpayPaymentId: response.razorpay_payment_id,
+                        razorpayOrderId: response.razorpay_order_id,
+                        razorpaySignature: response.razorpay_signature,
+                        paymentStatus: 'success',
+                        paymentResponse: response,
+                        paidAmount: totalAmount,
+                        dueAmount: 0,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      toast.success('Payment successful & Room Invoice saved!');
+                      setForm({
+                        roomNumber: '', roomType: '', roomPrice: '', planType: '', checkIn: '', checkOut: '', totalDays: '',
+                        cgstPercent: '', cgstAmount: '', sgstPercent: '', sgstAmount: '', guestFirst: '', guestMiddle: '', guestLast: '',
+                        email: '', contact: '', city: '', pin: '', state: '', address: '', company: '', companyGst: '', anyCompany: '',
+                        paymentMode: '',
+                      });
+                      fetchInvoices();
+                    } else {
+                      toast.error(data.error || 'Failed to save Room Invoice after payment.');
+                    }
+                  } catch (err) {
+                    toast.error('Failed to save Room Invoice after payment.');
+                  }
+                },
+                prefill: {
+                  name: form.guestFirst + ' ' + (form.guestLast || ''),
+                  email: form.email,
+                  contact: form.contact
+                },
+                theme: { color: '#3399cc' },
+                modal: {
+                  ondismiss: function () {
+                    toast.error('Payment cancelled.');
+                  }
+                }
+              };
+              const rzp = new window.Razorpay(options);
+              rzp.open();
+            } else {
+              toast.error('Please select a payment method.');
+            }
+          }}
+        >
         </button>
       </div>
       {/* Invoice Log Table */}
@@ -212,30 +518,149 @@ const RoomInvoice = () => {
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Edit</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Delete</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Print Invoice</th>
-                <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Pay Online</th>
               </tr>
             </thead>
             <tbody>
-              {/* Placeholder row data */}
-              {[1,2,3].map((row, idx) => (
-                <tr key={idx} className="text-center">
-                  <td className="border px-4 py-2">{row}</td>
-                  <td className="border px-4 py-2">INV-000{row}</td>
-                  <td className="border px-4 py-2">2025-08-19</td>
-                  <td className="border px-4 py-2"><button className="underline text-blue-600">View</button></td>
-                  <td className="border px-4 py-2"><button className="underline text-green-600">Edit</button></td>
-                  <td className="border px-4 py-2"><button className="underline text-red-600">Delete</button></td>
-                  <td className="border px-4 py-2"><button className="underline text-black">Print</button></td>
-                  <td className="border px-4 py-2"><button className="bg-orange-500 text-white px-2 py-1 rounded">Pay Online</button></td>
+              {invoices.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-4">No invoices found.</td>
                 </tr>
-              ))}
+              ) : (
+                invoices.map((inv, idx) => (
+                  <tr key={inv._id || idx} className="text-center">
+                    <td className="border px-4 py-2">{idx + 1}</td>
+                    <td className="border px-4 py-2">{inv.invoiceNo || inv._id || '-'}</td>
+                    <td className="border px-4 py-2">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '-'}</td>
+                    <td className="border px-4 py-2">
+                      <button className="underline text-blue-600" onClick={() => handleView(inv)}>View</button>
+                    </td>
+                    <td className="border px-4 py-2">
+                      <button className="underline text-green-600" onClick={() => handleEdit(inv)}>Edit</button>
+                    </td>
+                    <td className="border px-4 py-2">
+                      <button className="underline text-red-600" onClick={() => handleDelete(inv)}>Delete</button>
+                    </td>
+                    <td className="border px-4 py-2">
+                      <button className="underline text-black" onClick={() => handlePrint(inv)}>Print</button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
+          <SimpleModal open={viewModalOpen && !!viewInvoice} onClose={() => { setViewModalOpen(false); setViewInvoice(null); }}>
+            {viewInvoice && (
+              <div className="max-w-2xl mx-auto bg-white rounded-lg p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">Room Invoice Details</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <DetailBox label="Invoice Number" value={viewInvoice.invoiceNo || viewInvoice._id || '-'} />
+                  <DetailBox label="Date" value={viewInvoice.createdAt ? new Date(viewInvoice.createdAt).toLocaleDateString() : '-'} />
+                  <DetailBox label="Room Number" value={viewInvoice.roomNumber|| 'N/A'} />
+                  <DetailBox label="Room Type" value={viewInvoice.roomType|| 'N/A'} />
+                  <DetailBox label="Plan Type" value={viewInvoice.planType|| 'N/A'} />
+                  <DetailBox label="Check In" value={viewInvoice.checkIn|| 'N/A'} />
+                  <DetailBox label="Check Out" value={viewInvoice.checkOut|| 'N/A'} />
+                  <DetailBox label="Total Days" value={viewInvoice.totalDays|| 'N/A'} />
+                  <DetailBox label="Room Price" value={viewInvoice.roomPrice|| 'N/A'} />
+                  <DetailBox label="CGST" value={viewInvoice.cgstPercent ? `${viewInvoice.cgstPercent}%` : viewInvoice.cgstAmount ? `₹${viewInvoice.cgstAmount}` : 'N/A'} />
+                  <DetailBox label="SGST" value={viewInvoice.sgstPercent ? `${viewInvoice.sgstPercent}%` : viewInvoice.sgstAmount ? `₹${viewInvoice.sgstAmount}` : 'N/A'} />
+                  <DetailBox label="Guest Name" value={`${viewInvoice.guestFirst || ''} ${viewInvoice.guestMiddle || ''} ${viewInvoice.guestLast || ''}`.trim()|| 'N/A'} />
+                  <DetailBox label="Email" value={viewInvoice.email|| 'N/A'} />
+                  <DetailBox label="Contact" value={viewInvoice.contact|| 'N/A'} />
+                  <DetailBox label="City" value={viewInvoice.city|| 'N/A'} />
+                  <DetailBox label="Pin Code" value={viewInvoice.pin|| 'N/A'} />
+                  <DetailBox label="State" value={viewInvoice.state|| 'N/A'} />
+                  <DetailBox label="Address" value={viewInvoice.address|| 'N/A'} />
+                  <DetailBox label="Company" value={viewInvoice.company || 'N/A'} />
+                  <DetailBox label="Company GST" value={viewInvoice.companyGst || 'N/A'} />
+                  <DetailBox label="Any Company" value={viewInvoice.anyCompany || 'N/A'} />
+                  <DetailBox label="Payment Mode" value={viewInvoice.paymentMode || 'N/A'} />
+                  <DetailBox label="Payment Status" value={viewInvoice.paymentStatus || 'N/A'} />
+                </div>
+              </div>
+            )}
+          </SimpleModal>
+          <Dialog open={deleteDialogOpen} onOpenChange={open => { if (!open) cancelDelete(); }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Invoice</DialogTitle>
+              </DialogHeader>
+              <p>Are you sure you want to delete this invoice{deleteTarget ? ` #${deleteTarget.invoiceNo || deleteTarget._id}` : ''}?</p>
+              <DialogFooter>
+                <Button variant="secondary" onClick={cancelDelete}>Cancel</Button>
+                <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          {/* Print-only invoice (hidden except during print) */}
+          {printInvoice && (
+            <div style={{ display: 'none' }}>
+              <div id="print-section">
+                <h2>Invoice #{printInvoice.invoiceNo || printInvoice._id}</h2>
+                <pre>{JSON.stringify(printInvoice, null, 2)}</pre>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
+
+  // --- Handlers for CRUD actions ---
+  function handleView(inv) {
+    setViewInvoice(inv);
+    setViewModalOpen(true);
+  }
+
+  function handleEdit(inv) {
+    setForm({ ...form, ...inv });
+    setIsEditing(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handleDelete(inv) {
+    setDeleteTarget(inv);
+    setDeleteDialogOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    try {
+      const res = await fetch('/api/roomInvoice', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteTarget._id })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Invoice deleted');
+        fetchInvoices();
+      } else {
+        toast.error(data.error || 'Failed to delete invoice');
+      }
+    } catch (err) {
+      toast.error('Failed to delete invoice');
+    }
+    setDeleteDialogOpen(false);
+    setDeleteTarget(null);
+  }
+
+  function cancelDelete() {
+    setDeleteDialogOpen(false);
+    setDeleteTarget(null);
+  }
+
+  function handlePrint(inv) {
+    setPrintInvoice(inv);
+    setTimeout(() => {
+      window.print();
+      setPrintInvoice(null);
+    }, 200);
+  }
+
 }
-;
+
 
 export default RoomInvoice;

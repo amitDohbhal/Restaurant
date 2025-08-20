@@ -11,9 +11,9 @@ export async function POST(req) {
     try {
         // Step 1: Check for existing product
         let productQuery = {
-            title: body.title,
+            RoomNo: body.RoomNo,
+            RoomType: body.RoomType,
             slug: body.slug,
-            code: body.code,
         };
         // Optionally, also check for subMenu/category if you want to scope uniqueness
         let existingProduct = await Product.findOne(productQuery);
@@ -27,16 +27,16 @@ export async function POST(req) {
                     { $push: { "subMenu.$.products": existingProduct._id } }
                 );
                 if (updateResult.matchedCount === 0) {
-                    console.error("No submenu matched for existing product linkage!", body.subMenuId);
+                    console.error("No submenu matched for existing Room Info linkage!", body.subMenuId);
                 }
             }
-            return NextResponse.json({ message: "Product already exists!", product: existingProduct }, { status: 200 });
+            return NextResponse.json({ message: "Room Info already exists!", product: existingProduct }, { status: 200 });
         }
         // Step 2: Create a new Product document
         const newProduct = await Product.create({
-            title: body.title,
+            RoomNo: body.RoomNo,
+            RoomType: body.RoomType,
             slug: body.slug,
-            code: body.code,
             isDirect: false,
             // Save subMenuId as category if present
             ...(body.subMenuId ? { category: body.subMenuId } : {})
@@ -51,10 +51,10 @@ export async function POST(req) {
                 { $push: { "subMenu.$.products": newProduct._id } }
             );
             if (updateResult.matchedCount === 0) {
-                console.error("No submenu matched for new product linkage!", body.subMenuId);
+                console.error("No submenu matched for new Room Info linkage!", body.subMenuId);
             }
         }
-        return NextResponse.json({ message: "Product added successfully!", product: newProduct }, { status: 201 });
+        return NextResponse.json({ message: "Room Info added successfully!", product: newProduct }, { status: 201 });
     } catch (error) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
@@ -66,14 +66,11 @@ export async function PUT(req) {
     try {
         const body = await req.json();
         // Support either code or _id as identifier
-        const identifier = body._id ? { _id: body._id } : { code: body.code };
-        if (!identifier._id && !identifier.code) {
-            return NextResponse.json({ message: 'Product identifier (code or _id) required' }, { status: 400 });
-        }
+        const identifier = body._id ? { _id: body._id } : { RoomNo: body.RoomNo };
         // Find the product
         const existingProduct = await Product.findOne(identifier);
         if (!existingProduct) {
-            return NextResponse.json({ message: 'Product not found' }, { status: 404 });
+            return NextResponse.json({ message: 'Room Info not found' }, { status: 404 });
         }
         // Prepare update fields
         const updateFields = { ...body };
@@ -81,7 +78,7 @@ export async function PUT(req) {
         // Allow code updates by not deleting it from updateFields
         // Update product
         const updatedProduct = await Product.findOneAndUpdate(identifier, updateFields, { new: true });
-        return NextResponse.json({ message: 'Product updated successfully!', product: updatedProduct }, { status: 200 });
+        return NextResponse.json({ message: 'Room Info updated successfully!', product: updatedProduct }, { status: 200 });
     } catch (error) {
         return NextResponse.json({ message: error.message || 'Internal Server Error' }, { status: 500 });
     }
@@ -102,10 +99,10 @@ export async function PATCH(req) {
         const updatedProduct = await Product.findByIdAndUpdate(pkgId, updateFields, { new: true });
 
         if (!updatedProduct) {
-            return NextResponse.json({ message: "Product not found" }, { status: 404 });
+            return NextResponse.json({ message: "Room Info not found" }, { status: 404 });
         }
 
-        return NextResponse.json({ message: "Product updated successfully!", product: updatedProduct });
+        return NextResponse.json({ message: "Room Info updated successfully!", product: updatedProduct });
     } catch (error) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
@@ -119,7 +116,7 @@ export async function DELETE(req) {
         // Find the package to delete
         const packageToDelete = await Product.findById(id);
         if (!packageToDelete) {
-            return NextResponse.json({ message: "Product not found!" }, { status: 404 });
+            return NextResponse.json({ message: "Room Info not found!" }, { status: 404 });
         }
         
         // Remove package references from MenuBar
@@ -131,7 +128,7 @@ export async function DELETE(req) {
         // Delete the product document
         await Product.findByIdAndDelete(id);
 
-        return NextResponse.json({ message: "Product deleted successfully!" }, { status: 200 });
+        return NextResponse.json({ message: "Room Info deleted successfully!" }, { status: 200 });
     } catch (error) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
