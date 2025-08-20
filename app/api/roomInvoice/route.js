@@ -2,14 +2,22 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import RoomInvoice from "@/models/RoomInvoice";
 
-
-export async function GET() {
+export async function GET(req) {
     await connectDB();
     try {
-        const invoices = await RoomInvoice.find().sort({ createdAt: -1 });
-        return NextResponse.json(invoices, { status: 200 });
+        const { searchParams } = new URL(req.url);
+        const limit = parseInt(searchParams.get('limit')) || 10;
+        const skip = parseInt(searchParams.get('skip')) || 0;
+        const [invoices, total] = await Promise.all([
+            RoomInvoice.find()
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            RoomInvoice.countDocuments()
+        ]);
+        return NextResponse.json({ invoices, total }, { status: 200 });
     } catch (error) {
-        return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 

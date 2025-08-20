@@ -64,24 +64,31 @@ const data = {
       name: "Room Invoice",
       url: "/admin/room_invoice",
       icon: Image,
+    },    {
+      name: "View Room Invoice Logs",
+      url: "/admin/room_invoice_logs",
+      icon: Image,
     },
     { divider: true },
     {
-      name: "Create Management",
-      url: "/admin/create_management",
+      name: "Create Food Category",
+      url: "/admin/create_food_category",
       icon: User,
     },
     {
-      name: "View / Edit Management",
-      url: "/admin/edit_management",
+      name: "View / Edit Food Category",
+      url: "/admin/edit_food_category",
       icon: User,
     },
-    // { divider: true },
-
     // {
-    //   name: "Add Direct Product",
-    //   url: "/admin/add_direct_product",
-    //   icon: Plus,
+    //   name: "Create Management",
+    //   url: "/admin/create_management",
+    //   icon: User,
+    // },
+    // {
+    //   name: "View / Edit Management",
+    //   url: "/admin/edit_management",
+    //   icon: User,
     // },
     { divider: true },
     {
