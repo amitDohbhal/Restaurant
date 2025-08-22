@@ -112,7 +112,7 @@ const TermsConditions = () => {
             </div>
             <div>
               <p className="text-justify" style={{ textAlign: 'justify' }}><b>15. Report Abuse :- </b>
-                As per these Terms, users are solely responsible for every content posted on the Website. Users can be held legally liable for their contents and may be held legally accountable if their contents or material include, for example, defamatory comments or material protected by copyright, trademark, etc. If you come across any abuse or violation of these Terms, please report to <a href="mailto:info@adventureaxis.in" className="text-blue-600 underline font-semibold"><strong><u> info@adventureaxis.in </u></strong> </a>
+                As per these Terms, users are solely responsible for every content posted on the Website. Users can be held legally liable for their contents and may be held legally accountable if their contents or material include, for example, defamatory comments or material protected by copyright, trademark, etc. If you come across any abuse or violation of these Terms, please report to <a href="mailto:digitalservicesinrishikesh@gmail.com" className="text-blue-600 underline font-semibold"><strong><u> digitalservicesinrishikesh@gmail.com </u></strong> </a>
               </p>
             </div>
             <div>
@@ -140,7 +140,7 @@ const TermsConditions = () => {
                 <br />
                 Ph.: +91-135-2442822 | Mo.: 7669280002, 9897468886
                 <br />
-                E-mail : <a href="mailto:info@adventureaxis.in">info@adventureaxis.in</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
+                E-mail : <a href="mailto:digitalservicesinrishikesh@gmail.com">digitalservicesinrishikesh@gmail.com</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
                 <br />
                 Visit us at : <a href="https://www.adventureaxis.in">www.adventureaxis.in</a>
               </p>

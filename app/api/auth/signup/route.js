@@ -107,7 +107,7 @@ export async function POST(req) {
                     <tr>
                         <td style="padding: 20px 30px; text-align: center; background-color: #f8f9fa; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
                             <div class="footer">
-            <p>If you have any questions, feel free to contact: <a href="mailto:info@adventureaxis.in">info@adventureaxis.in</a>.</p>
+            <p>If you have any questions, feel free to contact: <a href="mailto:digitalservicesinrishikesh@gmail.com">digitalservicesinrishikesh@gmail.com</a>.</p>
             <p>&copy; ${new Date().getFullYear()} Rishikesh HandMade. All rights reser  ved.</p>
         </div>
                         </td>   

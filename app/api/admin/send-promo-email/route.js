@@ -45,7 +45,7 @@ export async function POST(req) {
     const emailRecipients = uniqueEmails.map(email => ({ email }));
 
     const emailData = {
-      sender: { name: "Adventure Axis", email: "info@adventureaxis.in" },
+      sender: { name: "Adventure Axis", email: "digitalservicesinrishikesh@gmail.com" },
       to: emailRecipients,
       subject,
       htmlContent: `
@@ -114,7 +114,7 @@ export async function POST(req) {
                             <p>Working hours:</p>
                             <p>MON to SAT : 9:30AM - 08:00 PM</p>
                             <p>Sunday Closed</p>
-            <p>If you have any questions, feel free to contact: <a href="mailto:info@adventureaxis.in">info@adventureaxis.in</a>.</p>
+            <p>If you have any questions, feel free to contact: <a href="mailto:digitalservicesinrishikesh@gmail.com">digitalservicesinrishikesh@gmail.com</a>.</p>
             <p>&copy; ${new Date().getFullYear()} Adventure Axis. All rights reserved.</p>
         </div>
                         </td>

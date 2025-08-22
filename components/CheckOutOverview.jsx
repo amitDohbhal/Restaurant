@@ -111,7 +111,7 @@ const downloadInvoiceAsPdf = async (orderData) => {
 
         <div style="margin-top: 32px; padding: 16px; background: #f9f9f9; border-radius: 6px; text-align: center;">
           <p style="margin: 0; color: #666;">Thank you for your order!</p>
-          <p style="margin: 8px 0 0; color: #666;">For any queries, please contact support@info@adventureaxis.in</p>
+          <p style="margin: 8px 0 0; color: #666;">For any queries, please contact support@digitalservicesinrishikesh@gmail.com</p>
         </div>
       </div>
     `;

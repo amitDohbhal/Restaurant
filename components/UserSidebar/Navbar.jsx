@@ -59,8 +59,8 @@ const Navbar = ({ className }) => {
           <div className="hidden md:flex items-center gap-4">
             <div className="flex items-center gap-4">
               <Mail size={20} className="text-black" />
-              <Link href={"mailto:info@info@adventureaxis.in"}>
-                <p className="text-sm font-semibold hover:underline">info@info@adventureaxis.in</p>
+              <Link href={"mailto:info@digitalservicesinrishikesh@gmail.com"}>
+                <p className="text-sm font-semibold hover:underline">info@digitalservicesinrishikesh@gmail.com</p>
               </Link>
             </div>
 

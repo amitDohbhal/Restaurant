@@ -188,7 +188,7 @@ export default function ProductQrModal({
               </tbody>
             </table>
             <hr className="w-full my-2 border-gray-300" />
-            <div className="text-md text-center w-full">www.info@adventureaxis.in</div>
+            <div className="text-md text-center w-full">www.digitalservicesinrishikesh@gmail.com</div>
           </div>
 
         </div>

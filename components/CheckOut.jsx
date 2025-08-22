@@ -290,7 +290,7 @@ const CheckOut = () => {
                 Thank you for shopping with us! You can check your order status anytime in your dashboard.
               </p>
           
-              <a href="https://info@adventureaxis.in/dashboard?section=orders" class="dashboard-btn">View Order in Dashboard</a>
+              <a href="https://digitalservicesinrishikesh@gmail.com/dashboard?section=orders" class="dashboard-btn">View Order in Dashboard</a>
             </div>
           </body>
           </html>`

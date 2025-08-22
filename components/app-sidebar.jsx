@@ -33,7 +33,7 @@ import { useSession } from "next-auth/react"
 const data = {
   user: {
     name: "Welcome, Admin",
-    email: "info@adventureaxis.in",
+    email: "digitalservicesinrishikesh@gmail.com",
   },
   projects: [
     // First group: Admin management

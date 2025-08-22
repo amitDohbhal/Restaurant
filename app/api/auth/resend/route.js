@@ -66,8 +66,8 @@ export async function POST(req) {
                     <!-- Header -->
                     <tr>
                         <td style="padding: 30px 0; text-align: center; background-color: #4F46E5; border-top-left-radius: 8px; border-top-right-radius: 8px;">
-                            <a href="https://info@adventureaxis.in" class="header">
-            <img src="https://info@adventureaxis.in/logo.png" alt="Rishikesh HandMade Logo">
+                            <a href="https://digitalservicesinrishikesh@gmail.com" class="header">
+            <img src="https://digitalservicesinrishikesh@gmail.com/logo.png" alt="Rishikesh HandMade Logo">
         </a>
                             <h1 style="color: #ffffff; margin: 0; margin-top:12px; font-size: 24px;">Verification Code</h1>
                         </td>

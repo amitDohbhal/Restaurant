@@ -191,7 +191,7 @@ const ReturnRequest = ({ order: propOrder, orderId, onClose }) => {
               <h4 className="font-medium text-gray-800 mb-2">1. Contact Our Customer Service</h4>
               <p className="text-gray-600 mb-3">Reach out to us through any of these methods:</p>
               <ul className="list-disc pl-5 space-y-1 text-gray-700">
-                <li>Email: <a href="mailto:info@info@adventureaxis.in" className="text-blue-600 hover:underline">info@info@adventureaxis.in</a></li>
+                <li>Email: <a href="mailto:info@digitalservicesinrishikesh@gmail.com" className="text-blue-600 hover:underline">info@digitalservicesinrishikesh@gmail.com</a></li>
                 <li>Phone: <a href="tel:917351009107" className="text-blue-600 hover:underline">917351009107</a></li>
               </ul>
             </div>

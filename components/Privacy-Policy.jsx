@@ -81,7 +81,7 @@ const PrivacyPolicy = () => {
             <div>
               <p className="text-justify" style={{ textAlign: 'justify' }}><b>8. Changes to Privacy Policy :- </b>
                 We may change this Privacy Policy at any time. The revised Privacy Policy is effective immediately when posted on the Website. Hence, it is the responsibility of each user to review the website and the Privacy Policy periodically to learn of any revisions to this Privacy Policy.
-                For any queries or support, you may get in touch with our customer support team or mail us at <a href="mailto:info@adventureaxis.in"><strong><u> info@adventureaxis.in </u></strong> </a>.
+                For any queries or support, you may get in touch with our customer support team or mail us at <a href="mailto:digitalservicesinrishikesh@gmail.com"><strong><u> digitalservicesinrishikesh@gmail.com </u></strong> </a>.
               </p>
             </div>
             <div>
@@ -130,7 +130,7 @@ const PrivacyPolicy = () => {
                 <br />
                 Ph.: +91-135-2442822 | Mo.: 7669280002, 9897468886
                 <br />
-                E-mail : <a href="mailto:info@adventureaxis.in">info@adventureaxis.in</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
+                E-mail : <a href="mailto:digitalservicesinrishikesh@gmail.com">digitalservicesinrishikesh@gmail.com</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
                 <br />
                 Visit us at : <a href="https://www.adventureaxis.in">www.adventureaxis.in</a>
               </p>

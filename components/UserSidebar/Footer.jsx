@@ -101,8 +101,8 @@ const Footer = ({ className = "" }) => {
                     </div>
                     <div>
                         <h1 className="font-semibold text-xl flex items-center gap-2"><Send className="text-blue-600" /> Send Mail</h1>
-                        <Link href={'mailto:info@info@adventureaxis.in'} className="my-2 block rounded-full px-2 py-1 font-barlow text-gray-900  hover:text-blue-500">
-                            Info@info@adventureaxis.in
+                        <Link href={'mailto:info@digitalservicesinrishikesh@gmail.com'} className="my-2 block rounded-full px-2 py-1 font-barlow text-gray-900  hover:text-blue-500">
+                            Info@digitalservicesinrishikesh@gmail.com
                         </Link>
                     </div>
                 </div>

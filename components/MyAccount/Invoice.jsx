@@ -90,7 +90,7 @@ export default function InvoicePage({ orders }) {
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <Mail className="h-4 w-4" />
-                                        <span>info@info@adventureaxis.in</span>
+                                        <span>info@digitalservicesinrishikesh@gmail.com</span>
                                     </div>
                                     <div className="mt-1">
                                         <span className="text-xs">Office Hours: Mon to Sat | 9:30 AM - 8:00 PM</span>

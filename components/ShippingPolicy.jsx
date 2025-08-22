@@ -124,7 +124,7 @@ const ShippingPolicy = () => {
                 <br />
                 Ph.: +91-135-2442822 | Mo.: 7669280002, 9897468886
                 <br />
-                E-mail : <a href="mailto:info@adventureaxis.in">info@adventureaxis.in</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
+                E-mail : <a href="mailto:digitalservicesinrishikesh@gmail.com">digitalservicesinrishikesh@gmail.com</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
                 <br />
                 Visit us at : <a href="https://www.adventureaxis.in">www.adventureaxis.in</a>
               </p>

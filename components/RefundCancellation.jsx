@@ -15,7 +15,7 @@ const RefundCancellation = () => {
           <div>
             <strong>1. Return policy :-</strong>
             <p className="text-justify mt-1">
-              We have a customer friendly return policy. You will have to just write us on <a href="mailto:info@adventureaxis.in" className="text-blue-600 underline font-semibold">info@adventureaxis.in</a> within 24 hrs from time of delivery &amp; return steps will given from our customer support. <br />
+              We have a customer friendly return policy. You will have to just write us on <a href="mailto:digitalservicesinrishikesh@gmail.com" className="text-blue-600 underline font-semibold">digitalservicesinrishikesh@gmail.com</a> within 24 hrs from time of delivery &amp; return steps will given from our customer support. <br />
               1)- Provide us with the tracking details of the product. Without this packages could get lost and replacement might be cancelled. <br />
               2)- Mention the Company Name www.adventureaxis.in (E Commerce Website Of Adventure Axis) and Order Number (starting with B) on the return package.<br />
               Last date of return shipping: 14 days from date of delivery. We will not be able to accept returns if dispatched after 14 days from date of delivery.
@@ -27,7 +27,7 @@ const RefundCancellation = () => {
               The cost of return shipping will not be covered by www.adventureaxis.in (E Commerce Website)  Please note that the below return policy is NOT applicable on orders that are custom made or custom stitched.<br /><strong>Options after return</strong><br />
               1)- Request a replacement, either the same item or a different item from the website <br />
               2)- Request a coupon code of same value for purchase later on the website. Using the coupon code, you can select anything on the website up to the returned value.<br />
-              3)- Request a refund. We will do a direct refund to the card through which payment was completed. In case the payment was done with cash, kindly provide us your bank account details on email <a href="mailto:info@adventureaxis.in" className="text-blue-600 underline font-semibold">info@adventureaxis.in</a>
+              3)- Request a refund. We will do a direct refund to the card through which payment was completed. In case the payment was done with cash, kindly provide us your bank account details on email <a href="mailto:digitalservicesinrishikesh@gmail.com" className="text-blue-600 underline font-semibold">digitalservicesinrishikesh@gmail.com</a>
             </p>
           </div>
           <div>
@@ -40,7 +40,7 @@ const RefundCancellation = () => {
             <strong>4. Conditions of Return :-</strong>
             <p className="text-justify mt-1">
               Our product must not be used (other than for trial), altered, washed, soiled or damaged in any way. Return is acceptable only within 07 days from date of delivery.  Original tags and packaging should be intact. For items that come in branded packaging, the box should be undamaged.  Returns shipping cost will not be covered by
-              <a href="mailto:info@adventureaxis.in" className="text-blue-600 underline font-semibold">info@adventureaxis.in</a>
+              <a href="mailto:digitalservicesinrishikesh@gmail.com" className="text-blue-600 underline font-semibold">digitalservicesinrishikesh@gmail.com</a>
               (E Commerce Website).
             </p>
           </div>
@@ -122,7 +122,7 @@ const RefundCancellation = () => {
             <p className="text-justify mt-1">
               If a customer raises a complaint for partial item/partial order through Customer Care <br />
               The customer is supposed to claim for pilferage within 48 hours of delivery failing which the claim will not be entertained<br />
-              An Email will be sent to <a href="mailto:info@adventureaxis.in" className="text-blue-600 underline font-semibold">info@adventureaxis.in</a> seeking/providing following information: <br />
+              An Email will be sent to <a href="mailto:digitalservicesinrishikesh@gmail.com" className="text-blue-600 underline font-semibold">digitalservicesinrishikesh@gmail.com</a> seeking/providing following information: <br />
               1)- Short description of the case (A few questions will be asked to help us understand the scenario)<br />
               2)- The snapshots of the packet and other box(If any)(Try to cover the sides which look tampered/damaged as per the customer)<br />
               3)- The refund for prepaid orders will be done after investigation which usually requires 6-7 business day. The process will include investigation with the concerned departments  <br />
@@ -164,7 +164,7 @@ const RefundCancellation = () => {
               <li>9) Two offers cannot be clubbed together using the Promo Code.</li>
               <li>10) www.adventureaxis.in (E Commerce Website) reserves the right to cancel any promotional 'Promo Code' and the transactions in which they are used. (This is not applicable on Cash back Promo Codes) Cash back and Promo Code Coupon cannot be clubbed together to avail an offer at www.adventureaxis.in (E Commerce Website) This means, if Promo Code is used in an offer, Cash back cannot be generated.</li>
               <li>11) Cash back amount is subject to change at the sole discretion www.adventureaxis.in (E Commerce Website)</li>
-              <li>12) Images &amp; Representations of Products/Services Product Images are indicative in nature Actual Product may differ from the image. Please refer the product specification for the product For Queries/Comments Send us your questions or comments to <a href="mailto:info@adventureaxis.in"><strong><u> info@adventureaxis.in </u></strong> </a></li>
+              <li>12) Images &amp; Representations of Products/Services Product Images are indicative in nature Actual Product may differ from the image. Please refer the product specification for the product For Queries/Comments Send us your questions or comments to <a href="mailto:digitalservicesinrishikesh@gmail.com"><strong><u> digitalservicesinrishikesh@gmail.com </u></strong> </a></li>
             </ul>
 
           </div>
@@ -183,7 +183,7 @@ const RefundCancellation = () => {
               <br />
               Ph.: +91-135-2442822 | Mo.: 7669280002, 9897468886
               <br />
-              E-mail : <a href="mailto:info@adventureaxis.in">info@adventureaxis.in</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
+              E-mail : <a href="mailto:digitalservicesinrishikesh@gmail.com">digitalservicesinrishikesh@gmail.com</a> / <a href="mailto:nitin.rksh@gmail.com">nitin.rksh@gmail.com</a>
               <br />
               Visit us at : <a href="https://www.adventureaxis.in">www.adventureaxis.in</a>
             </p>
