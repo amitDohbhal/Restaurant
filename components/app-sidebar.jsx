@@ -76,8 +76,18 @@ const data = {
       icon: User,
     },
     {
-      name: "View / Edit Food Category",
-      url: "/admin/edit_food_category",
+      name: "Create Food Inventory",
+      url: "/admin/create_food_inventory",
+      icon: User,
+    },    {
+      name: "Food Inventory Log",
+      url: "/admin/food_inventory_log",
+      icon: User,
+    },
+    { divider: true },
+    {
+      name: "Create Stock Category",
+      url: "/admin/create_stock_category",
       icon: User,
     },
     // {

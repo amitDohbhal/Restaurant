@@ -24,15 +24,8 @@ const FoodCategory = () => {
 
     const [formData, setFormData] = useState({
         categoryName: "",
-        categoryType: "",
         order: 1,
     });
-    // Category types state
-    const [categoryTypes, setCategoryTypes] = useState([]);
-    // Modal state for adding new type
-    const [showTypeModal, setShowTypeModal] = useState(false);
-    const [newType, setNewType] = useState("");
-
     // Fetch food categories and determine the next order number
     useEffect(() => {
         const fetchCategories = async () => {
@@ -50,19 +43,7 @@ const FoodCategory = () => {
                 toast.error("Failed to fetch categories");
             }
         };
-        const fetchCategoryTypes = async () => {
-            try {
-                const res = await fetch('/api/categoryType');
-                const types = await res.json();
-                if (Array.isArray(types)) {
-                    setCategoryTypes(types.map(t => t.categoryType));
-                }
-            } catch {
-                setCategoryTypes([]);
-            }
-        };
         fetchCategories();
-        fetchCategoryTypes();
     }, []);
 
     const handleInputChange = (e) => {
@@ -95,7 +76,6 @@ const FoodCategory = () => {
                 // Reset form
                 setFormData({
                     categoryName: "",
-                    categoryType: "",
                     order: updatedCategories.length + 1,
                 });
 
@@ -111,7 +91,6 @@ const FoodCategory = () => {
         setEditBanner(category._id);
         setFormData({
             categoryName: category.categoryName,
-            categoryType: category.categoryType,
             order: category.order,
         });
     };
@@ -157,90 +136,14 @@ const FoodCategory = () => {
 
     return (
         <div className="mx-auto py-10 w-full">
-            <form onSubmit={handleSubmit} className="bg-white w-fit mx-auto shadow-lg rounded-lg p-6 space-y-4 ">
+            <form onSubmit={handleSubmit} className="bg-white max-w-md mx-auto shadow-lg rounded-lg p-6 space-y-4 ">
             <h2 className="text-xl font-bold mb-6">{editBanner ? "Edit Food Category" : "Add New Food Category"}</h2>
                 <div className="flex items-center gap-5">
-
-                    <div>
+                    <div className="w-full">
                         <Label>Category Name</Label>
                         <Input name="categoryName" placeholder="Enter category name" type="text" value={formData.categoryName} onChange={handleInputChange} />
                     </div>
-                    <div>
-                        <Label>Category Type</Label>
-                        <Select
-                            value={formData.categoryType}
-                            name="categoryType"
-                            placeholder="Enter category type"
-                            onValueChange={val => setFormData(prev => ({ ...prev, categoryType: val }))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select category type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {categoryTypes.map(type => (
-                                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="pt-5">
-                        <Button type="button" onClick={() => setShowTypeModal(true)}>+</Button>
-                    </div>
                 </div>
-
-                {/* Add Category Type Dialog */}
-                <Dialog open={showTypeModal} onOpenChange={setShowTypeModal}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Add Category Type</DialogTitle>
-                        </DialogHeader>
-                        <Input
-                            placeholder="Enter new category type"
-                            value={newType}
-                            onChange={e => setNewType(e.target.value)}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    if (newType && !categoryTypes.includes(newType)) {
-                                        setCategoryTypes([...categoryTypes, newType]);
-                                        setNewType("");
-                                        setShowTypeModal(false);
-                                    }
-                                }
-                            }}
-                        />
-                        <DialogFooter>
-                            <Button
-                                onClick={async () => {
-                                    if (newType && !categoryTypes.includes(newType)) {
-                                        try {
-                                            const res = await fetch('/api/categoryType', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ categoryType: newType })
-                                            });
-                                            if (res.ok) {
-                                                setCategoryTypes(prev => [...prev, newType]);
-                                                toast.success('Category type added');
-                                                setNewType("");
-                                                setShowTypeModal(false);
-                                            } else {
-                                                const err = await res.json();
-                                                toast.error(err.error || 'Failed to add type');
-                                            }
-                                        } catch {
-                                            toast.error('Failed to add type');
-                                        }
-                                    }
-                                }}
-                                disabled={!newType || categoryTypes.includes(newType)}
-                            >
-                                Save
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
                 <div className="flex gap-3">
                     <Button type="submit" className="bg-blue-600 hover:bg-blue-500 px-10">
                         {editBanner ? "Update category" : "Add category"}
@@ -254,7 +157,6 @@ const FoodCategory = () => {
                                 setEditBanner(null);
                                 setFormData({
                                     categoryName: "",
-                                    categoryType: "",
                                     order: banners.length > 0 ? Math.max(...banners.map(b => b.order)) + 1 : 1,
                                 });
                             }}
@@ -271,7 +173,6 @@ const FoodCategory = () => {
                     <TableRow>
                         <TableHead className="text-center border border-black">Order</TableHead>
                         <TableHead className="text-center border border-black">Food Category Name</TableHead>
-                        <TableHead className="text-center border border-black">Food Category Type</TableHead>
                         <TableHead className="text-center border border-black">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -281,7 +182,6 @@ const FoodCategory = () => {
                             <TableRow key={category._id} className="hover:bg-gray-200 w-fit">
                                 <TableCell className="text-center border border-black">{category.order}</TableCell>
                                 <TableCell className="text-center border border-black">{category.categoryName}</TableCell>
-                                <TableCell className="text-center border border-black">{category.categoryType}</TableCell>
                                 <TableCell className="text-center border border-black" >
                                     <Button variant="outline" size="icon" onClick={() => handleEdit(category)} className="mr-2 "><PencilIcon /></Button>
                                     <Button size="icon" onClick={() => { setShowDeleteModal(true); setBannerToDelete(category._id); }} variant="destructive"><Trash2Icon /></Button>
