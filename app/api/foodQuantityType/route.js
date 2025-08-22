@@ -1,5 +1,5 @@
 import connectDB from '../../../lib/connectDB';
-import FoodQuantityType from '../../../models/FoodQuantityType';
+import FoodQuantityType from '../../../models/StockQuantityType';
 
 export async function GET() {
   await connectDB();

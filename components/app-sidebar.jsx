@@ -89,6 +89,10 @@ const data = {
       name: "Create Stock Category",
       url: "/admin/create_stock_category",
       icon: User,
+    },    {
+      name: "Create Vendor",
+      url: "/admin/create_vendor",
+      icon: User,
     },
     // {
     //   name: "Create Management",
