@@ -112,6 +112,7 @@ const StockCategory = () => {
                 // Reset form
                 setFormData({
                     categoryName: "",
+                    stockType: "",
                     quantityType: "",
                     order: updatedCategories.length + 1,
                 });
@@ -127,6 +128,7 @@ const StockCategory = () => {
         setEditBanner(category._id);
         setFormData({
             categoryName: category.categoryName,
+            stockType: category.stockType || "",
             quantityType: category.quantityType || "",
             order: category.order,
         });
@@ -253,7 +255,7 @@ const StockCategory = () => {
                         </Button>
                     </div>
                 </div>
-                <div className="flex gap-3">
+                    <div className="flex gap-3">
                     <Button type="submit" className="bg-blue-600 hover:bg-blue-500 px-10">
                         {editBanner ? "Update category" : "Add category"}
                     </Button>

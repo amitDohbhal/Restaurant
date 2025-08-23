@@ -94,6 +94,17 @@ const data = {
       url: "/admin/create_vendor",
       icon: User,
     },
+    {
+      name: "Create Stock Product",
+      url: "/admin/create_stock_product",
+      icon: User,
+    },
+    { divider: true },
+    {
+      name: "Create Stock Inventory",
+      url: "/admin/create_stock_inventory",
+      icon: User,
+    },
     // {
     //   name: "Create Management",
     //   url: "/admin/create_management",
