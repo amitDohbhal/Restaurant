@@ -1,25 +1,17 @@
 import Razorpay from "razorpay";
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import Order from "@/models/Order"; // Import your Order model
 import connectDB from "@/lib/connectDB";
+import Order from "@/models/Order"; 
 import User from "@/models/User";
 
 // Validate Razorpay credentials
 if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
     console.error('Razorpay credentials are not properly configured');
+    throw new Error('Razorpay credentials are not properly configured');
 }
-function generateOrderId() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return `ORD-${result}`;
-}
-function generateTransactionId() {
-    return `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
+
+// Initialize Razorpay client
 let razorpay;
 try {
     razorpay = new Razorpay({
@@ -31,91 +23,187 @@ try {
     throw new Error('Payment service initialization failed');
 }
 
-// Helper function to validate email format
-function isValidEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(String(email).toLowerCase());
-}
-
-// 📌 Create a Razorpay Order
-// Minimal, robust Razorpay POST handler for RoomInvoice and e-commerce
+/**
+ * Create a Razorpay Order
+ * Handles order creation for both room invoices and e-commerce
+ */
 export async function POST(request) {
     try {
-      await connectDB();
-      let requestBody;
-      try {
-        requestBody = await request.json();
-      } catch (e) {
-        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-      }
-      const { amount, currency = 'INR', receipt, notes = {}, customer, products } = requestBody;
-      if (amount === undefined || amount === null || !receipt) {
-        return NextResponse.json({ error: 'Missing required fields: amount, receipt' }, { status: 400 });
-      }
-      // Create Razorpay order
-      let razorpayOrder;
-      try {
-        razorpayOrder = await razorpay.orders.create({
-          amount: Math.round(Number(amount) ),
-          currency: currency.toUpperCase(),
-          receipt: receipt.toString(),
-          notes: {
-            ...notes,
-            ...(customer && customer.email ? { customer_email: customer.email } : {})
-          }
-        });
-      } catch (err) {
-        return NextResponse.json({ error: 'Failed to create payment order', details: err.message }, { status: 500 });
-      }
-      if (!razorpayOrder || !razorpayOrder.id) {
-        return NextResponse.json({ error: 'Failed to create payment order - no order ID received' }, { status: 500 });
-      }
-      // If products and customer are present (cart/checkout), save to DB (optional, not needed for RoomInvoice)
-      if (Array.isArray(products) && products.length > 0 && customer) {
-        // ... Place your e-commerce DB save logic here if needed ...
-      }
-      // Always return Razorpay order details for RoomInvoice and fallback
-      return NextResponse.json({
-        id: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency
-      });
-    } catch (error) {
-      return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
-    }
-  }
-
-
-
-// 📌 Verify Payment & Fetch Payment Details
-export async function PUT(request) {
-    await connectDB();
-
-    try {
-        // console.log('Starting payment verification...');
-        const body = await request.json();
-        const { razorpay_payment_id, razorpay_order_id, razorpay_signature, cart, checkoutData, formFields, user } = body;
-
-
-
-
-        const generatedSignature = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-            .digest("hex");
-
-        // console.log('Signature verification completed');
-
-        if (generatedSignature !== razorpay_signature) {
-
+        await connectDB();
+        
+        // Parse request body
+        let requestBody;
+        try {
+            requestBody = await request.json();
+        } catch (e) {
             return NextResponse.json(
-                { success: false, error: "Invalid payment signature" },
+                { success: false, error: 'Invalid request body' },
                 { status: 400 }
             );
         }
 
-        // Step 2: Find and update the order
+        const { amount, currency = 'INR', receipt, notes = {}, customer, products } = requestBody;
+        
+        // Validate required fields
+        if (amount === undefined || amount === null || !receipt) {
+            return NextResponse.json(
+                { success: false, error: 'Missing required fields: amount, receipt' },
+                { status: 400 }
+            );
+        }
 
+        // Create Razorpay order
+        try {
+            console.log('Creating Razorpay order with amount:', amount, 'currency:', currency, 'receipt:', receipt);
+            
+            const orderData = {
+                amount: Math.round(Number(amount)),
+                currency: currency.toUpperCase(),
+                receipt: receipt.toString(),
+                notes: {
+                    ...notes,
+                    ...(customer?.email && { customer_email: customer.email })
+                },
+                payment_capture: 1 // Auto-capture payment
+            };
+            
+            console.log('Order data being sent to Razorpay:', JSON.stringify(orderData, null, 2));
+            
+            const razorpayOrder = await razorpay.orders.create(orderData);
+            
+            console.log('Razorpay order created successfully:', razorpayOrder);
+
+            if (!razorpayOrder?.id) {
+                throw new Error('No order ID received from Razorpay');
+            }
+
+            // If products and customer are present (cart/checkout), save to DB (optional, not needed for RoomInvoice)
+            if (Array.isArray(products) && products.length > 0 && customer) {
+                // ... Place your e-commerce DB save logic here if needed ...
+            }
+
+            return NextResponse.json({
+                success: true,
+                id: razorpayOrder.id,
+                amount: razorpayOrder.amount,
+                currency: razorpayOrder.currency
+            });
+
+        } catch (error) {
+            console.error('Razorpay order creation failed:', {
+                error: error.message,
+                stack: error.stack,
+                response: error.response?.data,
+                status: error.statusCode
+            });
+            return NextResponse.json(
+                { 
+                    success: false, 
+                    error: 'Failed to create payment order',
+                    details: error.message,
+                    code: error.code,
+                    status: error.statusCode
+                },
+                { status: 500 }
+            );
+        }
+    } catch (error) {
+        console.error('Error in POST /api/razorpay:', error);
+        return NextResponse.json(
+            { success: false, error: 'Internal server error' },
+            { status: 500 }
+        );
+    }
+}
+
+/**
+ * Verify Payment & Update Order Status
+ * Handles payment verification for different payment types
+ */
+export async function PUT(request) {
+    await connectDB();
+
+    try {
+        // Parse request body
+        let body;
+        try {
+            body = await request.json();
+        } catch (e) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid request body' },
+                { status: 400 }
+            );
+        }
+
+        const { 
+            razorpay_payment_id, 
+            razorpay_order_id, 
+            razorpay_signature, 
+            type, 
+            invoiceId 
+        } = body;
+
+        // Validate required fields
+        if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+            return NextResponse.json(
+                { success: false, error: 'Missing required payment parameters' },
+                { status: 400 }
+            );
+        }
+
+        // Verify the payment signature
+        const generatedSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest('hex');
+
+        if (generatedSignature !== razorpay_signature) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid payment signature' },
+                { status: 400 }
+            );
+        }
+
+        // Handle room invoice payments
+        if (type === 'room' && invoiceId) {
+            try {
+                // Import the RoomInvoice model dynamically to avoid circular dependencies
+                const RoomInvoice = (await import('@/models/CreateRoomInvoice')).default;
+                const invoice = await RoomInvoice.findById(invoiceId);
+                
+                if (!invoice) {
+                    return NextResponse.json(
+                        { success: false, error: 'Invoice not found' },
+                        { status: 404 }
+                    );
+                }
+
+                // Update invoice with payment details
+                invoice.paymentStatus = 'completed';
+                invoice.paymentDate = new Date();
+                invoice.paymentId = razorpay_payment_id;
+                invoice.orderId = razorpay_order_id;
+                invoice.signature = razorpay_signature;
+                
+                await invoice.save();
+
+                return NextResponse.json({
+                    success: true,
+                    message: 'Payment verified successfully',
+                    invoiceId: invoice._id,
+                    paymentStatus: 'completed'
+                });
+
+            } catch (error) {
+                console.error('Error updating room invoice:', error);
+                return NextResponse.json(
+                    { success: false, error: 'Failed to update invoice' },
+                    { status: 500 }
+                );
+            }
+        }
+
+        // Find and update the order
         const order = await Order.findOne({
             $or: [
                 { orderId: razorpay_order_id },
@@ -124,14 +212,11 @@ export async function PUT(request) {
         });
 
         if (!order) {
-            // console.error('Order not found for orderId/razorpayOrderId:', razorpay_order_id);
             return NextResponse.json(
                 { success: false, error: "Order not found. Please contact support with order ID: " + razorpay_order_id },
                 { status: 404 }
             );
         }
-
-        // console.log('Found order:', order._id);
 
         // Update order status and payment details
         order.transactionId = razorpay_payment_id;
@@ -140,10 +225,9 @@ export async function PUT(request) {
         order.datePurchased = new Date();
 
         // Update products if cart data is provided
-        if (cart && Array.isArray(cart)) {
-            // console.log('Updating products from cart:', cart.length, 'items');
+        if (body.cart && Array.isArray(body.cart)) {
             try {
-                order.products = cart.map(item => {
+                order.products = body.cart.map(item => {
                     // Handle image field - extract URL if it's an object
                     let imageUrl = item.image;
                     if (item.image && typeof item.image === 'object') {

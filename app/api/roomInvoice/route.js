@@ -3,21 +3,43 @@ import connectDB from "@/lib/connectDB";
 import RoomInvoice from "@/models/RoomInvoice";
 
 export async function GET(req) {
-    await connectDB();
     try {
+        await connectDB();       
         const { searchParams } = new URL(req.url);
         const limit = parseInt(searchParams.get('limit')) || 10;
         const skip = parseInt(searchParams.get('skip')) || 0;
+        
+        console.log(`Query params - limit: ${limit}, skip: ${skip}`);
+        
         const [invoices, total] = await Promise.all([
-            RoomInvoice.find()
+            RoomInvoice.find({})
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(limit),
-            RoomInvoice.countDocuments()
+                .limit(limit)
+                .lean(),
+            RoomInvoice.countDocuments({})
         ]);
-        return NextResponse.json({ invoices, total }, { status: 200 });
+        
+        console.log(`Found ${invoices.length} invoices out of ${total} total`);
+        
+        if (invoices.length === 0) {
+            console.log('No invoices found in the database');
+        }
+        
+        return NextResponse.json({ 
+            success: true,
+            count: invoices.length,
+            total,
+            invoices 
+        }, { status: 200 });
+        
     } catch (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('Error in GET /api/roomInvoice:', error);
+        return NextResponse.json({ 
+            success: false,
+            error: error.message || 'Failed to fetch invoices',
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }, { status: 500 });
     }
 }
 

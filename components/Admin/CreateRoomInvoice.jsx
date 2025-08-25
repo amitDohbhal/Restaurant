@@ -1,0 +1,805 @@
+"use client"
+import { Minus, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
+import Script from 'next/script'; // Add this import
+
+const foodQtyTypes = ["Quarter", "Half", "Full", "Per Piece"];
+const paymentOptions = [
+    { label: "Pay Online", value: "online", color: "bg-pink-500 text-white", icon: "💳" },
+    { label: "Cash Payment", value: "cash", color: "bg-cyan-600 text-white", icon: "💵" },
+    { label: "Send To Room Account", value: "room", color: "bg-blue-700 text-white", icon: "🏨" },
+    // { label: "Print Invoice", value: "print", color: "bg-blue-700 text-white", icon: "🖨️" },
+];
+
+const initialFoodRow = {
+    category: '',
+    inventory: '',
+    qtyType: '',
+    qty: '',
+    amount: '',
+    tax: '',
+};
+
+const CreateRoomInvoice = () => {
+    const router = useRouter();
+    const [room, setRoom] = useState('');
+    const [guest, setGuest] = useState('');
+    // Utility for unique ids
+    function uuid() {
+        return '_' + Math.random().toString(36).substr(2, 9);
+    }
+    const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
+    const [foodRows, setFoodRows] = useState([{ ...initialFoodRow, id: uuid() }]);
+    const [selectedPayment, setSelectedPayment] = useState('');
+    const [roomsList, setRoomsList] = useState([]);
+    const [loadingRooms, setLoadingRooms] = useState(false);
+    const [foodInventoryData, setFoodInventoryData] = useState([]);
+    const [loadingFoodInventory, setLoadingFoodInventory] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [discount, setDiscount] = useState(0);
+    const [extraCharges, setExtraCharges] = useState(0);
+    const [totalAmount, setTotalAmount] = useState(0);
+    const [gstAmount, setGstAmount] = useState(0);
+    const [cgstAmount, setCGSTAmount] = useState(0);
+    const [sgstAmount, setSGSTAmount] = useState(0);
+    const [finalTotal, setFinalTotal] = useState(0);
+    const [invoices, setInvoices] = useState([]);
+    const [loadingInvoices, setLoadingInvoices] = useState(false);
+    // Fetch invoices
+    const fetchInvoices = async () => {
+        setLoadingInvoices(true);
+        try {
+            const res = await fetch('/api/CreateRoomInvoice');
+            const data = await res.json();
+            if (data && data.invoices) {
+                setInvoices(data.invoices);
+            }
+        } catch (error) {
+            toast.error('Failed to load invoices');
+        } finally {
+            setLoadingInvoices(false);
+        }
+    };
+
+    // Fetch room numbers and food inventory on mount
+    React.useEffect(() => {
+        // Fetch rooms
+        const fetchRooms = async () => {
+            setLoadingRooms(true);
+            try {
+                const res = await fetch('/api/roomInvoice');
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                
+                const data = await res.json();
+                
+                if (data && data.success && data.invoices) {
+                    setRoomsList(data.invoices);
+                } else {
+                    toast.error('Failed to load room data: Invalid response format');
+                }
+            } catch (err) {
+                toast.error(`Failed to load room data: ${err.message}`);
+            } finally {
+                setLoadingRooms(false);
+            }
+        };
+ 
+        // Fetch food inventory
+        const fetchFoodInventory = async () => {
+            setLoadingFoodInventory(true);
+            try {
+                const res = await fetch('/api/foodInventory');
+                const data = await res.json();
+                if (data) {
+                    setFoodInventoryData(data);
+                }
+            } catch (err) {
+                toast.error(`Failed to load food inventory: ${err.message}`);
+            } finally {
+                setLoadingFoodInventory(false);
+            }
+        };
+
+        fetchRooms();
+        fetchFoodInventory();
+        fetchInvoices();
+    }, []);
+
+    // Format date to display
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const options = { year: 'numeric', month: 'short', day: 'numeric' };
+        return new Date(dateString).toLocaleDateString(undefined, options);
+    };
+
+    // Format currency
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            maximumFractionDigits: 2
+        }).format(amount || 0);
+    };
+
+    // Update food item details when selected
+    const handleFoodItemSelect = (idx, foodItemId) => {
+        const selectedItem = foodInventoryData.find(item => item._id === foodItemId);
+        if (selectedItem) {
+            const newRows = [...foodRows];
+            newRows[idx] = {
+                ...newRows[idx],
+                foodItem: selectedItem,
+                qtyType: 'full' // Default to full quantity type
+            };
+            setFoodRows(newRows);
+        }
+    };
+
+    // Load Razorpay script
+    useEffect(() => {
+        const loadRazorpay = () => {
+            return new Promise((resolve, reject) => {
+                if (window.Razorpay) {
+                    setIsRazorpayLoaded(true);
+                    resolve();
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.async = true;
+                script.onload = () => {
+                    setIsRazorpayLoaded(true);
+                    resolve();
+                };
+                script.onerror = (error) => {
+                    console.error('Failed to load Razorpay script:', error);
+                    toast.error('Failed to load payment processor');
+                    reject(new Error('Failed to load Razorpay'));
+                };
+                document.body.appendChild(script);
+            });
+        };
+
+        // Load Razorpay script on component mount
+        loadRazorpay().catch(error => {
+            console.error('Error loading Razorpay:', error);
+        });
+    }, []);
+
+    // When room changes, set guest name
+    React.useEffect(() => {
+        if (!room) {
+            setGuest('');
+            return;
+        }
+        const selected = roomsList.find(r => r.roomNumber === room);
+        if (selected) {
+            setGuest(selected.guestFirst || '');
+        } else {
+            setGuest('');
+        }
+    }, [room, roomsList]);
+
+    // Add new food row
+    const handleAddRow = () => {
+        setFoodRows([...foodRows, { ...initialFoodRow, id: uuid() }]);
+    };
+
+    const handleDeleteRow = (idx) => {
+        if (idx === 0) return; // Prevent deleting the first row
+        const newRows = [...foodRows];
+        newRows.splice(idx, 1);
+        setFoodRows(newRows);
+    };
+
+    // Update food row
+    const handleFoodRowChange = (idx, field, value) => {
+        setFoodRows(foodRows.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+    };
+
+    // Function to get price based on quantity type
+    const getPriceForQtyType = (product, qtyType) => {
+        switch(qtyType?.toLowerCase()) {
+            case 'quarter':
+                return parseFloat(product.quarterPrice || 0);
+            case 'half':
+                return parseFloat(product.halfPrice || 0);
+            case 'full':
+                return parseFloat(product.fullPrice || 0);
+            case 'per piece':
+                return parseFloat(product.perPiecePrice || 0);
+            default:
+                return 0;
+        }
+    };
+
+    // Calculate GST for a given amount and GST percentage
+    const calculateGST = (amount, percent) => {
+        const gstAmount = (amount * (parseFloat(percent) || 0)) / 100;
+        return parseFloat(gstAmount.toFixed(2));
+    };
+
+    // Calculate totals whenever food rows change
+    useEffect(() => {
+        let foodTotal = 0;
+        let totalCGST = 0;
+        let totalSGST = 0;
+        
+        foodRows.forEach(row => {
+            if (row.foodItem && row.qty && row.qtyType) {
+                const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
+                const itemTotal = itemPrice * parseFloat(row.qty || 0);
+                const cgst = calculateGST(itemTotal, row.foodItem.cgstPercent || 0);
+                const sgst = calculateGST(itemTotal, row.foodItem.sgstPercent || 0);
+                
+                foodTotal += itemTotal;
+                totalCGST += cgst;
+                totalSGST += sgst;
+            }
+        });
+
+        const total = foodTotal + totalCGST + totalSGST + parseFloat(extraCharges || 0) - parseFloat(discount || 0);
+
+        setTotalAmount(foodTotal);
+        setGstAmount(totalCGST + totalSGST);
+        setFinalTotal(total);
+        setCGSTAmount(totalCGST);
+        setSGSTAmount(totalSGST);
+    }, [foodRows, discount, extraCharges]);
+
+    const processRazorpayPayment = async (invoiceData) => {
+        try {
+            // Ensure Razorpay is loaded
+            if (!window.Razorpay) {
+                await loadRazorpay();
+                // Add a small delay to ensure Razorpay is fully loaded
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            console.log('Processing payment for invoice:', invoiceData);
+            
+            // Ensure totalAmount is a number and convert to paise
+            const amount = Math.round(Number(invoiceData.totalAmount) * 100);
+            console.log('Converted amount in paise:', amount);
+            
+            if (isNaN(amount) || amount <= 0) {
+                console.error('Invalid amount:', { 
+                    original: invoiceData.totalAmount, 
+                    converted: amount 
+                });
+                throw new Error('Invalid amount for payment. Amount must be greater than 0.');
+            }
+
+            // Generate a unique receipt ID
+            const receipt = `ROOM-INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        
+            console.log('Creating Razorpay order with amount:', amount, 'receipt:', receipt);
+            
+            // Create order on your server
+            const orderResponse = await fetch('/api/razorpay', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: amount, // Already in paise
+                    currency: 'INR',
+                    receipt: receipt,
+                    notes: {
+                        type: 'room_invoice',
+                        invoice_id: invoiceData._id,
+                        guest_name: invoiceData.guestFirst || 'Guest',
+                        room_number: invoiceData.roomNumber || 'N/A',
+                        customerName: invoiceData.guestFirst || 'Guest',
+                        roomNumber: invoiceData.roomNumber || 'N/A'
+                    },
+                    customer: {
+                        name: invoiceData.guestFirst || 'Guest',
+                        email: invoiceData.email || '',
+                        phone: invoiceData.contact || ''
+                    },
+                    products: invoiceData.foodItems?.map(item => ({
+                        name: item.foodName,
+                        quantity: item.qty,
+                        amount: item.amount
+                    })) || []
+                })
+            });
+
+            const orderData = await orderResponse.json();
+            console.log('Order creation response:', orderData);
+
+            if (!orderResponse.ok || !orderData.success) {
+                const errorMsg = orderData.error || 'Failed to create payment order';
+                console.error('Order creation failed:', errorMsg);
+                throw new Error(errorMsg);
+            }
+
+            // Prepare Razorpay options
+            const options = {
+                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+                amount: orderData.amount || amount,
+                currency: 'INR',
+                name: 'Hotel Shivan Residence',
+                description: 'Room Invoice Payment',
+                order_id: orderData.id,
+                modal: {
+                    ondismiss: function() {
+                        console.log('Payment modal was dismissed');
+                    }
+                },
+                // Add prefill if available
+                prefill: {
+                    name: invoiceData.guestFirst || 'Guest',
+                    contact: invoiceData.contact || '',
+                    email: invoiceData.email || ''
+                },
+                theme: {
+                    color: '#3399cc'
+                },
+                handler: async function(response) {
+                    try {
+                        // Verify payment on your server
+                        const verifyResponse = await fetch('/api/razorpay', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: 'room',
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_signature: response.razorpay_signature,
+                                invoiceId: invoiceData._id
+                            })
+                        });
+
+                        const verificationData = await verifyResponse.json();
+
+                        if (!verifyResponse.ok || !verificationData.success) {
+                            throw new Error(verificationData.error || 'Payment verification failed');
+                        } else {
+                            toast.success('Payment successful!');
+                            // Refresh invoices list
+                            await fetchInvoices();
+                        }
+                    } catch (error) {
+                        console.error('Payment verification error:', error);
+                        toast.error('Payment verification failed: ' + error.message);
+                    }
+                },
+                prefill: {
+                    name: invoiceData.guestFirst || 'Guest',
+                    email: '',
+                    contact: ''
+                },
+                theme: {
+                    color: '#3399cc'
+                }
+            };
+
+            const rzp = new window.Razorpay(options);
+            rzp.open();
+            
+        } catch (error) {
+            console.error('Error in processRazorpayPayment:', error);
+            // Only show error if not already shown by a more specific handler
+            if (!toast.isActive('payment-error')) {
+                toast.error(error.message || 'Failed to process your request', {
+                    id: 'payment-error'
+                });
+            }
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+
+        // Basic validation
+        if (!room || !guest) {
+            toast.error('Please fill in all required fields');
+            setSubmitting(false);
+            return;
+        }
+
+        if (foodRows.length === 0 || foodRows.some(row => !row.foodItem || !row.qty || !row.qtyType)) {
+            toast.error('Please add at least one food item with quantity');
+            setSubmitting(false);
+            return;
+        }
+
+        if (!selectedPayment) {
+            toast.error('Please select a payment method');
+            setSubmitting(false);
+            return;
+        }
+        
+        // Show loading toast
+        const toastId = toast.loading('Processing your request...');
+
+        const selectedRoom = roomsList.find(r => r.roomNumber === room);
+        if (!selectedRoom) {
+            toast.error('Selected room not found');
+            return;
+        }
+
+        // Prepare food items data with prices
+        const foodItems = foodRows
+            .filter(row => row.foodItem && row.qty && row.qtyType)
+            .map(row => {
+                const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
+                const amount = itemPrice * parseFloat(row.qty || 0); 
+
+                const cgst = calculateGST(amount, row.foodItem.cgstPercent || 0);
+                const sgst = calculateGST(amount, row.foodItem.sgstPercent || 0);
+                
+                return {
+                    categoryName: row.foodItem.categoryName,
+                    foodName: row.foodItem.foodName,
+                    qtyType: row.qtyType,
+                    qty: Number(row.qty),
+                    price: itemPrice,
+                    amount: amount,
+                    cgstPercent: row.foodItem.cgstPercent || 0,
+                    cgstAmount: cgst,
+                    sgstPercent: row.foodItem.sgstPercent || 0,
+                    sgstAmount: sgst,
+                    tax: cgst + sgst,
+                    foodItem: row.foodItem._id // Store reference to the food item
+                };
+            });
+
+        // Prepare invoice data with payment status
+        const invoiceWithPayment = {
+            ...selectedRoom,
+            paymentMethod: selectedPayment,
+            paymentStatus: selectedPayment === 'online' ? 'pending' : 'completed',
+            paymentDetails: selectedPayment === 'online' ? null : {
+                status: 'completed',
+                method: selectedPayment,
+                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` : `ROOM-${Date.now()}`,
+                amount: finalTotal,
+                date: new Date().toISOString()
+            },
+            foodItems,
+            guestFirst: guest,
+            discount: parseFloat(discount || 0),
+            extraCharges: parseFloat(extraCharges || 0),
+            totalFoodAmount: totalAmount,
+            gstOnFood: gstAmount,
+            totalAmount: finalTotal,
+            paidAmount: 0, // Update this based on payment
+            dueAmount: finalTotal // Update this based on payment
+        };
+
+        // Save invoice data
+        const response = await fetch('/api/CreateRoomInvoice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(invoiceWithPayment)
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to create invoice');
+        }
+
+        // If payment is online, process payment
+        if (selectedPayment === 'online') {
+            try {
+                await processRazorpayPayment({
+                    ...data.invoice, // Use the saved invoice data from the server
+                    _id: data.invoice._id
+                });
+                // Show payment instruction
+                toast.success('Please complete the payment to finalize your booking', {
+                    duration: 10000 // Show for 10 seconds
+                });
+            } catch (error) {
+                toast.error(`Payment processing failed: ${error.message}`);
+                throw error; // Re-throw to prevent showing success message
+            }
+        } else {
+            // For non-online payments, show success message
+            toast.success('Invoice created successfully!');
+        }
+
+        // Reset form on success
+        setFoodRows([{ ...initialFoodRow, id: uuid() }]);
+        setRoom('');
+        setGuest('');
+        setSelectedPayment('');
+        setDiscount(0);
+        setExtraCharges(0);
+        
+        // Refresh invoices list
+        await fetchInvoices();
+        
+        setSubmitting(false);
+    };
+
+    return (
+        <div className="p-4 max-w-5xl mx-auto">
+
+            <div className="border border-black p-5 rounded ">
+            {/* Room & Guest Section */}
+            <div className="flex flex-wrap gap-5 items-center mb-4">
+                <div className="flex items-center gap-2">
+                    <label className="font-bold">Select Room Number</label>
+                    <select
+                        className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none"
+                        value={room}
+                        onChange={e => setRoom(e.target.value)}
+                        disabled={loadingRooms}
+                        required
+                    >
+                        <option value="">Select</option>
+                        {roomsList.map((r, i) => (
+                            <option key={r._id || i} value={r.roomNumber}>{r.roomNumber}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <label className="font-bold">Guest Name</label>
+                    <input
+                        type="text"
+                        className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none"
+                        placeholder="Guest Name Come Here"
+                        value={guest}
+                        disabled
+                    />
+                </div>
+            </div>
+            {/* Food Entry Section */}
+            <div className="bg-cyan-100 rounded-xl p-6 mb-6">
+                {foodRows.map((row, idx) => {
+                    // Unique food categories from foodInventoryData
+                    const categories = Array.from(new Set(foodInventoryData.map(item => item.categoryName)));
+                    
+                    return (
+                        <div key={row.id} className="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 last:border-b-0 last:pb-0">
+                            <select className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none" value={row.categoryName} onChange={e => handleFoodRowChange(idx, 'categoryName', e.target.value)}>
+                                <option value="">Select Food Category</option>
+                                {categories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                            <div className="flex-1">
+                                <select
+                                    className="w-full p-2 border rounded"
+                                    value={row.foodItem?._id || ''}
+                                    onChange={(e) => handleFoodItemSelect(idx, e.target.value)}
+                                    required
+                                >
+                                    <option value="">Select Food Item</option>
+                                    {foodInventoryData.map((item) => (
+                                        <option key={item._id} value={item._id}>
+                                            {item.foodName} 
+                                            {/* {item.quarterPrice ? `(Q:₹${item.quarterPrice} | H:₹${item.halfPrice} | F:₹${item.fullPrice})` : ''} */}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="w-44">
+                                <select
+                                    className="w-full p-2 border rounded"
+                                    value={row.qtyType || ''}
+                                    onChange={(e) => handleFoodRowChange(idx, 'qtyType', e.target.value)}
+                                    required
+                                    disabled={!row.foodItem}
+                                >
+                                    <option value="">Qty Type</option>
+                                    {row.foodItem?.quarterPrice && <option value="quarter">Quarter (₹{row.foodItem.quarterPrice})</option>}
+                                    {row.foodItem?.halfPrice && <option value="half">Half (₹{row.foodItem.halfPrice})</option>}
+                                    {row.foodItem?.fullPrice && <option value="full">Full (₹{row.foodItem.fullPrice})</option>}
+                                    {row.foodItem?.perPiecePrice && <option value="per piece">Per Piece (₹{row.foodItem.perPiecePrice})</option>}
+                                </select>
+                            </div>
+                            <input type="number" min="1" className="rounded px-4 py-2 bg-white border border-black text-black font-bold outline-none w-24" placeholder="Qty" value={row.qty} onChange={e => handleFoodRowChange(idx, 'qty', e.target.value)} />
+                            <button type="button" className="bg-blue-700 text-white rounded p-1 text-md flex items-center" onClick={handleAddRow}>
+                                <span className="text-2xl font-bold"><Plus /></span>
+                            </button>
+                            {idx > 0 && (
+                                <button type="button" className="bg-blue-700 text-white rounded p-1 text-md flex items-center" onClick={() => handleDeleteRow(idx)}>
+                                    <span className="text-2xl font-bold"><Minus /></span>
+                                </button>
+                            )}
+                        </div>
+                    )})}
+                
+            </div>
+            {/* Payment Buttons Section */}
+            <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-3">Select Payment Method</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {paymentOptions.map(option => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            className={`flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-all ${selectedPayment === option.value ? 'border-green-500' : 'border-gray-200 hover:border-gray-300'}`}
+                            onClick={() => setSelectedPayment(option.value)}
+                        >
+                            <div className="flex items-center">
+                                <span className="text-xl mr-2">{option.icon}</span>
+                                <span>{option.label}</span>
+                            </div>
+                            {selectedPayment === option.value && (
+                                <span className="text-green-500 ml-2">✓</span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+                
+                <div className="mt-6 flex justify-end">
+                    <button
+                        type="submit"
+                        disabled={submitting || !selectedPayment}
+                        className={`px-6 py-2 rounded-lg ${selectedPayment === 'online' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                        {submitting ? 'Processing...' : 
+                         selectedPayment === 'online' ? 'Proceed to Payment' :
+                         'Save Invoice'}
+                    </button>
+                </div>
+            </div>
+            {/* Table Display Section */}
+            <form onSubmit={handleSubmit} className="container mx-auto p-4">
+                <label className="font-bold block mb-2">Display</label>
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Food Item Name</th>
+                                <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Qty Type</th>
+                                <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Total Qty</th>
+                                <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Amount</th>
+                                <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Total</th>
+                                {/* <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Edit</th> */}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {foodRows
+                                .filter(row => row.foodItem && row.qty && row.qtyType)
+                                .map((row, idx) => {
+                                    const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
+                                    const amount = itemPrice * parseFloat(row.qty || 0);
+                                    const tax = amount * 0.05; // 5% GST
+                                    
+                                    return (
+                                        <tr key={`food-${idx}`}>
+                                            <td className="bg-white border text-black text-center">{row.foodItem.foodName}</td>
+                                            <td className="bg-white border text-black text-center">{row.qtyType}</td>
+                                            <td className="bg-white border text-black text-center">{row.qty}</td>
+                                            <td className="bg-white border text-black text-center">₹{amount.toFixed(2)}</td>
+                                            <td className="bg-white border text-black text-center">₹{(amount + (row.cgstAmount || 0) + (row.sgstAmount || 0)).toFixed(2)}</td>
+                                        </tr>
+                                    );
+                                })}
+                            {/* Totals Row */}
+                            <tr>
+                                <td colSpan={4} className="bg-white border text-black font-bold text-right pr-4">Subtotal</td>
+                                <td className="bg-white border text-black font-bold text-center">₹{totalAmount.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                                <td colSpan={4} className="bg-white border text-black font-bold text-right pr-4">CGST</td>
+                                <td className="bg-white border text-black font-bold text-center">₹{cgstAmount.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                                <td colSpan={4} className="bg-white border text-black font-bold text-right pr-4">SGST</td>
+                                <td className="bg-white border text-black font-bold text-center">₹{sgstAmount.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                                <td colSpan={4} className="bg-white border text-black font-bold text-right pr-4">Total Tax</td>
+                                <td className="bg-white border text-black font-bold text-center">₹{gstAmount.toFixed(2)}</td>
+                            </tr>
+                            {/* <tr>
+                                <td colSpan={4} className="bg-white border text-black font-bold text-right pr-4">Extra Charges</td>
+                                <td className="bg-white border text-black font-bold text-center">
+                                    <input 
+                                        type="number" 
+                                        min="0" 
+                                        className="w-24 text-center border-b border-gray-400 outline-none"
+                                        value={extraCharges}
+                                        onChange={(e) => setExtraCharges(parseFloat(e.target.value) || 0)}
+                                    />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colSpan={4} className="bg-white border text-black font-bold text-right pr-4">Discount</td>
+                                <td className="bg-white border text-black font-bold text-center">
+                                    <input 
+                                        type="number" 
+                                        min="0" 
+                                        className="w-24 text-center border-b border-gray-400 outline-none"
+                                        value={discount}
+                                        onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                                    />
+                                </td>
+                            </tr> */}
+                            <tr className="bg-gray-100">
+                                <td colSpan={4} className="border text-black font-bold text-right pr-4">Final Total</td>
+                                <td className="border text-black font-bold text-center">₹{finalTotal.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {/* Submit Button */}
+                <div className="mt-8 text-center">
+                    <button 
+                        type="submit" 
+                        className="bg-blue-700 text-white px-8 py-3 rounded-lg text-lg font-bold hover:bg-blue-800 transition-colors disabled:opacity-50"
+                        disabled={submitting || !room || !selectedPayment || foodRows.length === 0}
+                    >
+                        {submitting ? 'Creating Invoice...' : 'Create Invoice'}
+                    </button>
+                </div>
+            </form>
+            </div>
+ 
+            {/* Invoices Table */}
+            <div className="mt-12 border border-black rounded p-2">
+                <h2 className="text-2xl font-bold mb-4">Recent Invoices</h2>
+                {loadingInvoices ? (
+                    <div className="text-center py-8">Loading invoices...</div>
+                ) : invoices.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No invoices found</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full bg-white border border-black overflow-hidden">
+                            <thead className="bg-gray-100 border border-black">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Invoice #</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Room</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                                {invoices.map((invoice) => (
+                                    <tr key={invoice._id} className="hover:bg-gray-50 border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                                            {invoice.invoiceNo}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
+                                            {formatDate(invoice.invoiceDate)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
+                                            {invoice.roomNumber}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
+                                            {invoice.guestFirst} {invoice.guestLast}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
+                                            {paymentOptions.find(opt => opt.value === invoice.paymentMode)?.label || invoice.paymentMode}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right border border-black">
+                                            {formatCurrency(invoice.totalAmount)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium border border-black">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                ${invoice.paymentStatus === 'completed' ? 'bg-green-100 text-green-800' : 
+                                                  invoice.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                                  'bg-gray-100 text-gray-800'}`}>
+                                                {invoice.paymentStatus?.charAt(0).toUpperCase() + invoice.paymentStatus?.slice(1) || 'N/A'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export default CreateRoomInvoice

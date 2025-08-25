@@ -105,6 +105,23 @@ const data = {
       url: "/admin/create_stock_inventory",
       icon: User,
     },
+    { divider: true },
+    {
+      name: "Stock Product Overview",
+      url: "/admin/stock_product_overview",
+      icon: User,
+    },
+    {
+      name: "Stock Final Overview",
+      url: "/admin/stock_final_overview",
+      icon: User,
+    },
+    { divider: true },  
+    {
+      name: "Create Room Invoice",
+      url: "/admin/create_room_invoice",
+      icon: Plus,
+    },
     // {
     //   name: "Create Management",
     //   url: "/admin/create_management",

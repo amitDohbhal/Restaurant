@@ -89,7 +89,6 @@ const RoomInfo = ({ id }) => {
             .then(res => res.json())
             .then(data => setProducts(Array.isArray(data) ? data : []));
     }, [refreshTable]);
-
     // Modal state for deletion
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState(null);
