@@ -1,8 +1,28 @@
 "use client"
-import { Minus, Plus } from 'lucide-react';
+"use client"
+import { Minus, Plus, X } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogClose
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+
 const paymentOptions = [
     { label: "Online Payment", value: "online", color: "bg-pink-500 text-white", icon: "💳" },
     { label: "Cash Payment", value: "cash", color: "bg-cyan-600 text-white", icon: "💵" },
@@ -19,10 +39,19 @@ const initialFoodRow = {
     tax: '',
 };
 
-const CreateRestaurantInvoice = ({ onSuccess }) => {
+const CreateRestaurantInvoice = () => {
     const router = useRouter();
     const [room, setRoom] = useState('');
     const [guest, setGuest] = useState('');
+    const [table, setTable] = useState('');
+    const [tablesList, setTablesList] = useState([]);
+    const [newTable, setNewTable] = useState({
+        tableNumber: '',
+    });
+    const [isLoadingTables, setIsLoadingTables] = useState(false);
+    const [isAddingTable, setIsAddingTable] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+
     // Utility for unique ids
     function uuid() {
         return '_' + Math.random().toString(36).substr(2, 9);
@@ -44,6 +73,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
     const [finalTotal, setFinalTotal] = useState(0);
     const [invoices, setInvoices] = useState([]);
     const [loadingInvoices, setLoadingInvoices] = useState(false);
+
     // Fetch invoices
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
@@ -96,10 +126,61 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             setLoadingFoodInventory(false);
         }
     };
+    // Fetch tables
+    const fetchTables = async () => {
+        setIsLoadingTables(true);
+        try {
+            const response = await fetch('/api/addtableNo');
+            const data = await response.json();
+            if (data.success) {
+                setTablesList(data.tables);
+            }
+        } catch (error) {
+            console.error('Error fetching tables:', error);
+            toast.error('Failed to load tables');
+        } finally {
+            setIsLoadingTables(false);
+        }
+    };
+
+    // Add new table
+    const handleAddNewTable = async (e) => {
+        e.preventDefault();
+        if (!newTable.tableNumber.trim()) {
+            toast.error('Please enter a table number');
+            return;
+        }
+
+        setIsAddingTable(true);
+        try {
+            const response = await fetch('/api/addtableNo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newTable)
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                setTablesList([...tablesList, data.table]);
+                setTable(data.table.tableNumber);
+                toast.success('Table added successfully');
+            } else {
+                throw new Error(data.error || 'Failed to add table');
+            }
+        } catch (error) {
+            console.error('Error adding table:', error);
+            toast.error(error.message || 'Failed to add table');
+        } finally {
+            setIsAddingTable(false);
+        }
+        setIsDialogOpen(false);
+    };
+
     useEffect(() => {
         fetchRooms();
         fetchFoodInventory();
         fetchInvoices();
+        fetchTables();
     }, []);
 
     // Format date to display
@@ -126,7 +207,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             newRows[idx] = {
                 ...newRows[idx],
                 foodItem: selectedItem,
-                qtyType: 'full' // Default to full quantity type
+                // qtyType: 'full' // Default to full quantity type
             };
             setFoodRows(newRows);
         }
@@ -180,6 +261,45 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
         setFoodRows([...foodRows, { ...initialFoodRow, id: uuid() }]);
     };
 
+    // Handle adding a new table
+    const handleAddTable = async () => {
+        if (!newTable.tableNumber) {
+            toast.error('Please enter a table number');
+            return;
+        }
+
+        try {
+            setIsAddingTable(true);
+            const response = await fetch('/api/addtableNo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tableNumber: newTable.tableNumber,
+                    capacity: parseInt(newTable.capacity, 10),
+                    location: newTable.location,
+                    status: 'available',
+                    isActive: true
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to add table');
+            }
+
+            toast.success('Table added successfully');
+            setNewTable({ tableNumber: '', capacity: 4, location: 'indoor' });
+            fetchTables(); // Refresh the tables list
+        } catch (error) {
+            console.error('Error adding table:', error);
+            toast.error(error.message || 'Failed to add table');
+        } finally {
+            setIsAddingTable(false);
+        }
+    };
     const handleDeleteRow = (idx) => {
         if (idx === 0) return; // Prevent deleting the first row
         const newRows = [...foodRows];
@@ -323,7 +443,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                type: 'room',
+                                type: 'restaurant',
                                 razorpay_payment_id: response.razorpay_payment_id,
                                 razorpay_order_id: response.razorpay_order_id,
                                 razorpay_signature: response.razorpay_signature,
@@ -351,7 +471,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                             dueAmount: 0
                         };
 
-                        const updateResponse = await fetch('/api/CreateRoomInvoice', {
+                        const updateResponse = await fetch('/api/CreateRestaurantInvoice', {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(updateData)
@@ -391,6 +511,11 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
         // Basic validation
         if (!room || !guest) {
             toast.error('Please fill in all required fields');
+            setSubmitting(false);
+            return;
+        }
+        if(!table){
+            toast.error('Please select a table');
             setSubmitting(false);
             return;
         }
@@ -438,7 +563,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                 };
             });
 
-        const { roomPrice, ...roomData } = selectedRoom; // Exclude roomPrice from selectedRoom
+        const { roomPrice, tableNo: roomTableNo, ...roomData } = selectedRoom; // Exclude roomPrice and tableNo from selectedRoom
         const invoiceWithPayment = {
             ...roomData,
             paymentMethod: selectedPayment,
@@ -465,12 +590,13 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             totalFoodAmount: totalAmount,
             gstOnFood: gstAmount,
             totalAmount: finalTotal,
+            tableNo: table,
             paidAmount: 0, // Update this based on payment
             dueAmount: finalTotal // Update this based on payment
         };
 
         // Always create the invoice firt
-        const response = await fetch('/api/CreateRoomInvoice', {
+        const response = await fetch('/api/CreateRestaurantInvoice', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(invoiceWithPayment)
@@ -497,7 +623,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             } catch (error) {
                 console.error('Payment processing error:', error);
                 // If payment fails, update invoice to failed
-                await fetch('/api/CreateRoomInvoice', {
+                await fetch('/api/CreateRestaurantInvoice', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -515,7 +641,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             }
         } else {
             // For non-online payments, mark as completed immediately
-            await fetch('/api/CreateRoomInvoice', {
+            await fetch('/api/CreateRestaurantInvoice', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -529,7 +655,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             });
             toast.success('Invoice Created Successfully!');
         }
-        
+
         // Clear form and refresh invoices
         try {
             setRoom('');
@@ -537,6 +663,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             setSelectedPayment('');
             setDiscount(0);
             setExtraCharges(0);
+            setTable('');
             setFoodRows([{ foodItem: '', qty: '', qtyType: 'plate' }]);
             await fetchInvoices();
         } catch (error) {
@@ -546,23 +673,26 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
             setSubmitting(false);
         }
     };
+    const handleTableNumber = () => {
+        setIsDialogOpen(true);
+    };
 
     return (
         <div className="p-4 max-w-5xl mx-auto">
 
             <div className="border border-black p-5 rounded ">
                 {/* Room & Guest Section */}
-                <div className="flex flex-wrap gap-5 items-center mb-4">
-                    <div className="flex items-center gap-2">
+                <div className="flex gap-5 items-center justify-center mb-4">
+                    <div className="flex flex-col items-center gap-2">
                         <label className="font-bold">Select Room Number</label>
                         <select
-                            className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none"
+                            className="rounded p-2 bg-white border border-black text-black font-bold outline-none w-64"
                             value={room}
                             onChange={e => setRoom(e.target.value)}
                             disabled={loadingRooms}
                             required
                         >
-                            <option value="">Select</option>
+                            <option value="" className="text-center">Select Room</option>
                             {roomsList.map((r) => (
                                 <option key={`room-${r._id || r.roomNumber}`} value={r.roomNumber}>
                                     {r.roomNumber}
@@ -570,15 +700,45 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                             ))}
                         </select>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center gap-2">
                         <label className="font-bold">Guest Name</label>
                         <input
                             type="text"
-                            className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none"
+                            className="rounded p-2 bg-white border border-black text-black font-bold outline-none"
                             placeholder="Guest Name Come Here"
                             value={guest}
                             disabled
                         />
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                        <label className="font-bold">Table Number</label>
+                        <div className="flex items-center gap-2">
+                            <select
+                                className="rounded p-2 bg-white border border-black text-black font-bold outline-none min-w-[200px]"
+                                value={table}
+                                onChange={(e) => setTable(e.target.value)}
+                                required
+                                disabled={isLoadingTables}
+                            >
+                                <option value="">Select Table</option>
+                                {tablesList.map((t) => (
+                                    <option key={`table-${t._id}`} value={t.tableNumber}>
+                                        {t.tableNumber}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <Button
+                                type="button"
+                                size="icon"
+                                className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full flex items-center justify-center w-10 h-10"
+                                title="Add New Table"
+                                onClick={handleTableNumber}
+                            >
+                                <Plus size={20} />
+                            </Button>
+
+                        </div>
                     </div>
                 </div>
                 {/* Food Entry Section */}
@@ -589,9 +749,9 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
 
                         return (
                             <div key={`food-row-${row.foodItem?._id || idx}-${row.qtyType || ''}`} className="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 last:border-b-0 last:pb-0">
-                                <select 
-                                    className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none" 
-                                    value={row.categoryName} 
+                                <select
+                                    className="rounded p-2 bg-white border border-black text-black font-bold outline-none "
+                                    value={row.categoryName}
                                     onChange={e => handleFoodRowChange(idx, 'categoryName', e.target.value)}
                                 >
                                     <option value="">Select Food Category</option>
@@ -603,15 +763,15 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                                 </select>
                                 <div className="flex-1">
                                     <select
-                                        className="w-full p-2 border rounded"
+                                        className="w-64 p-2 border rounded bg-white border-black text-black font-bold outline-none"
                                         value={row.foodItem?._id || ''}
                                         onChange={(e) => handleFoodItemSelect(idx, e.target.value)}
                                         required
                                     >
                                         <option value="">Select Food Item</option>
                                         {foodInventoryData.map((item) => (
-                                            <option 
-                                                key={`food-${item._id}-${idx}`} 
+                                            <option
+                                                key={`food-${item._id}-${idx}`}
                                                 value={item._id}
                                             >
                                                 {item.foodName}
@@ -621,7 +781,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                                 </div>
                                 <div className="w-44">
                                     <select
-                                        className="w-full p-2 border rounded"
+                                        className="w-full p-2 border rounded bg-white border-black text-black font-bold outline-none"
                                         value={row.qtyType || ''}
                                         onChange={(e) => handleFoodRowChange(idx, 'qtyType', e.target.value)}
                                         required
@@ -634,7 +794,7 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                                         {row.foodItem?.perPiecePrice && <option value="per piece">Per Piece (₹{row.foodItem.perPiecePrice})</option>}
                                     </select>
                                 </div>
-                                <input type="number" min="1" className="rounded px-4 py-2 bg-white border border-black text-black font-bold outline-none w-24" placeholder="Qty" value={row.qty} onChange={e => handleFoodRowChange(idx, 'qty', e.target.value)} />
+                                <input type="number" min="1" className="rounded px-4 py-2 bg-white border border-black text-black font-bold outline-none w-28" placeholder="Qty" value={row.qty} onChange={e => handleFoodRowChange(idx, 'qty', e.target.value)} />
                                 <button type="button" className="bg-blue-700 text-white rounded p-1 text-md flex items-center" onClick={handleAddRow}>
                                     <span className="text-2xl font-bold"><Plus /></span>
                                 </button>
@@ -771,13 +931,14 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                     <table className="min-w-full bg-white border border-black overflow-hidden">
                         <thead className="bg-gray-100 border border-black">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Invoice #</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Room</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
+                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Invoice #</th>
+                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
+                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Room</th>
+                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Table No</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -796,14 +957,17 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                             ) : (
                                 invoices.map((invoice) => (
                                     <tr key={invoice._id} className="hover:bg-gray-50 border border-black">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                                        <td className="px-2 py-2 whitespace-nowrap text-sm font-medium border border-black text-blue-600">
                                             {invoice.invoiceNo}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
+                                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-500 border border-black">
                                             {formatDate(invoice.invoiceDate)}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
                                             {invoice.roomNumber}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
+                                            {invoice.tableNo}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
                                             {invoice.guestFirst} {invoice.guestLast}
@@ -811,11 +975,11 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
                                             {paymentOptions.find(opt => opt.value === invoice.paymentMode)?.label || invoice.paymentMode}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center border border-black">
                                             {formatCurrency(invoice.totalAmount)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium border border-black">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium border border-black">
+                                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded 
                                                 ${invoice.paymentStatus === 'completed' ? 'bg-green-100 text-green-800' :
                                                     invoice.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                                                         'bg-gray-100 text-gray-800'}`}>
@@ -828,8 +992,56 @@ const CreateRestaurantInvoice = ({ onSuccess }) => {
                     </table>
                 </div>
             </div>
+            {/* Add Table Dialog */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Add New Table</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        handleAddNewTable(e).then(() => {
+                            // Reset form on success
+                            setNewTable({ tableNumber: '' });
+                        });
+                    }} className="space-y-4">
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="tableNumber" className="text-right">
+                                    Table Number <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="tableNumber"
+                                    value={newTable.tableNumber}
+                                    onChange={(e) => setNewTable({ ...newTable, tableNumber: e.target.value })}
+                                    placeholder="e.g., T1, T2, A1"
+                                    className="col-span-3"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={isAddingTable}
+                                onClick={() => setIsDialogOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={isAddingTable || !newTable.tableNumber.trim()}>
+                                {isAddingTable ? 'Adding...' : 'Add Table'}
+                            </Button>
+                        </div>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
+
+
     );
 }
 
-export default CreateRestaurantInvoice
+export default CreateRestaurantInvoice;

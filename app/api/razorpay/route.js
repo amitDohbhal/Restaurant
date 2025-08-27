@@ -162,12 +162,17 @@ export async function PUT(request) {
             );
         }
 
-        // Handle room invoice payments
-        if (type === 'room' && invoiceId) {
+        // Handle room and restaurant invoice payments
+        if ((type === 'room' || type === 'restaurant') && invoiceId) {
             try {
-                // Import the RoomInvoice model dynamically to avoid circular dependencies
-                const RoomInvoice = (await import('@/models/CreateRoomInvoice')).default;
-                const invoice = await RoomInvoice.findById(invoiceId);
+                let invoice;
+                if (type === 'room') {
+                    const RoomInvoice = (await import('@/models/CreateRoomInvoice')).default;
+                    invoice = await RoomInvoice.findById(invoiceId);
+                } else if (type === 'restaurant') {
+                    const RestaurantInvoice = (await import('@/models/CreateRestaurantInvoice')).default;
+                    invoice = await RestaurantInvoice.findById(invoiceId);
+                }
                 
                 if (!invoice) {
                     return NextResponse.json(
@@ -182,6 +187,12 @@ export async function PUT(request) {
                 invoice.paymentId = razorpay_payment_id;
                 invoice.orderId = razorpay_order_id;
                 invoice.signature = razorpay_signature;
+                
+                // For restaurant invoices, update paidAmount and dueAmount
+                if (type === 'restaurant') {
+                    invoice.paidAmount = invoice.totalAmount || 0;
+                    invoice.dueAmount = 0;
+                }
                 
                 await invoice.save();
 

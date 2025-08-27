@@ -126,7 +126,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             newRows[idx] = {
                 ...newRows[idx],
                 foodItem: selectedItem,
-                qtyType: 'full' // Default to full quantity type
+                // qtyType: 'full' // Default to full quantity type
             };
             setFoodRows(newRows);
         }
@@ -590,7 +590,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                         return (
                             <div key={`food-row-${row.foodItem?._id || idx}-${row.qtyType || ''}`} className="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 last:border-b-0 last:pb-0">
                                 <select 
-                                    className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none" 
+                                    className="rounded w-64 p-2 bg-white border border-black text-black font-bold outline-none" 
                                     value={row.categoryName} 
                                     onChange={e => handleFoodRowChange(idx, 'categoryName', e.target.value)}
                                 >
@@ -603,7 +603,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                 </select>
                                 <div className="flex-1">
                                     <select
-                                        className="w-full p-2 border rounded"
+                                        className="w-64 px-10 py-2 bg-white border border-black text-black font-bold outline-none"
                                         value={row.foodItem?._id || ''}
                                         onChange={(e) => handleFoodItemSelect(idx, e.target.value)}
                                         required
@@ -621,7 +621,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                 </div>
                                 <div className="w-44">
                                     <select
-                                        className="w-full p-2 border rounded"
+                                        className="w-full p-2 bg-white border border-black text-black font-bold outline-none"
                                         value={row.qtyType || ''}
                                         onChange={(e) => handleFoodRowChange(idx, 'qtyType', e.target.value)}
                                         required
@@ -634,7 +634,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                         {row.foodItem?.perPiecePrice && <option value="per piece">Per Piece (₹{row.foodItem.perPiecePrice})</option>}
                                     </select>
                                 </div>
-                                <input type="number" min="1" className="rounded px-4 py-2 bg-white border border-black text-black font-bold outline-none w-24" placeholder="Qty" value={row.qty} onChange={e => handleFoodRowChange(idx, 'qty', e.target.value)} />
+                                <input type="number" min="1" className="rounded w-28 px-4 py-2 bg-white border border-black text-black font-bold outline-none" placeholder="Qty" value={row.qty} onChange={e => handleFoodRowChange(idx, 'qty', e.target.value)} />
                                 <button type="button" className="bg-blue-700 text-white rounded p-1 text-md flex items-center" onClick={handleAddRow}>
                                     <span className="text-2xl font-bold"><Plus /></span>
                                 </button>
@@ -691,8 +691,6 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                     .map((row, idx) => {
                                         const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                                         const amount = itemPrice * parseFloat(row.qty || 0);
-                                        const tax = amount * 0.05; // 5% GST
-
                                         return (
                                             <tr key={`food-row-${row.foodItem?._id || idx}-${row.qtyType || ''}`}>
                                                 <td className="bg-white border text-black text-center">{row.foodItem.foodName}</td>
@@ -796,7 +794,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                             ) : (
                                 invoices.map((invoice) => (
                                     <tr key={invoice._id} className="hover:bg-gray-50 border border-black">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium border border-black text-blue-600">
                                             {invoice.invoiceNo}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">

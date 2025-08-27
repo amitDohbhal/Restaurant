@@ -70,6 +70,7 @@ export async function POST(req) {
     const totalCGST = foodItemsWithTaxes.reduce((sum, item) => sum + (item.cgstAmount || 0), 0);
     const totalSGST = foodItemsWithTaxes.reduce((sum, item) => sum + (item.sgstAmount || 0), 0);
     const totalGST = totalCGST + totalSGST;
+
     
     // Calculate room charges
     const roomCharges = (parseFloat(body.roomPrice) || 0) * (parseInt(body.totalDays) || 1);
@@ -96,6 +97,7 @@ export async function POST(req) {
       // Use the payment status from the client if provided, otherwise determine it
       paymentStatus: body.paymentStatus || (body.paymentMode === 'online' ? 'pending' : 'completed'),
       paymentMode: body.paymentMode || 'cash',
+      tableNo: body.tableNo,
       // Set paid and due amounts based on payment status
       paidAmount: body.paymentStatus === 'completed' ? (body.paidAmount || finalTotal) : 0,
       dueAmount: body.paymentStatus === 'completed' ? 0 : finalTotal,

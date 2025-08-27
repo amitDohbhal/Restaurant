@@ -70,6 +70,7 @@ const CreateRestaurantInvoiceSchema = new Schema({
   discount: { type: Number, default: 0 },
   gstOnFood: { type: Number, default: 0 },
   totalAmount: { type: Number, required: true },
+  tableNo: { type: String, required: true },
   paymentStatus: { 
     type: String, 
     enum: ['pending', 'completed', 'failed'],

@@ -64,7 +64,7 @@ const data = {
       name: "Room Invoice",
       url: "/admin/room_invoice",
       icon: Image,
-    },    {
+    }, {
       name: "View Room Invoice Logs",
       url: "/admin/room_invoice_logs",
       icon: Image,
@@ -79,7 +79,7 @@ const data = {
       name: "Create Food Inventory",
       url: "/admin/create_food_inventory",
       icon: User,
-    },    {
+    }, {
       name: "Food Inventory Log",
       url: "/admin/food_inventory_log",
       icon: User,
@@ -89,7 +89,7 @@ const data = {
       name: "Create Stock Category",
       url: "/admin/create_stock_category",
       icon: User,
-    },    {
+    }, {
       name: "Create Vendor",
       url: "/admin/create_vendor",
       icon: User,
@@ -116,12 +116,28 @@ const data = {
       url: "/admin/stock_final_overview",
       icon: User,
     },
-    { divider: true },  
+    { divider: true },
     {
       name: "Create Room Invoice",
       url: "/admin/create_room_invoice",
       icon: Plus,
     },
+    {
+      name: "Create Restaurant Invoice",
+      url: "/admin/create_restaurant_invoice",
+      icon: Plus,
+    },
+    {
+      name: "Direct/ Walking Food Order",
+      url: "/admin/create_direct_food_order",
+      icon: Plus,
+    },
+    {
+      name: "Management Food Order",
+      url: "/admin/management_food_order",
+      icon: Plus,
+    },
+    
     // {
     //   name: "Create Management",
     //   url: "/admin/create_management",
