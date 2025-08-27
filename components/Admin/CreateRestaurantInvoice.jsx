@@ -19,7 +19,7 @@ const initialFoodRow = {
     tax: '',
 };
 
-const CreateRoomInvoice = ({ onSuccess }) => {
+const CreateRestaurantInvoice = ({ onSuccess }) => {
     const router = useRouter();
     const [room, setRoom] = useState('');
     const [guest, setGuest] = useState('');
@@ -48,7 +48,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
         try {
-            const res = await fetch('/api/CreateRoomInvoice');
+            const res = await fetch('/api/CreateRestaurantInvoice');
             const data = await res.json();
             if (data && data.invoices) {
                 setInvoices(data.invoices);
@@ -832,4 +832,4 @@ const CreateRoomInvoice = ({ onSuccess }) => {
     );
 }
 
-export default CreateRoomInvoice
+export default CreateRestaurantInvoice

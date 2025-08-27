@@ -53,9 +53,7 @@ export async function POST(request) {
         }
 
         // Create Razorpay order
-        try {
-            console.log('Creating Razorpay order with amount:', amount, 'currency:', currency, 'receipt:', receipt);
-            
+        try {           
             const orderData = {
                 amount: Math.round(Number(amount)),
                 currency: currency.toUpperCase(),
@@ -67,11 +65,11 @@ export async function POST(request) {
                 payment_capture: 1 // Auto-capture payment
             };
             
-            console.log('Order data being sent to Razorpay:', JSON.stringify(orderData, null, 2));
+
             
             const razorpayOrder = await razorpay.orders.create(orderData);
             
-            console.log('Razorpay order created successfully:', razorpayOrder);
+     
 
             if (!razorpayOrder?.id) {
                 throw new Error('No order ID received from Razorpay');

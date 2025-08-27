@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
-import CreateRoomInvoice from "@/models/CreateRoomInvoice";
+import CreateRestaurantInvoice from "@/models/CreateRestaurantInvoice";
 import mongoose from 'mongoose';
 
 // Generate invoice number (e.g., INV-20230824-001)
@@ -25,7 +25,7 @@ function handleError(error, defaultMessage = 'An error occurred') {
 export async function GET() {
   await connectDB();
   try {
-    const invoices = await CreateRoomInvoice.find({ paymentStatus: 'completed' })
+    const invoices = await CreateRestaurantInvoice.find({ paymentStatus: 'completed' })
       .populate('foodItems.foodItem')
       .sort({ createdAt: -1 });
     return NextResponse.json({ success: true, invoices });
@@ -113,7 +113,7 @@ export async function POST(req) {
  
     
     // Create and save the invoice
-    const invoice = new CreateRoomInvoice(invoiceData);
+    const invoice = new CreateRestaurantInvoice(invoiceData);
     await invoice.save();
     
     const responseData = {
@@ -179,7 +179,7 @@ export async function PATCH(req) {
       }
     }
     
-    const updatedInvoice = await CreateRoomInvoice.findByIdAndUpdate(id, updateData, { new: true });
+    const updatedInvoice = await CreateRestaurantInvoice.findByIdAndUpdate(id, updateData, { new: true });
     
     if (!updatedInvoice) {
       return NextResponse.json(
@@ -206,7 +206,7 @@ export async function DELETE(req) {
     const { id } = await req.json();
     
     // Find the invoice first
-    const invoice = await CreateRoomInvoice.findById(id);
+    const invoice = await CreateRestaurantInvoice.findById(id);
     if (!invoice) {
       return NextResponse.json(
         { success: false, error: 'Invoice not found' },
@@ -215,7 +215,7 @@ export async function DELETE(req) {
     }
     
     // Delete invoice from database
-    await CreateRoomInvoice.findByIdAndDelete(id);
+    await CreateRestaurantInvoice.findByIdAndDelete(id);
     
     return NextResponse.json({
       success: true,

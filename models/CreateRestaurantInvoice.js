@@ -1,7 +1,7 @@
 //Room Invoice
 import { Schema, models, model } from "mongoose";
 
-const CreateRoomInvoiceSchema = new Schema({
+const CreateRestaurantInvoiceSchema = new Schema({
   // Room Details
   roomNumber: { type: String, required: true },
   roomType: { type: String, required: true },
@@ -78,4 +78,4 @@ const CreateRoomInvoiceSchema = new Schema({
   paymentResponse: { type: Object }, // Raw response from Razorpay
 }, { timestamps: true });
 
-export default models.CreateRoomInvoice || model("CreateRoomInvoice", CreateRoomInvoiceSchema);
+export default models.CreateRestaurantInvoice || model("CreateRestaurantInvoice", CreateRestaurantInvoiceSchema);
