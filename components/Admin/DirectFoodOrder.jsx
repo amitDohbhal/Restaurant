@@ -38,7 +38,7 @@ const initialFoodRow = {
     tax: '',
 };
 
-const CreateRestaurantInvoice = () => {
+const DirectFoodOrder = () => {
     const router = useRouter();
     const [room, setRoom] = useState('');
     const [guest, setGuest] = useState('');
@@ -58,8 +58,6 @@ const CreateRestaurantInvoice = () => {
     const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
     const [foodRows, setFoodRows] = useState([{ ...initialFoodRow, id: uuid() }]);
     const [selectedPayment, setSelectedPayment] = useState('');
-    const [roomsList, setRoomsList] = useState([]);
-    const [loadingRooms, setLoadingRooms] = useState(false);
     const [foodInventoryData, setFoodInventoryData] = useState([]);
     const [loadingFoodInventory, setLoadingFoodInventory] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -77,38 +75,18 @@ const CreateRestaurantInvoice = () => {
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
         try {
-            const res = await fetch('/api/CreateRestaurantInvoice');
+            const res = await fetch('/api/createDirectFoodInvoice');
             const data = await res.json();
             if (data && data.invoices) {
                 setInvoices(data.invoices);
+            }
+            else {
+                setInvoices([])
             }
         } catch (error) {
             toast.error('Failed to load invoices');
         } finally {
             setLoadingInvoices(false);
-        }
-    };
-    const fetchRooms = async () => {
-        setLoadingRooms(true);
-        try {
-            const res = await fetch('/api/roomInvoice');
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-
-            const data = await res.json();
-
-            if (data && data.success && data.invoices) {
-                setRoomsList(data.invoices);
-            } else {
-                toast.error('Failed to load room data: Invalid response format');
-            }
-        } catch (err) {
-            toast.error(`Failed to load room data: ${err.message}`);
-        } finally {
-            setLoadingRooms(false);
         }
     };
     const fetchFoodInventory = async () => {
@@ -125,61 +103,9 @@ const CreateRestaurantInvoice = () => {
             setLoadingFoodInventory(false);
         }
     };
-    // Fetch tables
-    const fetchTables = async () => {
-        setIsLoadingTables(true);
-        try {
-            const response = await fetch('/api/addtableNo');
-            const data = await response.json();
-            if (data.success) {
-                setTablesList(data.tables);
-            }
-        } catch (error) {
-            console.error('Error fetching tables:', error);
-            toast.error('Failed to load tables');
-        } finally {
-            setIsLoadingTables(false);
-        }
-    };
-
-    // Add new table
-    const handleAddNewTable = async (e) => {
-        e.preventDefault();
-        if (!newTable.tableNumber.trim()) {
-            toast.error('Please enter a table number');
-            return;
-        }
-
-        setIsAddingTable(true);
-        try {
-            const response = await fetch('/api/addtableNo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newTable)
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                setTablesList([...tablesList, data.table]);
-                setTable(data.table.tableNumber);
-                toast.success('Table added successfully');
-            } else {
-                throw new Error(data.error || 'Failed to add table');
-            }
-        } catch (error) {
-            console.error('Error adding table:', error);
-            toast.error(error.message || 'Failed to add table');
-        } finally {
-            setIsAddingTable(false);
-        }
-        setIsDialogOpen(false);
-    };
-
     useEffect(() => {
-        fetchRooms();
         fetchFoodInventory();
         fetchInvoices();
-        fetchTables();
     }, []);
 
     // Format date to display
@@ -240,64 +166,9 @@ const CreateRestaurantInvoice = () => {
             toast.error('Failed to load payment processor');
         });
     }, []);
-
-    // When room changes, set guest name
-    React.useEffect(() => {
-        if (!room) {
-            setGuest('');
-            return;
-        }
-        const selected = roomsList.find(r => r.roomNumber === room);
-        if (selected) {
-            setGuest(selected.guestFirst || '');
-        } else {
-            setGuest('');
-        }
-    }, [room, roomsList]);
-
     // Add new food row
     const handleAddRow = () => {
         setFoodRows([...foodRows, { ...initialFoodRow, id: uuid() }]);
-    };
-
-    // Handle adding a new table
-    const handleAddTable = async () => {
-        if (!newTable.tableNumber) {
-            toast.error('Please enter a table number');
-            return;
-        }
-
-        try {
-            setIsAddingTable(true);
-            const response = await fetch('/api/addtableNo', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    tableNumber: newTable.tableNumber,
-                    capacity: parseInt(newTable.capacity, 10),
-                    location: newTable.location,
-                    status: 'available',
-                    isActive: true
-                })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to add table');
-            }
-
-            toast.success('Table added successfully');
-            setNewTable({ tableNumber: '', capacity: 4, location: 'indoor' });
-            fetchTables(); // Refresh the tables list
-        } catch (error) {
-            console.error('Error adding table:', error);
-            toast.error(error.message || 'Failed to add table');
-        } finally {
-            setIsAddingTable(false);
-        }
     };
     const handleDeleteRow = (idx) => {
         if (idx === 0) return; // Prevent deleting the first row
@@ -442,7 +313,7 @@ const CreateRestaurantInvoice = () => {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                type: 'restaurant',
+                                type: 'directFood',
                                 razorpay_payment_id: response.razorpay_payment_id,
                                 razorpay_order_id: response.razorpay_order_id,
                                 razorpay_signature: response.razorpay_signature,
@@ -470,7 +341,7 @@ const CreateRestaurantInvoice = () => {
                             dueAmount: 0
                         };
 
-                        const updateResponse = await fetch('/api/CreateRestaurantInvoice', {
+                        const updateResponse = await fetch('/api/createDirectFoodInvoice', {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(updateData)
@@ -508,13 +379,8 @@ const CreateRestaurantInvoice = () => {
         setSubmitting(true);
 
         // Basic validation
-        if (!room || !guest) {
-            toast.error('Please fill in all required fields');
-            setSubmitting(false);
-            return;
-        }
-        if(!table){
-            toast.error('Please select a table');
+        if (!guest) {
+            toast.error('Please fill Guest Name');
             setSubmitting(false);
             return;
         }
@@ -530,12 +396,6 @@ const CreateRestaurantInvoice = () => {
             setSubmitting(false);
             return;
         }
-        const selectedRoom = roomsList.find(r => r.roomNumber === room);
-        if (!selectedRoom) {
-            toast.error('Selected room not found');
-            return;
-        }
-
         // Prepare food items data with prices
         const foodItems = foodRows
             .filter(row => row.foodItem && row.qty && row.qtyType)
@@ -562,9 +422,9 @@ const CreateRestaurantInvoice = () => {
                 };
             });
 
-        const { roomPrice, tableNo: roomTableNo, ...roomData } = selectedRoom; // Exclude roomPrice and tableNo from selectedRoom
+     
         const invoiceWithPayment = {
-            ...roomData,
+        
             paymentMethod: selectedPayment,
             paymentMode: selectedPayment === 'cash' ? 'cash' : 'online',
             paymentStatus: selectedPayment === 'online' ? 'pending' : 'completed',
@@ -589,13 +449,13 @@ const CreateRestaurantInvoice = () => {
             totalFoodAmount: totalAmount,
             gstOnFood: gstAmount,
             totalAmount: finalTotal,
-            tableNo: table,
+
             paidAmount: 0, // Update this based on payment
             dueAmount: finalTotal // Update this based on payment
         };
 
         // Always create the invoice firt
-        const response = await fetch('/api/CreateRestaurantInvoice', {
+        const response = await fetch('/api/createDirectFoodInvoice', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(invoiceWithPayment)
@@ -622,7 +482,7 @@ const CreateRestaurantInvoice = () => {
             } catch (error) {
                 console.error('Payment processing error:', error);
                 // If payment fails, update invoice to failed
-                await fetch('/api/CreateRestaurantInvoice', {
+                await fetch('/api/createDirectFoodInvoice', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -640,7 +500,7 @@ const CreateRestaurantInvoice = () => {
             }
         } else {
             // For non-online payments, mark as completed immediately
-            await fetch('/api/CreateRestaurantInvoice', {
+            await fetch('/api/createDirectFoodInvoice', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -672,9 +532,6 @@ const CreateRestaurantInvoice = () => {
             setSubmitting(false);
         }
     };
-    const handleTableNumber = () => {
-        setIsDialogOpen(true);
-    };
 
     return (
         <div className="p-4 max-w-5xl mx-auto">
@@ -683,61 +540,14 @@ const CreateRestaurantInvoice = () => {
                 {/* Room & Guest Section */}
                 <div className="flex gap-5 items-center justify-center mb-4">
                     <div className="flex flex-col items-center gap-2">
-                        <label className="font-bold">Select Room Number</label>
-                        <select
-                            className="rounded p-2 bg-white border border-black text-black font-bold outline-none w-64"
-                            value={room}
-                            onChange={e => setRoom(e.target.value)}
-                            disabled={loadingRooms}
-                            required
-                        >
-                            <option value="" className="text-center">Select Room</option>
-                            {roomsList.map((r) => (
-                                <option key={`room-${r._id || r.roomNumber}`} value={r.roomNumber}>
-                                    {r.roomNumber}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="flex flex-col items-center gap-2">
                         <label className="font-bold">Guest Name</label>
                         <input
                             type="text"
-                            className="rounded p-2 bg-white border border-black text-black font-bold outline-none"
+                            className="rounded w-64 p-2 bg-white border border-black text-black font-bold outline-none"
                             placeholder="Guest Name Come Here"
                             value={guest}
-                            disabled
+                            onChange={(e) => setGuest(e.target.value)}
                         />
-                    </div>
-                    <div className="flex flex-col items-center gap-2">
-                        <label className="font-bold">Table Number</label>
-                        <div className="flex items-center gap-2">
-                            <select
-                                className="rounded p-2 bg-white border border-black text-black font-bold outline-none min-w-[200px]"
-                                value={table}
-                                onChange={(e) => setTable(e.target.value)}
-                                required
-                                disabled={isLoadingTables}
-                            >
-                                <option value="">Select Table</option>
-                                {tablesList.map((t) => (
-                                    <option key={`table-${t._id}`} value={t.tableNumber}>
-                                        {t.tableNumber}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <Button
-                                type="button"
-                                size="icon"
-                                className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full flex items-center justify-center w-10 h-10"
-                                title="Add New Table"
-                                onClick={handleTableNumber}
-                            >
-                                <Plus size={20} />
-                            </Button>
-
-                        </div>
                     </div>
                 </div>
                 {/* Food Entry Section */}
@@ -750,8 +560,8 @@ const CreateRestaurantInvoice = () => {
                             <div key={`food-row-${row.foodItem?._id || idx}-${row.qtyType || ''}`} className="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 last:border-b-0 last:pb-0">
                                 <select
                                     className="rounded p-2 bg-white border border-black text-black font-bold outline-none "
-                                    value={row.categoryName}
-                                    onChange={e => handleFoodRowChange(idx, 'categoryName', e.target.value)}
+                                    value={row.category}
+                                    onChange={e => handleFoodRowChange(idx, 'category', e.target.value)}
                                 >
                                     <option value="">Select Food Category</option>
                                     {categories.map(cat => (
@@ -915,7 +725,7 @@ const CreateRestaurantInvoice = () => {
                         <button
                             type="submit"
                             className="bg-blue-700 text-white px-8 py-3 rounded-lg text-lg font-bold hover:bg-blue-800 transition-colors disabled:opacity-50"
-                            disabled={submitting || !room || !selectedPayment || foodRows.length === 0}
+                            disabled={submitting || !selectedPayment || foodRows.length === 0}
                         >
                             {submitting ? 'Creating Invoice...' : 'Create Invoice'}
                         </button>
@@ -932,8 +742,6 @@ const CreateRestaurantInvoice = () => {
                             <tr>
                                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Invoice #</th>
                                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
-                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Room</th>
-                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Table No</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
@@ -961,12 +769,6 @@ const CreateRestaurantInvoice = () => {
                                         </td>
                                         <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-500 border border-black">
                                             {formatDate(invoice.invoiceDate)}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
-                                            {invoice.roomNumber}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
-                                            {invoice.tableNo}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
                                             {invoice.guestFirst} {invoice.guestLast}
@@ -1043,4 +845,4 @@ const CreateRestaurantInvoice = () => {
     );
 }
 
-export default CreateRestaurantInvoice;
+export default DirectFoodOrder;

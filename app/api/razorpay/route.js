@@ -163,7 +163,7 @@ export async function PUT(request) {
         }
 
         // Handle room and restaurant invoice payments
-        if ((type === 'room' || type === 'restaurant') && invoiceId) {
+        if ((type === 'room' || type === 'restaurant' || type === 'directFood') && invoiceId) {
             try {
                 let invoice;
                 if (type === 'room') {
@@ -172,6 +172,9 @@ export async function PUT(request) {
                 } else if (type === 'restaurant') {
                     const RestaurantInvoice = (await import('@/models/CreateRestaurantInvoice')).default;
                     invoice = await RestaurantInvoice.findById(invoiceId);
+                } else if (type === 'directFood') {
+                    const DirectFoodInvoice = (await import('@/models/CreateDirectFoodInvoice')).default;
+                    invoice = await DirectFoodInvoice.findById(invoiceId);
                 }
                 
                 if (!invoice) {
@@ -233,128 +236,6 @@ export async function PUT(request) {
         order.paymentMethod = "online";
         order.datePurchased = new Date();
 
-        // Update products if cart data is provided
-        if (body.cart && Array.isArray(body.cart)) {
-            try {
-                order.products = body.cart.map(item => {
-                    // Handle image field - extract URL if it's an object
-                    let imageUrl = item.image;
-                    if (item.image && typeof item.image === 'object') {
-                        imageUrl = item.image.url || '';
-                    }
-
-                    // Calculate pricing fields with proper fallbacks
-                    const price = Number(item.price) || 0;
-                    const originalPrice = Number(item.originalPrice) || price;
-                    const discountAmount = Number(item.discountAmount) || (originalPrice - price);
-                    const afterDiscount = price;
-
-                    // Calculate discount percentage if not provided
-                    let discountPercent = Number(item.discountPercent) || 0;
-                    if (!discountPercent && originalPrice > 0) {
-                        discountPercent = Math.round((discountAmount / originalPrice) * 100);
-                    }
-
-                    return {
-                        _id: item._id || item.productId || item.id,
-                        productId: item.productId || item._id || item.id,
-                        id: item.id || item._id?.toString(),
-                        name: item.name || 'Unnamed Product',
-                        price: price,
-                        originalPrice: originalPrice,
-                        afterDiscount: afterDiscount,
-                        qty: item.qty || item.quantity || 1,
-                        image: imageUrl,
-                        color: item.color || '',
-                        size: item.size || '',
-                        productCode: item.productCode || '',
-                        weight: Number(item.weight) || 0,
-                        totalQuantity: Number(item.totalQuantity) || 0,
-                        cgst: Number(item.cgst) || 0,
-                        sgst: Number(item.sgst) || 0,
-                        discountAmount: discountAmount,
-                        discountPercent: discountPercent,
-                        couponApplied: Boolean(item.couponApplied),
-                        couponCode: item.couponCode || ''
-                    };
-                });
-                // console.log('Products updated successfully');
-            } catch (cartError) {
-                // console.error('Error updating products:', cartError);
-                // Continue with the order update even if product update fails
-            }
-        }
-
-        // Update checkout summary if available
-        if (checkoutData) {
-            // console.log('Updating checkout summary');
-            // Use taxTotal if available, otherwise use totalTax
-            const taxTotal = Number(checkoutData.taxTotal) || Number(checkoutData.totalTax) || 0;
-            // Use finalShipping if available, otherwise use shippingCost or shipping
-            const shippingCost = Number(checkoutData.finalShipping) ||
-                Number(checkoutData.shippingCost) ||
-                Number(checkoutData.shipping) || 0;
-
-            order.cartTotal = Number(checkoutData.cartTotal) || 0;
-            order.subTotal = Number(checkoutData.subTotal) || 0;
-            order.totalDiscount = Number(checkoutData.totalDiscount) || 0;
-            order.totalTax = taxTotal;
-            order.shippingCost = shippingCost;
-            order.promoCode = checkoutData.promoCode || '';
-            order.promoDiscount = Number(checkoutData.promoDiscount) || 0;
-
-
-        }
-
-        // Update customer details if form fields are provided
-        if (formFields) {
-            // console.log('Updating customer details');
-            const firstName = formFields.firstName || formFields.fullName?.split(' ')[0] || order.firstName || '';
-            const lastName = formFields.lastName || formFields.fullName?.split(' ').slice(1).join(' ') || order.lastName || '';
-            const street = formFields.street || order.street || '';
-            const city = formFields.city || order.city || '';
-            const district = formFields.district || order.district || '';
-            const state = formFields.state || order.state || '';
-            const pincode = formFields.pincode || order.pincode || '';
-
-            // Update fields
-            order.firstName = firstName;
-            order.lastName = lastName;
-            order.email = formFields.email || order.email || '';
-            order.phone = formFields.mobile || formFields.phone || order.phone || '';
-            order.altPhone = formFields.altPhone || order.altPhone || '';
-            order.street = street;
-            order.city = city;
-            order.district = district;
-            order.state = state;
-            order.pincode = pincode;
-
-            // Build address string ensuring district is included
-            order.address = formFields.address ||
-                [street, city, district, state, pincode]
-                    .filter(Boolean)
-                    .join(', ');
-
-
-        }
-
-        // Update user ID if available
-        if (user && user._id) {
-
-            order.userId = user._id;
-        }
-
-        try {
-            await order.save();
-
-        } catch (orderSaveError) {
-
-            return NextResponse.json(
-                { success: false, error: "Failed to update order" },
-                { status: 500 }
-            );
-        }
-
         // Fetch Full Payment Details from Razorpay
         const paymentResponse = await fetch(
             `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
@@ -373,43 +254,6 @@ export async function PUT(request) {
             order.bank = paymentDetails.bank || null;
             order.cardType = paymentDetails.card?.type || null;
         }
-        // Always set email for online orders (on update)
-        if (user && user.email) {
-            order.email = user.email;
-        } else if (formFields && formFields.email) {
-            order.email = formFields.email;
-        } // else leave as-is if already present
-        order.agree = true; // Always set agree true for online orders (on update)
-        await order.save();
-
-        // Update quantities after successful payment
-        try {
-            const products = cart || order.products || [];
-            const itemsToUpdate = products.map(item => ({
-                productId: item.productId || item._id,
-                variantId: item.variantId || 0, // Default to 0 if no variantId
-                quantity: item.quantity || 1
-            })).filter(item => item.productId && item.quantity > 0);
-
-            if (itemsToUpdate.length > 0) {
-                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-                const response = await fetch(`${baseUrl}/api/product/updateQuantities`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ items: itemsToUpdate })
-                });
-
-                if (!response.ok) {
-
-                }
-            }
-        } catch (error) {
-
-            // Don't fail the payment flow if quantity update fails
-        }
-
         // Return user-facing orderId and payment details
         return NextResponse.json({
             success: true,
