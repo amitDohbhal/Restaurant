@@ -14,20 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-
-const paymentOptions = [
-    { label: "Online Payment", value: "online", color: "bg-pink-500 text-white", icon: "💳" },
-    { label: "Cash Payment", value: "cash", color: "bg-cyan-600 text-white", icon: "💵" },
-    { label: "Send To Room Account", value: "room", color: "bg-blue-700 text-white", icon: "🏨" },
-    // { label: "Print Invoice", value: "print", color: "bg-blue-700 text-white", icon: "🖨️" },
-];
+import { Textarea } from '../ui/textarea';
 
 const initialFoodRow = {
     category: '',
@@ -38,7 +25,7 @@ const initialFoodRow = {
     tax: '',
 };
 
-const DirectFoodOrder = () => {
+const ManagementFoodOrder = () => {
     const router = useRouter();
     const [room, setRoom] = useState('');
     const [guest, setGuest] = useState('');
@@ -55,9 +42,7 @@ const DirectFoodOrder = () => {
     function uuid() {
         return '_' + Math.random().toString(36).substr(2, 9);
     }
-    const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
     const [foodRows, setFoodRows] = useState([{ ...initialFoodRow, id: uuid() }]);
-    const [selectedPayment, setSelectedPayment] = useState('');
     const [foodInventoryData, setFoodInventoryData] = useState([]);
     const [loadingFoodInventory, setLoadingFoodInventory] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -69,19 +54,18 @@ const DirectFoodOrder = () => {
     const [sgstAmount, setSGSTAmount] = useState(0);
     const [finalTotal, setFinalTotal] = useState(0);
     const [invoices, setInvoices] = useState([]);
+    const [reason, setReason] = useState('');
     const [loadingInvoices, setLoadingInvoices] = useState(false);
 
+    console.log(invoices)
     // Fetch invoices
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
         try {
-            const res = await fetch('/api/createDirectFoodInvoice');
+            const res = await fetch('/api/managementFoodOrderInvoice');
             const data = await res.json();
             if (data && data.invoices) {
                 setInvoices(data.invoices);
-            }
-            else {
-                setInvoices([])
             }
         } catch (error) {
             toast.error('Failed to load invoices');
@@ -137,35 +121,6 @@ const DirectFoodOrder = () => {
             setFoodRows(newRows);
         }
     };
-
-    // Load Razorpay script
-    const loadRazorpay = () => {
-        return new Promise((resolve, reject) => {
-            if (window.Razorpay) {
-                setIsRazorpayLoaded(true);
-                resolve();
-                return;
-            }
-            const script = document.createElement('script');
-            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-            script.async = true;
-            script.onload = () => {
-                setIsRazorpayLoaded(true);
-                resolve();
-            };
-            script.onerror = (error) => {
-                toast.error('Failed to load payment processor');
-                reject(new Error('Failed to load Razorpay'));
-            };
-            document.body.appendChild(script);
-        });
-    };
-    useEffect(() => {
-        // Load Razorpay script on component mount
-        loadRazorpay().catch(error => {
-            toast.error('Failed to load payment processor');
-        });
-    }, []);
     // Add new food row
     const handleAddRow = () => {
         setFoodRows([...foodRows, { ...initialFoodRow, id: uuid() }]);
@@ -231,149 +186,6 @@ const DirectFoodOrder = () => {
         setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
     }, [foodRows]);
 
-    const processRazorpayPayment = async (invoiceData) => {
-        try {
-            // Ensure Razorpay is loaded
-            if (!window.Razorpay) {
-                await loadRazorpay();
-                // Add a small delay to ensure Razorpay is fully loaded
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-            // Ensure finalTotal is used instead of totalAmount and convert to paise
-            const amount = Math.round((invoiceData.finalTotal || invoiceData.totalAmount) * 100); // amount in paise, integer
-
-
-            if (isNaN(amount) || amount <= 0) {
-                throw new Error('Invalid amount for payment. Amount must be greater than 0.');
-            }
-            // Generate a unique receipt ID
-            const receipt = `ROOM-INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-            // Create order on your server
-            const orderResponse = await fetch('/api/razorpay', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: amount, // Must be integer paise
-                    currency: 'INR',
-                    receipt: receipt,
-                    notes: {
-                        type: 'room_invoice',
-                        invoice_id: invoiceData._id,
-                        guest_name: invoiceData.guestFirst || 'Guest',
-                        room_number: invoiceData.roomNumber || 'N/A',
-                        customerName: invoiceData.guestFirst || 'Guest',
-                        roomNumber: invoiceData.roomNumber || 'N/A'
-                    },
-                    customer: {
-                        name: invoiceData.guestFirst || 'Guest',
-                        email: invoiceData.email || '',
-                        phone: invoiceData.contact || ''
-                    },
-                    products: invoiceData.foodItems?.map(item => ({
-                        name: item.foodName,
-                        quantity: item.qty,
-                        amount: item.amount
-                    })) || []
-                })
-            });
-
-            const orderData = await orderResponse.json();
-
-            if (!orderResponse.ok || !orderData.success) {
-                const errorMsg = orderData.error || 'Failed to create payment order';
-                throw new Error(errorMsg);
-            }
-
-            // Prepare Razorpay options
-            const options = {
-                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-                amount: orderData.amount || amount,
-                currency: 'INR',
-                name: 'Hotel Shivan Residence',
-                description: 'Room Invoice Payment',
-                order_id: orderData.id,
-                modal: {
-                    ondismiss: function () {
-                        toast.error('Payment was dismissed');
-                    }
-                },
-                // Add prefill if available
-                prefill: {
-                    name: invoiceData.guestFirst || 'Guest',
-                    contact: invoiceData.contact || '',
-                    email: invoiceData.email || ''
-                },
-                theme: {
-                    color: '#3399cc'
-                },
-                handler: async function (response) {
-                    try {
-                        // 1. Verify payment on your server
-                        const verifyResponse = await fetch('/api/razorpay', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                type: 'directFood',
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_order_id: response.razorpay_order_id,
-                                razorpay_signature: response.razorpay_signature,
-                                invoiceId: invoiceData._id
-                            })
-                        });
-                        const verificationData = await verifyResponse.json();
-                        if (!verifyResponse.ok || !verificationData.success) {
-                            throw new Error(verificationData.error || 'Payment verification failed');
-                        }
-
-                        // 2. Update the existing invoice with payment details
-                        const updateData = {
-                            id: invoiceData._id, // Include ID in the request body
-                            paymentStatus: 'completed',
-                            paymentDetails: {
-                                status: 'completed',
-                                method: 'online',
-                                transactionId: response.razorpay_payment_id,
-                                orderId: response.razorpay_order_id,
-                                amount: invoiceData.finalTotal || invoiceData.totalAmount,
-                                date: new Date().toISOString()
-                            },
-                            paidAmount: invoiceData.finalTotal || invoiceData.totalAmount,
-                            dueAmount: 0
-                        };
-
-                        const updateResponse = await fetch('/api/createDirectFoodInvoice', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(updateData)
-                        });
-
-                        if (!updateResponse.ok) {
-                            const errorData = await updateResponse.json();
-                            throw new Error(errorData.error || 'Failed to update invoice with payment details');
-                        }
-
-                        toast.success('Payment successful & invoice updated!');
-                        await fetchInvoices();
-                    } catch (error) {
-                        toast.error('Payment verification failed: ' + error.message);
-                    }
-                },
-
-            };
-
-            const rzp = new window.Razorpay(options);
-            rzp.open();
-
-        } catch (error) {
-            // Only show error if not already shown by a more specific handler
-            if (!toast.isActive('payment-error')) {
-                toast.error(error.message || 'Failed to process your request', {
-                    id: 'payment-error'
-                });
-            }
-        }
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
@@ -384,15 +196,14 @@ const DirectFoodOrder = () => {
             setSubmitting(false);
             return;
         }
-
-        if (foodRows.length === 0 || foodRows.some(row => !row.foodItem || !row.qty || !row.qtyType)) {
-            toast.error('Please add at least one food item with quantity');
+        if (!reason) {
+            toast.error('Please fill Reason');
             setSubmitting(false);
             return;
         }
 
-        if (!selectedPayment) {
-            toast.error('Please select a payment method');
+        if (foodRows.length === 0 || foodRows.some(row => !row.foodItem || !row.qty || !row.qtyType)) {
+            toast.error('Please add at least one food item with quantity');
             setSubmitting(false);
             return;
         }
@@ -422,26 +233,8 @@ const DirectFoodOrder = () => {
                 };
             });
 
-     
+
         const invoiceWithPayment = {
-        
-            paymentMethod: selectedPayment,
-            paymentMode: selectedPayment === 'cash' ? 'cash' : 'online',
-            paymentStatus: selectedPayment === 'online' ? 'pending' : 'completed',
-            paymentDetails: selectedPayment === 'online' ? null : {
-                status: 'completed',
-                method: selectedPayment === 'cash' ? 'cash' : 'online',
-                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` : `ONLINE-${Date.now()}`,
-                amount: finalTotal,
-                date: new Date().toISOString()
-            },
-            // Force payment status for non-online payments
-            ...(selectedPayment !== 'online' && {
-                paymentStatus: 'completed',
-                paymentMethod: selectedPayment,
-                paidAmount: finalTotal,
-                dueAmount: 0
-            }),
             foodItems,
             guestFirst: guest,
             discount: parseFloat(discount || 0),
@@ -449,13 +242,14 @@ const DirectFoodOrder = () => {
             totalFoodAmount: totalAmount,
             gstOnFood: gstAmount,
             totalAmount: finalTotal,
+            reason,
 
             paidAmount: 0, // Update this based on payment
             dueAmount: finalTotal // Update this based on payment
         };
 
         // Always create the invoice firt
-        const response = await fetch('/api/createDirectFoodInvoice', {
+        const response = await fetch('/api/managementFoodOrderInvoice', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(invoiceWithPayment)
@@ -467,59 +261,24 @@ const DirectFoodOrder = () => {
             throw new Error(data.error || 'Failed to create invoice');
         }
 
-        if (selectedPayment === 'online') {
-            // Now trigger payment and verification
-            const invoiceData = {
-                ...data.invoice,
-                _id: data.invoice._id,
-                finalTotal: data.invoice.finalTotal || data.invoice.totalAmount
-            };
+        // For non-online payments, mark as completed immediately
+        await fetch('/api/managementFoodOrderInvoice', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: data.invoice._id, // Include ID in the request body
+                paidAmount: finalTotal,
+                dueAmount: 0
+            })
+        });
+        toast.success('Invoice Created Successfully!');
 
-            try {
-                // Process Razorpay payment and wait for it to complete
-                await processRazorpayPayment(invoiceData);
-
-            } catch (error) {
-                console.error('Payment processing error:', error);
-                // If payment fails, update invoice to failed
-                await fetch('/api/createDirectFoodInvoice', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        id: invoiceData._id, // Include ID in the request body
-                        paymentStatus: 'failed',
-                        paymentError: error.message || 'Payment processing failed',
-                        paymentDetails: {
-                            status: 'failed',
-                            error: error.message || 'Payment processing failed',
-                            date: new Date().toISOString()
-                        }
-                    })
-                });
-                throw error;
-            }
-        } else {
-            // For non-online payments, mark as completed immediately
-            await fetch('/api/createDirectFoodInvoice', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: data.invoice._id, // Include ID in the request body
-                    paymentStatus: 'completed',
-                    paymentMode: selectedPayment === 'cash' ? 'cash' : 'online',
-                    paymentError: null,
-                    paidAmount: finalTotal,
-                    dueAmount: 0
-                })
-            });
-            toast.success('Invoice Created Successfully!');
-        }
 
         // Clear form and refresh invoices
         try {
             setRoom('');
             setGuest('');
-            setSelectedPayment('');
+            setReason('');
             setDiscount(0);
             setExtraCharges(0);
             setTable('');
@@ -538,15 +297,26 @@ const DirectFoodOrder = () => {
 
             <div className="border border-black p-5 rounded ">
                 {/* Room & Guest Section */}
-                <div className="flex gap-5 items-center justify-center mb-4">
-                    <div className="flex flex-col items-center gap-2">
-                        <label className="font-bold">Guest Name</label>
+                <div className="flex flex-col gap-5 mb-4">
+                <div className="flex flex-col gap-2">
+                        <label className="font-bold">Management Person Name</label>
                         <input
                             type="text"
-                            className="rounded w-64 p-2 bg-white border border-black text-black font-bold outline-none"
-                            placeholder="Guest Name Come Here"
+                            className="rounded w-full p-2 bg-white border border-black text-black font-bold outline-none"
+                            placeholder="Management Person Name Come Here"
                             value={guest}
                             onChange={(e) => setGuest(e.target.value)}
+                        />
+                    </div> 
+                        <div className="flex flex-col gap-2">
+                        <label className="font-bold">Reason</label>
+                        <Textarea
+                        rows={4}
+                        value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            type="text"
+                            className="rounded w-full p-2 bg-white border border-black text-black font-bold outline-none"
+                            placeholder="Reason Come Here"
                         />
                     </div>
                 </div>
@@ -616,28 +386,6 @@ const DirectFoodOrder = () => {
                         )
                     })}
 
-                </div>
-                {/* Payment Buttons Section */}
-                <div className="mt-6">
-                    <h3 className="text-lg font-semibold mb-3">Select Payment Method</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {paymentOptions.map((option, idx) => (
-                            <button
-                                key={`payment-${option.value}-${idx}`}
-                                type="button"
-                                className={`flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-all ${selectedPayment === option.value ? 'border-green-500' : 'border-gray-200 hover:border-gray-300'}`}
-                                onClick={() => setSelectedPayment(option.value)}
-                            >
-                                <div className="flex items-center">
-                                    <span className="text-xl mr-2">{option.icon}</span>
-                                    <span>{option.label}</span>
-                                </div>
-                                {selectedPayment === option.value && (
-                                    <span className="text-green-500 ml-2">✓</span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
                 </div>
                 {/* Table Display Section */}
                 <form onSubmit={handleSubmit} className="container mx-auto p-4">
@@ -725,7 +473,7 @@ const DirectFoodOrder = () => {
                         <button
                             type="submit"
                             className="bg-blue-700 text-white px-8 py-3 rounded-lg text-lg font-bold hover:bg-blue-800 transition-colors disabled:opacity-50"
-                            disabled={submitting || !selectedPayment || foodRows.length === 0}
+                            disabled={submitting || foodRows.length === 0}
                         >
                             {submitting ? 'Creating Invoice...' : 'Create Invoice'}
                         </button>
@@ -740,10 +488,10 @@ const DirectFoodOrder = () => {
                     <table className="min-w-full bg-white border border-black overflow-hidden">
                         <thead className="bg-gray-100 border border-black">
                             <tr>
-                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Invoice #</th>
-                                <th className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
-                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest Name</th>
-                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black"># Invoice</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Reason</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
                             </tr>
@@ -773,11 +521,11 @@ const DirectFoodOrder = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
                                             {invoice.guestFirst} {invoice.guestLast}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
-                                            {paymentOptions.find(opt => opt.value === invoice.paymentMode)?.label || invoice.paymentMode}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center border border-black">
+                                            {invoice.reason}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center border border-black">
-                                            {formatCurrency(invoice.totalAmount)}
+                                            {formatCurrency(invoice.paidAmount)}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium border border-black">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded 
@@ -799,4 +547,4 @@ const DirectFoodOrder = () => {
     );
 }
 
-export default DirectFoodOrder;
+export default ManagementFoodOrder;

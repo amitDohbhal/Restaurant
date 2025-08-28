@@ -42,7 +42,7 @@ export async function POST(request) {
             );
         }
 
-        const { amount, currency = 'INR', receipt, notes = {}, customer, products } = requestBody;
+        const { amount, currency = 'INR', receipt, notes = {}, customer } = requestBody;
         
         // Validate required fields
         if (amount === undefined || amount === null || !receipt) {
@@ -74,12 +74,6 @@ export async function POST(request) {
             if (!razorpayOrder?.id) {
                 throw new Error('No order ID received from Razorpay');
             }
-
-            // If products and customer are present (cart/checkout), save to DB (optional, not needed for RoomInvoice)
-            if (Array.isArray(products) && products.length > 0 && customer) {
-                // ... Place your e-commerce DB save logic here if needed ...
-            }
-
             return NextResponse.json({
                 success: true,
                 id: razorpayOrder.id,
@@ -88,12 +82,6 @@ export async function POST(request) {
             });
 
         } catch (error) {
-            console.error('Razorpay order creation failed:', {
-                error: error.message,
-                stack: error.stack,
-                response: error.response?.data,
-                status: error.statusCode
-            });
             return NextResponse.json(
                 { 
                     success: false, 
@@ -214,28 +202,6 @@ export async function PUT(request) {
                 );
             }
         }
-
-        // Find and update the order
-        const order = await Order.findOne({
-            $or: [
-                { orderId: razorpay_order_id },
-                { razorpayOrderId: razorpay_order_id }
-            ]
-        });
-
-        if (!order) {
-            return NextResponse.json(
-                { success: false, error: "Order not found. Please contact support with order ID: " + razorpay_order_id },
-                { status: 404 }
-            );
-        }
-
-        // Update order status and payment details
-        order.transactionId = razorpay_payment_id;
-        order.status = "Paid";
-        order.paymentMethod = "online";
-        order.datePurchased = new Date();
-
         // Fetch Full Payment Details from Razorpay
         const paymentResponse = await fetch(
             `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
