@@ -1,5 +1,5 @@
 "use client"
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, Printer } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
@@ -44,6 +44,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
     const [finalTotal, setFinalTotal] = useState(0);
     const [invoices, setInvoices] = useState([]);
     const [loadingInvoices, setLoadingInvoices] = useState(false);
+    const [printInvoice, setPrintInvoice] = useState(null);
     // Fetch invoices
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
@@ -529,7 +530,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             });
             toast.success('Invoice Created Successfully!');
         }
-        
+
         // Clear form and refresh invoices
         try {
             setRoom('');
@@ -546,6 +547,208 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             setSubmitting(false);
         }
     };
+    function handlePrint(inv) {
+        console.log(inv)
+        const printWindow = window.open('', '_blank');
+
+        // Calculate amounts
+        const roomPrice = parseFloat(inv.roomPrice || 0);
+        const totalDays = parseFloat(inv.totalDays || 0);
+
+        // Initialize tax percentages and amounts
+        let cgstPercent = parseFloat(inv.cgstPercent || 0);
+        let sgstPercent = parseFloat(inv.sgstPercent || 0);
+        let cgstAmount, sgstAmount;
+
+        // Handle CGST
+        if (inv.cgstAmount !== undefined && inv.cgstAmount !== null && inv.cgstAmount !== "") {
+            cgstAmount = parseFloat(inv.cgstAmount) || 0;
+            if (!cgstPercent && roomPrice > 0) {
+                cgstPercent = (cgstAmount / roomPrice) * 100;
+            }
+        } else {
+            cgstAmount = (roomPrice * cgstPercent / 100) || 0;
+        }
+
+        // Handle SGST
+        if (inv.sgstAmount !== undefined && inv.sgstAmount !== null && inv.sgstAmount !== "") {
+            sgstAmount = parseFloat(inv.sgstAmount) || 0;
+            if (!sgstPercent && roomPrice > 0) {
+                sgstPercent = (sgstAmount / roomPrice) * 100;
+            }
+        } else {
+            sgstAmount = (roomPrice * sgstPercent / 100) || 0;
+        }
+        const paidAmount = parseFloat(inv.paidAmount || 0).toFixed(2);    
+        // Format guest name
+        const guestName = `${inv.guestFirst || ''} ${inv.guestMiddle || ''} ${inv.guestLast || ''}`.trim();
+        // Format dates
+        const formatDate = (dateString) => {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-IN');
+        };
+
+        // Format currency
+        const formatCurrency = (amount) => {
+            return parseFloat(amount || 0).toLocaleString('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 2
+            });
+        };
+
+        const invoiceHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Room Food Invoice</title>
+          <style>
+            @media print {
+              body { -webkit-print-color-adjust: exact; }
+              .no-print { display: none !important; }
+              @page { margin: 0; size: auto; }
+            }
+          </style>
+        </head>
+        <body style="font-family: Arial, sans-serif; margin:0; padding:10px; background:#f8f8f8;">
+          <div style="max-width: 600px; margin: 0 auto;">
+            <button onclick="window.print()" class="no-print" style="position:fixed; top:20px; right:20px; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; z-index:1000;">
+              Print Invoice
+            </button>
+            
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff; border:1px solid #000; border-collapse:collapse; margin-bottom:20px;">
+              <!-- Header -->
+              <tr>
+                <td colspan="6" style="background:#444; color:#fff; font-size:18px; font-weight:bold; padding:10px;">
+                  Room Invoice #${inv.invoiceNo || 'N/A'}
+                </td>
+              </tr>
+    
+              <!-- Company Name -->
+              <tr>
+                <td colspan="6" style="background:#5a8c80; color:#fff; text-align:center; font-size:20px; font-weight:bold; padding:8px;">
+                  Hotel Shivan Residence
+                </td>
+              </tr>
+    
+              <!-- Company Info -->
+              <tr>
+                <td colspan="6" style="padding:10px; font-size:14px; border-bottom:1px solid #000;">
+                  <table width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;">
+                    <tr>
+                      <td style="width:50%; vertical-align:top; text-align:left;">
+                        Invoice #: ${inv.invoiceNo || 'N/A'}<br>
+                        Date: ${formatDate(inv.createdAt) || 'N/A'}
+                      </td>
+                      <td style="width:50%; vertical-align:top; text-align:right;">
+                        Contact: ${inv.contact || 'N/A'}<br>
+                        Email: ${inv.email || 'N/A'}<br>
+                        Address: ${inv.address ? inv.address.substring(0, 50) + (inv.address.length > 50 ? '...' : '') : 'N/A'}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+    
+              <!-- Guest Info -->
+              <tr style="background:#f2f2f2; border-bottom:1px solid #ddd;">
+                <td colspan="6" style="padding:8px 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <strong>Room:</strong> ${inv.roomNumber || 'N/A'} (${inv.roomType || 'N/A'})
+                    </div>
+                    <div>
+                      <strong>Plan:</strong> ${inv.planType || 'N/A'}
+                    </div>
+                  </div>
+                  
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                    <div>
+                      <strong>Check-in:</strong> ${formatDate(inv.checkIn) || 'N/A'}
+                    </div>
+                    <div>
+                      <strong>Check-out:</strong> ${formatDate(inv.checkOut) || 'N/A'}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr style="background:#f2f2f2; font-weight:bold; text-align:left;">
+                <td colspan="6" style="padding:8px 12px; border-bottom:1px solid #000;">Guest: ${guestName || 'N/A'}</td>
+              </tr>              
+              <!-- Food Items -->
+              ${inv.foodItems && inv.foodItems.length > 0 ? `
+              <tr style="background:#666; color:#fff; font-weight:bold; text-align:center;">
+                <td style="padding:6px; border:1px solid #000;">S.no</td>
+                <td style="padding:6px; border:1px solid #000;" colspan="2">Item</td>
+                <td style="padding:6px; border:1px solid #000;">Qty</td>
+                <td style="padding:6px; border:1px solid #000;">Rate</td>
+                <td style="padding:6px; border:1px solid #000;">Amount</td>
+              </tr>
+              ${inv.foodItems.map((item, index) => `
+                <tr>
+                  <td style="padding:8px; border:1px solid #000; text-align:center;">${index + 1}</td>
+                  <td style="padding:8px; border:1px solid #000;" colspan="2">
+                  <div style="font-size:20px;">${item.foodItem?.categoryName || ''} (${item.qtyType || ''})</div>
+                  <div style="font-size:15px;">${item.foodItem?.foodName || 'N/A'}</div>
+                  </td>
+                  <td style="padding:8px; border:1px solid #000; text-align:center;">${item.qty || 0}</td>
+                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency(item.price || 0)}</td>
+                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency((item.price || 0) * (item.qty || 0))}</td>
+                </tr>
+              `).join('')}
+              ` : ''}
+              <!-- Totals -->
+                        <tr>
+  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
+    CGST ${inv.cgstAmount != null && inv.cgstAmount !== '' && !isNaN(inv.cgstAmount) && parseFloat(inv.cgstAmount) > 0
+                ? `(₹ ${cgstAmount})`
+                : `(${cgstPercent.toFixed(2)} %)`
+            }
+  </td>
+  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
+    ${formatCurrency(cgstAmount)}
+  </td>
+</tr>
+
+<tr>
+  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
+    SGST ${inv.sgstAmount != null && inv.sgstAmount !== '' && !isNaN(inv.sgstAmount) && parseFloat(inv.sgstAmount) > 0
+                ? `(₹ ${sgstAmount})`
+                : `(${sgstPercent.toFixed(2)} %)`
+            }
+  </td>
+  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
+    ${formatCurrency(sgstAmount)}
+  </td>
+</tr>
+<tr>
+                <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000; background:#e0e0e0;">Total Amount</td>
+                <td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold; background:#5a8c80; color:white;">${formatCurrency(paidAmount)}</td>
+              </tr>
+              <!-- Footer Notes -->
+              <tr>
+                <td colspan="6" style="font-size:11px; padding:8px; border-top:1px solid #000; background:#f9f9f9;">
+                  <b>Note:</b> This is a computer-generated invoice. No signature is required.<br>
+                  <b>Disclaimer:</b> In case of any printing error or discrepancy, we sincerely apologize for the inconvenience.<br>
+                  Please verify all details before leaving the premises.<br>
+                  Thanks for your cooperation in advance.<br>
+                  <b>T&C Apply</b>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </body>
+        </html>
+      `;
+
+        // Write the invoice to the new window
+        printWindow.document.open();
+        printWindow.document.write(invoiceHtml);
+        printWindow.document.close();
+        setPrintInvoice(null);
+    }
 
     return (
         <div className="p-4 max-w-5xl mx-auto">
@@ -589,9 +792,9 @@ const CreateRoomInvoice = ({ onSuccess }) => {
 
                         return (
                             <div key={`food-row-${row.foodItem?._id || idx}-${row.qtyType || ''}`} className="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 last:border-b-0 last:pb-0">
-                                <select 
-                                    className="rounded w-64 p-2 bg-white border border-black text-black font-bold outline-none" 
-                                    value={row.categoryName} 
+                                <select
+                                    className="rounded w-64 p-2 bg-white border border-black text-black font-bold outline-none"
+                                    value={row.categoryName}
                                     onChange={e => handleFoodRowChange(idx, 'categoryName', e.target.value)}
                                 >
                                     <option value="">Select Food Category</option>
@@ -610,8 +813,8 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                     >
                                         <option value="">Select Food Item</option>
                                         {foodInventoryData.map((item) => (
-                                            <option 
-                                                key={`food-${item._id}-${idx}`} 
+                                            <option
+                                                key={`food-${item._id}-${idx}`}
                                                 value={item._id}
                                             >
                                                 {item.foodName}
@@ -769,13 +972,14 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                     <table className="min-w-full bg-white border border-black overflow-hidden">
                         <thead className="bg-gray-100 border border-black">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Invoice #</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Room</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Invoice #</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Date</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Room</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
+                                <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoce</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -820,12 +1024,29 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                                 {invoice.paymentStatus?.charAt(0).toUpperCase() + invoice.paymentStatus?.slice(1) || 'N/A'}
                                             </span>
                                         </td>
+                                        <td className="p-2 whitespace-nowrap text-right text-sm font-medium border border-black">
+                                            <button
+                                                type="button"
+                                                className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 flex items-center justify-center rounded"
+                                                onClick={() => handlePrint(invoice)}
+                                            >
+                                                <Printer className="mr-2" /> Print
+                                            </button>
+                                        </td>
                                     </tr>
                                 )))}
                         </tbody>
                     </table>
                 </div>
             </div>
+            {printInvoice && (
+                <div style={{ display: 'none' }}>
+                    <div id="print-section">
+                        <h2>Invoice #{printInvoice.invoiceNo || printInvoice._id}</h2>
+                        <pre>{JSON.stringify(printInvoice, null, 2)}</pre>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -1,5 +1,5 @@
 import React from "react";
-
+import { X } from "lucide-react";
 export default function SimpleModal({ open, onClose, children }) {
   if (!open) return null;
   return (
@@ -9,9 +9,10 @@ export default function SimpleModal({ open, onClose, children }) {
           className="absolute top-2 right-2 text-gray-500 hover:text-black"
           onClick={onClose}
         >
-          ✕
+          <X className="w-8 h-8 cursor-pointer bg-red-500 rounded text-white p-1" />
         </button>
         {children}
+
       </div>
     </div>
   );
