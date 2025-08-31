@@ -56,14 +56,19 @@ const data = {
     },
     { divider: true },
     {
-      name: "Room Info",
+      name: "Create Room",
+      url: "/admin/manage_products_category",
+      icon: Boxes,
+    },
+    {
+      name: "Direct Room",
       url: "/admin/room_info",
-      icon: Image,
+      icon: Boxes,
     },
     {
       name: "Room Invoice",
       url: "/admin/room_invoice",
-      icon: Image,
+      icon: Boxes,
     }, {
       name: "View Room Invoice Logs",
       url: "/admin/room_invoice_logs",
@@ -137,17 +142,17 @@ const data = {
       url: "/admin/management_food_order",
       icon: Plus,
     },
-    
-    // {
-    //   name: "Create Management",
-    //   url: "/admin/create_management",
-    //   icon: User,
-    // },
-    // {
-    //   name: "View / Edit Management",
-    //   url: "/admin/edit_management",
-    //   icon: User,
-    // },
+    { divider: true },
+    {
+      name: "All Invoice Overview",
+      url: "/admin/all_invoice_overview",
+      icon: BarChart
+    },
+    {
+      name: "Sales Section",
+      url: "/admin/sales_section",
+      icon: BarChart,
+    },
     { divider: true },
     {
       name: "Create Discount",
@@ -156,23 +161,10 @@ const data = {
     },
     { divider: true },
     {
-      name: "Shipping Charges",
-      url: "/admin/shipping_charges",
-      icon: Plus
+      name: "PopUp Banner",
+      url: "/admin/popup_banner",
+      icon: Image
     },
-    { divider: true },
-    {
-      name: "Activity Page",
-      url: "/admin/add_activity",
-      icon: Plus,
-    },
-    { divider: true },
-    {
-      name: "Add Associates",
-      url: "/admin/add_associate",
-      icon: Plus,
-    },
-    { divider: true },
     {
       name: "Promotional Banner",
       url: "/admin/promotional_banner",
@@ -183,39 +175,8 @@ const data = {
       url: "/admin/featured_offered_banner",
       icon: Image
     },
-    {
-      name: "Category Advertisment",
-      url: "/admin/category_advertisment",
-      icon: Image
-    },
-    {
-      name: "PopUp Banner",
-      url: "/admin/popup_banner",
-      icon: Image
-    },
-
     // Space (empty item)
     { divider: true },
-    {
-      name: "Insta or Facebook Post",
-      url: "/admin/insta_fb_post",
-      icon: Image
-    },
-    {
-      name: "Manage Blogs",
-      url: "/admin/manage_blogs",
-      icon: Rss,
-    },
-    {
-      name: "News",
-      url: "/admin/news",
-      icon: Rss,
-    },
-
-    // Space (empty item)
-    { divider: true },
-
-
     // Third group: Content management
     {
       name: "Manage Featured Product",
@@ -233,52 +194,9 @@ const data = {
       icon: MenuIcon,
     },
     {
-      name: "Manage Products & Category",
-      url: "/admin/manage_products_category",
-      icon: Boxes,
-    },
-    {
-      name: "View All Products",
-      url: "/admin/all_products",
-      icon: Boxes,
-    },
-    {
-      name: "Approve/Reject Reviews",
-      url: "/admin/manage_reviews",
-      icon: Star,
-    },
-    {
       name: "FAQ",
       url: "/admin/faq",
       icon: Star,
-    },
-    { divider: true },
-    {
-      name: "Enquiry Order",
-      url: "/admin/enquiry_order",
-      icon: ShoppingCart,
-    },
-    {
-      name: "Booking Enquiry Log",
-      url: "/admin/booking_enquiry_log",
-      icon: ShoppingCart,
-    },
-    {
-      name: "Online Order Log",
-      url: "/admin/online_order_log",
-      icon: ShoppingCart,
-    },
-    {
-      name: "Cancel Order",
-      url: "/admin/cancel_orders",
-      icon: ClipboardList,
-    },
-    // Space (empty item)
-    { divider: true },
-    {
-      name: "Stock Management",
-      url: "/admin/stock_management",
-      icon: ClipboardList,
     },
     { divider: true },
 
@@ -328,11 +246,6 @@ const dataManager = {
     email: "info@adventureaxis1.in",
   },
   projects: [
-    {
-      name: "Sales Section",
-      url: "/admin/sales_section",
-      icon: BarChart,
-    },
     {
       name: "Enquiry Chat Page",
       url: "/admin/manager_enquiry_chat",

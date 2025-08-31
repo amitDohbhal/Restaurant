@@ -70,12 +70,6 @@ const CategoryPage = async ({ params }) => {
   const visibleProducts = products.filter(prod => prod.active !== false);
   // console.log(visibleProducts)
   const categoryInfo = await getCategoryInfo(categoryData);
-
-  // Fetch category advertisement banner
-
-  const adRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/categoryAdvertisment`, { cache: 'no-store' });
-  const categoryAds = await adRes.json();
-  const categoryAdList = Array.isArray(categoryAds) && categoryAds.length > 0 ? categoryAds : [];
   // console.log(categoryAdList)
   // Fetch all categories for the category cards row
   const allCategoriesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/getAllMenuItems`, { cache: 'no-store' });
@@ -93,12 +87,6 @@ const CategoryPage = async ({ params }) => {
       />
 
         <div className="flex flex-col md:flex-row gap-6 w-full mt-4">
-          {/* Left Image Section */}
-          <div className="flex flex-col w-72 max-w-xs flex-shrink-0 justify-start items-center">
-            {/* Category Advertisement Banner */}
-            <CategoryAds categoryAdList={categoryAdList} />
-          </div>
-
           {/* Middle Section: Category Cards + Package Cards */}
           <div className="flex-1 min-w-0 gap-4 px-2">
             {/* Category Cards Row */}
