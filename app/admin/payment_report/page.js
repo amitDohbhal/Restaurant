@@ -1,96 +1,156 @@
-import { GetAllOrders } from "@/actions/GetAllOrders";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Eye } from "lucide-react";
+import { Download, Eye, FileText, Home, Utensils } from "lucide-react";
+import { GetAllInvoices } from "@/actions/GetAllInvoices";
+import Link from "next/link";
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
-const Page = async ({ searchParams }) => {
-    const searchparams = await searchParams;
-    const page = Number(searchparams?.page) || 1; // Get page from URL, default to 1
-    const itemsPerPage = 10;
+const getStatusBadge = (status) => {
+    switch (status?.toLowerCase()) {
+        case "completed":
+        case "paid":
+        case "confirmed":
+            return <Badge className="bg-green-100 text-green-800 text-xs">{status}</Badge>;
+        case "pending":
+        case "processing":
+            return <Badge className="bg-yellow-100 text-yellow-800 text-xs">{status}</Badge>;
+        case "failed":
+        case "cancelled":
+        case "rejected":
+            return <Badge className="bg-red-100 text-red-800 text-xs">{status}</Badge>;
+        default:
+            return <Badge variant="outline" className="text-xs">{status || "N/A"}</Badge>;
+    }
+};
 
-    // Fetch server data
-    const { orders, customOrders, totalPages } = await GetAllOrders(page, itemsPerPage);
-
-    // Ensure both orders and customOrders are arrays
-    const allOrders = [...(orders || []), ...(customOrders || [])];
-// console.log(allOrders)
-    const getStatusBadge = (status) => {
-        switch (status?.toLowerCase()) {    
-            case "confirmed":
-            case "paid":
-            case "completed":
-            case "resolved":
-                return <Badge className="bg-green-500/50 text-sm hover:bg-green-500/70 text-black border-2 border-green-500">{status}</Badge>;
-            case "failed":
-            case "cancelled":
-                return <Badge className="bg-red-500/50 text-sm hover:bg-red-500/70 text-black border-2 border-red-500">{status}</Badge>;
-            case "pending":
-                return <Badge className="bg-amber-500/50 text-sm hover:bg-amber-500/70 text-black border-2 border-amber-500">{status}</Badge>;
-            default:
-                return <Badge variant="outline">{status || "Unknown"}</Badge>;
-        }
+const getInvoiceTypeBadge = (type) => {
+    const types = {
+        'room': { label: 'Room', icon: <Home className="w-3 h-3 mr-1" /> },
+        'restaurant': { label: 'Restaurant', icon: <Utensils className="w-3 h-3 mr-1" /> },
+        'direct_food': { label: 'Direct Food', icon: <FileText className="w-3 h-3 mr-1" /> },
+        'management': { label: 'Management', icon: <FileText className="w-3 h-3 mr-1" /> },
+        'room_v2': { label: 'Room V2', icon: <Home className="w-3 h-3 mr-1" /> }
     };
 
-    const formatNumeric = (num) => new Intl.NumberFormat('en-IN').format(num);
+    const typeInfo = types[type] || { label: type, icon: <FileText className="w-3 h-3 mr-1" /> };
+
+    return (
+        <Badge variant="outline" className="text-xs flex items-center">
+            {typeInfo.icon}
+            {typeInfo.label}
+        </Badge>
+    );
+};
+
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
+const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount || 0);
+};
+
+const Page = async ({ searchParams }) => {
+    const page = Number(searchParams?.page) || 1;
+    const itemsPerPage = 15;
+
+    // Fetch all invoices
+    const { invoices, totalPages, totalInvoices, currentPage } = await GetAllInvoices(page, itemsPerPage);
 
     return (
         <SidebarInset>
-            <header className="flex h-16 shrink-0 items-center gap-2">
-                <div className="flex items-center gap-2 px-4">
+            <header className="flex h-16 shrink-0 items-center justify-between px-4">
+                <div className="flex items-center gap-2">
                     <SidebarTrigger className="-ml-1" />
+                    <h1 className="text-2xl font-semibold">Payment Report</h1>
                 </div>
+                {/* <Button variant="outline" size="sm" className="gap-2">
+                    <Download className="h-4 w-4" />
+                    Export
+                </Button> */}
             </header>
-            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-                <h1 className="text-4xl px-12 font-semibold">Payment Report</h1>
-                <div className="my-20 w-full mx-auto flex flex-col gap-20 items-center justify-center p-4 rounded-lg">
-                    <Table className="w-full mx-auto font-semibold">
+
+            <div className="flex-1 p-6">
+                <div className="rounded-md border">
+                    <Table>
                         <TableHeader>
-                            <TableRow className="border-blue-600">
-                                <TableHead className="w-[50px]">#</TableHead>
-                                <TableHead className="w-[150px]">Date</TableHead>
-                                <TableHead className="w-[150px] xl:w-[250px]">Order ID</TableHead>
-                                <TableHead className="w[100px] xl:w-[150px]">Amount Transfer</TableHead>
-                                <TableHead className="w[100px] xl:w-[150px]">Payment Mode</TableHead>
-                                <TableHead>Package Title</TableHead>
-                                <TableHead>Contact</TableHead>
-                                <TableHead className="w-[100px]">Status</TableHead>
+                            <TableRow>
+                                <TableHead className="w-[60px]">#</TableHead>
+                                <TableHead className="w-[120px]">Invoice #</TableHead>
+                                <TableHead className="w-[120px]">Transaction Id</TableHead>
+                                <TableHead className="w-[150px]">Date & Time</TableHead>
+                                <TableHead className="w-[120px] ">Customer</TableHead>
+                                <TableHead className="w-[120px]">Type</TableHead>
+                                <TableHead className="text-center w-[120px]">Amount</TableHead>
+                                <TableHead className="text-center w-[120px]">Payment Mode</TableHead>
+                                <TableHead className="text-center w-[120px]">Payment Status</TableHead>
+                                {/* <TableHead className="w-[80px]">Actions</TableHead> */}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {allOrders.length > 0 ? (
-                                allOrders.map((order, index) => {
-                                    if (!order) return null; // Skip null orders
-
-                                    return (
-                                        <TableRow key={order._id || index} className="border-blue-400">
-                                            <TableCell>{(page - 1) * itemsPerPage + index + 1}</TableCell>
-                                            <TableCell>
-                                                {order.createdAt
-                                                    ? new Date(order.createdAt).toLocaleDateString("en-IN", {
-                                                        day: "numeric",
-                                                        month: "long",
-                                                        year: "numeric",
-                                                    })
-                                                    : "N/A"}
-                                            </TableCell>
-                                            <TableCell>{order.orderId || "N/A"}</TableCell>
-                                            <TableCell>₹{order.cartTotal ? formatNumeric(order.cartTotal) : "N/A"}</TableCell>
-                                            <TableCell className="uppercase">{order.paymentMethod || "COD"}</TableCell>
-                                            <TableCell>{order.product?.title || "N/A"}</TableCell>
-                                            <TableCell>+91 {order.phone || order.formData?.phone || "N/A"}</TableCell>
-                                            <TableCell>{getStatusBadge(order.status || "Unknown")}</TableCell>
-                                        </TableRow>
-                                    );
-                                })
+                            {invoices.length > 0 ? (
+                                invoices.map((invoice, index) => (
+                                    <TableRow key={`${invoice._id}-${index}`} className="hover:bg-gray-100">
+                                        <TableCell>{(page - 1) * itemsPerPage + index + 1}</TableCell>
+                                        <TableCell className="font-medium">
+                                            {invoice.invoiceNumber || 'N/A'}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="text-sm text-gray-500">
+                                                {invoice.razorpayPaymentId || invoice.paymentResponse?.
+                                                    razorpay_payment_id || 'N/A'}   
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="text-sm text-gray-500">
+                                                {formatDate(invoice.date)}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell >
+                                            <div className="font-medium">
+                                                {invoice.customerName || 'N/A'}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {getInvoiceTypeBadge(invoice.invoiceType)}
+                                        </TableCell>
+                                        <TableCell className="text-center font-medium">
+                                            {formatCurrency(invoice.amount)}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {invoice.paymentMode || 'N/A'}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {getStatusBadge(invoice.paymentStatus)}
+                                        </TableCell>
+                                        {/* <TableCell>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Eye className="h-4 w-4" />
+                                                <span className="sr-only">View</span>
+                                            </Button>
+                                        </TableCell> */}
+                                    </TableRow>
+                                ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-24 text-center">
-                                        No payment report found
+                                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                                        No invoices found
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -98,24 +158,41 @@ const Page = async ({ searchParams }) => {
                     </Table>
                 </div>
 
-                {/* Pagination Controls (Server-Side) */}
-                <div className="flex flex-col items-center justify-center gap-4 -mt-12">
-                    <span className="text-lg font-semibold">
-                        Page {page} of {totalPages}
-                    </span>
-                    <div className="flex gap-2">
-                        {page > 1 && (
-                            <Link href={`?page=${page - 1}`} className="bg-blue-500 text-white px-4 py-2 rounded">
-                                Previous
-                            </Link>
-                        )}
-                        {page < totalPages && (
-                            <Link href={`?page=${page + 1}`} className="bg-blue-500 text-white px-4 py-2 rounded">
-                                Next
-                            </Link>
-                        )}
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex flex-col items-center justify-center gap-4 mt-8">
+                        <div className="text-sm text-muted-foreground">
+                            Showing <span className="font-medium">{(page - 1) * itemsPerPage + 1}</span> to{' '}
+                            <span className="font-medium">
+                                {Math.min(page * itemsPerPage, totalInvoices)}
+                            </span>{' '}
+                            of <span className="font-medium">{totalInvoices}</span> invoices
+                        </div>
+                        <div className="flex gap-4 items-center">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={page <= 1}
+                                href={`?page=${page - 1}`}
+                                asChild
+                            >
+                                <a>Previous</a>
+                            </Button>
+                            <span className="text-sm text-muted-foreground">
+                                Page {page} of {totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={page >= totalPages}
+                                href={`?page=${page + 1}`}
+                                asChild
+                            >
+                                <a>Next</a>
+                            </Button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </SidebarInset>
     );

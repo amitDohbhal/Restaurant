@@ -717,7 +717,7 @@ const RoomInvoice = () => {
                           razorpayPaymentId: response.razorpay_payment_id,
                           razorpayOrderId: response.razorpay_order_id,
                           razorpaySignature: response.razorpay_signature,
-                          paymentStatus: 'success',
+                          paymentStatus: 'completed',
                           paymentResponse: response,
                           paidAmount: totalAmount,
                           dueAmount: 0,

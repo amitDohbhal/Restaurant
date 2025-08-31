@@ -149,8 +149,13 @@ const data = {
       icon: BarChart
     },
     {
-      name: "Sales Section",
-      url: "/admin/sales_section",
+      name: "Payment Report",
+      url: "/admin/payment_report",
+      icon: BarChart,
+    },
+    {
+      name: "Total Sale Report",
+      url: "/admin/total_sale_report",
       icon: BarChart,
     },
     { divider: true },

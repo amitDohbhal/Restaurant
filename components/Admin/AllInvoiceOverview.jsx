@@ -20,6 +20,7 @@ const AllInvoiceOverview = () => {
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeSection, setActiveSection] = useState('room');
+    const [foodItemsMap, setFoodItemsMap] = useState({});
 
     // Filter states
     const [filters, setFilters] = useState({
@@ -70,6 +71,27 @@ const AllInvoiceOverview = () => {
         },
     ];
 
+    // Fetch food items for inventory references
+    useEffect(() => {
+        const fetchFoodItems = async () => {
+            try {
+                const response = await fetch('/api/foodInventory');
+                const data = await response.json();
+                if (Array.isArray(data)) {
+                    const itemsMap = data.reduce((acc, item) => ({
+                        ...acc,
+                        [item._id]: item
+                    }), {});
+                    setFoodItemsMap(itemsMap);
+                }
+            } catch (error) {
+                console.error('Error fetching food items:', error);
+            }
+        };
+
+        fetchFoodItems();
+    }, []);
+
     useEffect(() => {
         const fetchInvoices = async () => {
             setLoading(true);
@@ -81,7 +103,18 @@ const AllInvoiceOverview = () => {
                 const data = await response.json();
 
                 if (data.success) {
-                    setInvoices(data.invoices || []);
+                    // Process invoices to handle food items
+                    const processedInvoices = data.invoices?.map(invoice => ({
+                        ...invoice,
+                        foodItems: invoice.foodItems?.map(item => ({
+                            ...item,
+                            foodItem: typeof item.foodItem === 'string' 
+                                ? foodItemsMap[item.foodItem] || { foodName: 'Unknown Item' }
+                                : item.foodItem
+                        })) || []
+                    })) || [];
+                    
+                    setInvoices(processedInvoices);
                 } else {
                     console.error('Failed to fetch invoices:', data.error);
                     setInvoices([]);
@@ -95,7 +128,7 @@ const AllInvoiceOverview = () => {
         };
 
         fetchInvoices();
-    }, [activeSection]);
+    }, [activeSection, foodItemsMap]);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
