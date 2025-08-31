@@ -589,7 +589,7 @@ const DirectFoodOrder = () => {
         <html>
         <head>
           <meta charset="UTF-8">
-          <title>Room Food Invoice</title>
+          <title>Direct Food Invoice</title>
           <style>
             @media print {
               body { -webkit-print-color-adjust: exact; }
@@ -608,7 +608,7 @@ const DirectFoodOrder = () => {
               <!-- Header -->
               <tr>
                 <td colspan="6" style="background:#444; color:#fff; font-size:18px; font-weight:bold; padding:10px;">
-                  Room Invoice #${inv.invoiceNo || 'N/A'}
+                  Direct Food Invoice
                 </td>
               </tr>
     
@@ -920,7 +920,7 @@ const DirectFoodOrder = () => {
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
-                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoce</th>
+                                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoice</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">

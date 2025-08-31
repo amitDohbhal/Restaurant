@@ -548,7 +548,6 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         }
     };
     function handlePrint(inv) {
-        console.log(inv)
         const printWindow = window.open('', '_blank');
 
         // Calculate amounts
@@ -603,7 +602,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         <html>
         <head>
           <meta charset="UTF-8">
-          <title>Room Food Invoice</title>
+          <title>Room Invoice</title>
           <style>
             @media print {
               body { -webkit-print-color-adjust: exact; }
@@ -622,7 +621,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
               <!-- Header -->
               <tr>
                 <td colspan="6" style="background:#444; color:#fff; font-size:18px; font-weight:bold; padding:10px;">
-                  Room Invoice #${inv.invoiceNo || 'N/A'}
+                  Room Food Invoice
                 </td>
               </tr>
     
@@ -979,7 +978,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
-                                <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoce</th>
+                                <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoice</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
