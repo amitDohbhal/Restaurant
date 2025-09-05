@@ -69,7 +69,7 @@ const RoomInvoice = () => {
         throw new Error(data.error || 'Failed to fetch invoices');
       }
 
-      console.log('API Response:', data);
+      // console.log('API Response:', data);
 
       if (data.success && Array.isArray(data.invoices)) {
         setInvoices(data.invoices);
@@ -84,7 +84,7 @@ const RoomInvoice = () => {
       toast.error(err.message || 'Failed to fetch invoices. Please try again.');
     }
   };
-  console.log(invoices)
+  // console.log(invoices)
   useEffect(() => {
     fetch('/api/product')
       .then(res => res.json())

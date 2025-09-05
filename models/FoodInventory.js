@@ -1,8 +1,9 @@
 //food category
-import { Schema, models, model } from "mongoose";
+import { Schema, models, model, Types } from "mongoose";
 
 const FoodInventorySchema = new Schema({
     categoryName: { type: String, required: true },
+    categoryId: { type: Types.ObjectId, ref: 'FoodCategory', required: true },
     categoryType: { type: String },
     foodName: { type: String },
     qtyType: { type: String },

@@ -17,7 +17,6 @@ import { ArrowDown, Menu, X } from "lucide-react";
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
-import BrandCarousel from "./BrandCarousel";
 const Header = () => {
   const authDropdownRef = useRef(null);
   const profileMenuRef = useRef(null);
@@ -33,6 +32,7 @@ const Header = () => {
   const [showHeader, setShowHeader] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [openFixedMenu, setOpenFixedMenu] = useState(null);
+  // console.log(menuItems)
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -65,12 +65,6 @@ const Header = () => {
   }, [isAuthDropdownOpen, isProfileOpen]);
   useEffect(() => {
     setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/getAllMenuItems")
-      .then(res => res.json())
-      .then(data => setMenuItems(data));
   }, []);
 
   useEffect(() => {
@@ -117,11 +111,6 @@ const Header = () => {
         } bg-white text-black border-b sticky top-0 left-0 right-0 transition-all duration-300 font-barlow tracking-wider ease-in-out z-50 mx-auto w-full py-2
          ${showHeader ? "translate-y-0" : "-translate-y-full"}`}
     >
-      <div className="md:flex hidden items-center justify-between gap-8 border-b border-gray-400 md:px-8 overflow-hidden bg-white">
-        <div className="w-full">
-          <BrandCarousel />
-        </div>
-      </div>
       <div className="md:flex hidden items-center justify-between gap-8 border-b py-1 border-gray-400 md:px-8 ">
         <Link href={"/"}>
           <img className="w-56 hover:scale-105 transition-all duration-300 ease-in-out object-contain drop-shadow-xl" src="/HeaderLogo.png" alt="Rishikesh Handmade" />

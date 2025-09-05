@@ -12,12 +12,9 @@ export default async function Home() {
   return (
     <>
       <PopUpBanner />
-      <HeroSection />
-      <Boxes />
       <AboutUsSection />
       <Banner />
       <RandomTourPackageSection />
-      <InstaBlog />
       <Social/>
       <ChatBot/>
     </>

@@ -102,44 +102,44 @@ export default function ChatBot() {
   const [showSupportOptions, setShowSupportOptions] = useState(false);
   const chatWindowRef = useRef(null);
 
-  // Load chat history from DB (or localStorage fallback)
-  useEffect(() => {
-    async function loadHistory() {
-      if (session?.user?.id) {
-        try {
-          const res = await fetch(`/api/getMessages?userId=${session.user.id}`);
-          const data = await res.json();
+  // // Load chat history from DB (or localStorage fallback)
+  // useEffect(() => {
+  //   async function loadHistory() {
+  //     if (session?.user?.id) {
+  //       try {
+  //         const res = await fetch(`/api/getMessages?userId=${session.user.id}`);
+  //         const data = await res.json();
 
-          if (data.messages && Array.isArray(data.messages)) {
-            setMessages((prev) => (JSON.stringify(prev) !== JSON.stringify(data.messages) ? data.messages : prev));
-            return;
-          } else {
-            setMessages([]);
-          }
-        } catch (error) {
-          setMessages([]);
-        }
-      }
-      // fallback to localStorage
-      const localHistory = localStorage.getItem("chatbot_history");
-      if (localHistory) {
-        try {
-          const parsed = JSON.parse(localHistory);
-          if (Array.isArray(parsed)) setMessages(parsed);
-        } catch { }
-      } else {
-        setMessages([
-          {
-            from: "Bot",
-            sender: "bot",
-            text: "Hi there! 👋 Welcome to Adventure Axis!\n\nI’m AI Support Intelligence from our online store – your virtual assistant here to help you with anything you need.\n\nHow can I assist you today?",
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      }
-    }
-    loadHistory();
-  }, [session?.user?.id]);
+  //         if (data.messages && Array.isArray(data.messages)) {
+  //           setMessages((prev) => (JSON.stringify(prev) !== JSON.stringify(data.messages) ? data.messages : prev));
+  //           return;
+  //         } else {
+  //           setMessages([]);
+  //         }
+  //       } catch (error) {
+  //         setMessages([]);
+  //       }
+  //     }
+  //     // fallback to localStorage
+  //     const localHistory = localStorage.getItem("chatbot_history");
+  //     if (localHistory) {
+  //       try {
+  //         const parsed = JSON.parse(localHistory);
+  //         if (Array.isArray(parsed)) setMessages(parsed);
+  //       } catch { }
+  //     } else {
+  //       setMessages([
+  //         {
+  //           from: "Bot",
+  //           sender: "bot",
+  //           text: "Hi there! 👋 Welcome to Adventure Axis!\n\nI’m AI Support Intelligence from our online store – your virtual assistant here to help you with anything you need.\n\nHow can I assist you today?",
+  //           createdAt: new Date().toISOString(),
+  //         },
+  //       ]);
+  //     }
+  //   }
+  //   loadHistory();
+  // }, [session?.user?.id]);
 
 
   const handleResetChat = () => {

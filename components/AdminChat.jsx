@@ -147,13 +147,7 @@ export default function AdminChat() {
                 .then(data => setMessages(data.messages || []))
                 .finally(() => setMessagesLoading(false));
         }
-        // Chatbot Chat
-        else if (type === "chatbot" && selectedChat && selectedChat.userId && selectedChat.userId._id) {
-            fetch(`/api/getMessages?userId=${selectedChat.userId._id}`)
-                .then(res => res.json())
-                .then(data => setMessages(data.messages || []))
-                .finally(() => setMessagesLoading(false));
-        } else {
+    else {
             setMessagesLoading(false);
         }
     }, [type, activeOrderChat, selectedChat]);

@@ -13,7 +13,7 @@ export default function CategoryProductsGrid({ visibleProducts }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 my-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 p-10">
         {paginatedProducts.length === 0 ? (
           <div className="col-span-full text-center py-8">
             <h3 className="text-xl font-medium text-gray-600">No products found for this category</h3>
@@ -25,11 +25,19 @@ export default function CategoryProductsGrid({ visibleProducts }) {
               key={index}
               pkg={{
                 ...item,
-                name: item.title,
-                image: item.gallery?.mainImage.url,
-                price: (item.quantity && Array.isArray(item.quantity.variants) && item.quantity.variants.length > 0 ? item.quantity.variants[0].price : 0),
-                originalPrice: item.quantity?.originalPrice,
+                title: item.title || item.foodName,
+                name: item.title || item.foodName,
+                image: item.image || item.gallery?.mainImage || { url: item.image?.url || "/placeholder.jpeg" },
+                price: item.price || item.fullPrice || 0,
+                originalPrice: item.originalPrice || item.fullPrice || 0,
+                fullPrice: item.fullPrice || item.price || 0,
+                halfPrice: item.halfPrice,
+                quarterPrice: item.quarterPrice,
+                perPiecePrice: item.perPiecePrice,
                 coupon: item.coupon,
+                description: item.description || item.productDescription,
+                cgstPercent: item.cgstPercent,
+                sgstPercent: item.sgstPercent
               }}
             />
           ))

@@ -45,29 +45,29 @@ export default function Chat({
     // Optionally, add logic to mark messages as read for admin/user if needed for e-commerce chat
 
 
-    const fetchMessages = useCallback(async () => {
-        try {
-            // Fetch messages for user-admin/product chat
-            const res = await fetch(`/api/getMessages?userId=${userId}`)
-            const data = await res.json()
+    // const fetchMessages = useCallback(async () => {
+    //     try {
+    //         // Fetch messages for user-admin/product chat
+    //         const res = await fetch(`/api/getMessages?userId=${userId}`)
+    //         const data = await res.json()
 
-            if (data.messages && Array.isArray(data.messages)) {
-                setMessages((prev) => (JSON.stringify(prev) !== JSON.stringify(data.messages) ? data.messages : prev))
-                setAdminName(null);
-                // Find the most recent admin message
-                const adminMsg = [...data.messages].reverse().find(msg => msg.adminName);
-                if (adminMsg?.adminName) {
-                    setAdminName(adminMsg.adminName);
-                }
-            } else {
-                setMessages([])
-                setAdminName(null); // Reset when no messages
-            }
-        } catch (error) {
-            // console.error("Error fetching messages:", error)
-            setAdminName(null); // Reset on error
-        }
-    }, [userId])
+    //         if (data.messages && Array.isArray(data.messages)) {
+    //             setMessages((prev) => (JSON.stringify(prev) !== JSON.stringify(data.messages) ? data.messages : prev))
+    //             setAdminName(null);
+    //             // Find the most recent admin message
+    //             const adminMsg = [...data.messages].reverse().find(msg => msg.adminName);
+    //             if (adminMsg?.adminName) {
+    //                 setAdminName(adminMsg.adminName);
+    //             }
+    //         } else {
+    //             setMessages([])
+    //             setAdminName(null); // Reset when no messages
+    //         }
+    //     } catch (error) {
+    //         // console.error("Error fetching messages:", error)
+    //         setAdminName(null); // Reset on error
+    //     }
+    // }, [userId])
 
     // Removed enquiry and booking details logic for e-commerce chat
 
@@ -84,7 +84,7 @@ export default function Chat({
                 from: msg.from === "bot" ? "Bot" : "You"
             }));
         }
-        fetchMessages();
+        // fetchMessages();
         setMessages(prev => {
             const hasBotHistory = prev.some(msg => msg.from === "Bot");
             if (!hasBotHistory && parsedBotHistory.length > 0 && !mergedBotHistory) {

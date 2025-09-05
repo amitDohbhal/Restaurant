@@ -40,7 +40,7 @@ export async function POST(req) {
       );
       uploadStream.end(buffer);
     });
-    console.log(result)
+    // console.log(result)
 
     return NextResponse.json({ url: result.secure_url, key: result.public_id }, { status: 200 });
 

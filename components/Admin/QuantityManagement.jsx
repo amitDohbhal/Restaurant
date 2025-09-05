@@ -99,14 +99,14 @@ const QuantityManagement = ({ productData, productId }) => {
   };
 
   const handleProfileImageUpload = async (event, rowIdx) => {
-    console.log('Starting profile image upload...');
+    // console.log('Starting profile image upload...');
     const file = event.target.files?.[0];
     if (!file) {
-      console.log('No file selected');
+      // console.log('No file selected');
       return;
     }
     
-    console.log('Selected file:', file.name, 'Size:', file.size, 'Type:', file.type);
+    // console.log('Selected file:', file.name, 'Size:', file.size, 'Type:', file.type);
     
     // Create preview URL
     const previewUrl = URL.createObjectURL(file);
@@ -146,7 +146,7 @@ const QuantityManagement = ({ productData, productId }) => {
     try {
       // First, delete the old image if it exists
       if (oldImageKey) {
-        console.log('Deleting old image with key:', oldImageKey);
+        // console.log('Deleting old image with key:', oldImageKey);
         try {
           const deleteResponse = await fetch('/api/cloudinary', {
             method: 'DELETE',
@@ -166,7 +166,7 @@ const QuantityManagement = ({ productData, productId }) => {
       }
       
       // Upload new image
-      console.log('Uploading new image...');
+      // console.log('Uploading new image...');
       const formData = new FormData();
       formData.append('file', file);
       
@@ -182,7 +182,7 @@ const QuantityManagement = ({ productData, productId }) => {
       }
       
       const result = await response.json();
-      console.log('Upload successful. Response:', result);
+      // console.log('Upload successful. Response:', result);
       
       // Match the response structure from Cloudinary
       const imageUrl = result.secure_url || result.url;
@@ -223,7 +223,7 @@ const QuantityManagement = ({ productData, productId }) => {
         }));
       }
       
-      console.log('Profile image updated in state');
+      // console.log('Profile image updated in state');
       toast.success('Profile image uploaded successfully');
     } catch (error) {
       console.error('Error in profile image upload:', error);
@@ -243,14 +243,11 @@ const QuantityManagement = ({ productData, productId }) => {
   const handleSubImagesUpload = async (event, rowIdx) => {
     const files = Array.from(event.target.files || []);
     if (!files.length) {
-      console.log('No files selected');
+      // console.log('No files selected');
       return;
     }
     
-    console.log(`Uploading ${files.length} sub-images...`);
-    files.forEach((file, i) => {
-      console.log(`File ${i + 1}:`, file.name, 'Size:', file.size, 'Type:', file.type);
-    });
+
     
     // Create preview URLs
     const previews = files.map(file => ({
@@ -294,9 +291,9 @@ const QuantityManagement = ({ productData, productId }) => {
     }
     
     try {
-      console.log('Starting upload of', files.length, 'files...');
+      // console.log('Starting upload of', files.length, 'files...');
       const uploadPromises = files.map((file, index) => {
-        console.log(`Uploading file ${index + 1}/${files.length}:`, file.name);
+        // console.log(`Uploading file ${index + 1}/${files.length}:`, file.name);
         const formData = new FormData();
         formData.append('file', file);
         
@@ -305,7 +302,7 @@ const QuantityManagement = ({ productData, productId }) => {
           body: formData,
         })
         .then(async response => {
-          console.log(`File ${index + 1} upload response status:`, response.status);
+          // console.log(`File ${index + 1} upload response status:`, response.status);
           if (!response.ok) {
             const errorText = await response.text();
             console.error(`Upload failed for ${file.name}:`, errorText);
@@ -314,14 +311,14 @@ const QuantityManagement = ({ productData, productId }) => {
           return response.json();
         })
         .then(result => {
-          console.log(`File ${index + 1} upload successful:`, result.public_id);
+          // console.log(`File ${index + 1} upload successful:`, result.public_id);
           return result;
         });
       });
       
-      console.log('Waiting for all uploads to complete...');
+      // console.log('Waiting for all uploads to complete...');
       const results = await Promise.all(uploadPromises);
-      console.log('All uploads completed successfully. Results:', results);
+      // console.log('All uploads completed successfully. Results:', results);
       
       // Process the results to handle both response formats
       const newSubImages = results.map(result => ({
@@ -329,12 +326,12 @@ const QuantityManagement = ({ productData, productId }) => {
         key: result.public_id || result.key
       }));
       
-      console.log('Processed new sub-images:', newSubImages);
+      // console.log('Processed new sub-images:', newSubImages);
       
       // Update the rows state with the new images
       setRows(prevRows => {
         const currentRow = prevRows[rowIdx];
-        console.log('Current row data before update:', JSON.stringify(currentRow, null, 2));
+        // console.log('Current row data before update:', JSON.stringify(currentRow, null, 2));
         
         // Filter out any preview images before adding the new uploaded ones
         const existingImages = (currentRow.subImages || []).filter(img => !img.isPreview);
@@ -350,7 +347,7 @@ const QuantityManagement = ({ productData, productId }) => {
               ],
               uploadingSubImages: false
             };
-            console.log('Updated row with new sub-images:', JSON.stringify(updatedRow, null, 2));
+            // console.log('Updated row with new sub-images:', JSON.stringify(updatedRow, null, 2));
             return updatedRow;
           }
           return row;
@@ -372,11 +369,7 @@ const QuantityManagement = ({ productData, productId }) => {
               ],
               uploadingSubImages: false
             };
-            
-            console.log('Updating modal state with:', JSON.stringify({
-              before: { profileImage: currentVariant.profileImage, subImages: currentVariant.subImages },
-              after: { profileImage: updatedVariant.profileImage, subImages: updatedVariant.subImages }
-            }, null, 2));
+        
             
             return {
               ...prev,
@@ -388,10 +381,10 @@ const QuantityManagement = ({ productData, productId }) => {
         return updatedRows;
       });
       
-      console.log('Sub-images updated in state');
+      // console.log('Sub-images updated in state');
       toast.success(`${results.length} image(s) uploaded successfully`);
     } catch (error) {
-      console.error('Error in sub-images upload:', error);
+      // console.error('Error in sub-images upload:', error);
       toast.error(`Upload failed: ${error.message || 'Unknown error'}`);
       
       // Reset uploading state on error
@@ -444,7 +437,7 @@ const QuantityManagement = ({ productData, productId }) => {
   const removeSubImage = async (rowIdx, imgIdx, imgKey) => {
     try {
       if (imgKey) {
-        console.log('Deleting image from Cloudinary with key:', imgKey);
+        // console.log('Deleting image from Cloudinary with key:', imgKey);
         const response = await fetch('/api/cloudinary', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -567,7 +560,7 @@ const QuantityManagement = ({ productData, productId }) => {
     e.preventDefault();
     setSaving(true);
     try {
-      console.log('Submitting form with rows:', JSON.stringify(rows, null, 2));
+      // console.log('Submitting form with rows:', JSON.stringify(rows, null, 2));
       
       const variants = rows.map(row => {
         // Ensure size is a string (not an object) before sending to the server
@@ -601,7 +594,7 @@ const QuantityManagement = ({ productData, productId }) => {
           subImages: Array.isArray(row.subImages) ? row.subImages : []
         };
 
-        console.log('Processed variant data:', JSON.stringify(variantData, null, 2));
+        // console.log('Processed variant data:', JSON.stringify(variantData, null, 2));
         return variantData;
       });
       const payload = {

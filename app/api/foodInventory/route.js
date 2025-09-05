@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import FoodInventory from "@/models/FoodInventory";
+import FoodCategory from "@/models/FoodCategory";
 import { deleteFileFromCloudinary } from "@/utils/cloudinary";
 
 // Get all inventory items
@@ -29,7 +30,18 @@ export async function POST(req) {
         // Optionally, you can also enforce that at least one is present for each
         // if (!body.cgstPercent && !body.cgstAmount) ...
         // if (!body.sgstPercent && !body.sgstAmount) ...
+        // Create the inventory item
         const item = await FoodInventory.create(body);
+        
+        // Add the new inventory item's ID to the category's foodInventoryIds array
+        if (body.categoryId) {
+            await FoodCategory.findByIdAndUpdate(
+                body.categoryId,
+                { $addToSet: { foodInventoryIds: item._id } },
+                { new: true }
+            );
+        }
+        
         return NextResponse.json(item, { status: 201 });
     } catch (error) {
         console.error('Error creating inventory:', error);
@@ -56,8 +68,36 @@ export async function PATCH(req) {
         if (body.sgstPercent && body.sgstAmount) {
             return NextResponse.json({ error: 'Only one of sgstPercent or sgstAmount should be provided.' }, { status: 400 });
         }
-        const updated = await FoodInventory.findByIdAndUpdate(id, body, { new: true });
-        return NextResponse.json(updated, { status: 200 });
+        // Find the item to get the old image key and old category if it exists
+        const oldItem = await FoodInventory.findById(id);
+        
+        // If there's an old image and a new image is being uploaded, delete the old one from Cloudinary
+        if (oldItem?.image?.key && body.image?.key && oldItem.image.key !== body.image.key) {
+            await deleteFileFromCloudinary(oldItem.image.key);
+        }
+        
+        // Update the inventory item
+        const updatedItem = await FoodInventory.findByIdAndUpdate(id, body, { new: true });
+        
+        // Handle category update if categoryId changed
+        if (body.categoryId && oldItem?.categoryId?.toString() !== body.categoryId) {
+            // Remove from old category if it existed
+            if (oldItem?.categoryId) {
+                await FoodCategory.findByIdAndUpdate(
+                    oldItem.categoryId,
+                    { $pull: { foodInventoryIds: id } },
+                    { new: true }
+                );
+            }
+            // Add to new category
+            await FoodCategory.findByIdAndUpdate(
+                body.categoryId,
+                { $addToSet: { foodInventoryIds: id } },
+                { new: true }
+            );
+        }
+        
+        return NextResponse.json(updatedItem, { status: 200 });
     } catch (error) {
         console.error('Error updating inventory:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -103,32 +143,31 @@ export async function DELETE(req) {
     try {
         const { id } = await req.json();
 
-        // Find the item first
+        // Find the item to get the image key and category before deleting
         const item = await FoodInventory.findById(id);
+        
         if (!item) {
-            return NextResponse.json(
-                { error: "Inventory item not found" }, 
-                { status: 404 }
+            return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+        }
+        
+        // Delete the image from Cloudinary if it exists
+        if (item.image?.key) {
+            await deleteFileFromCloudinary(item.image.key);
+        }
+        
+        // Remove the item's ID from its category
+        if (item.categoryId) {
+            await FoodCategory.findByIdAndUpdate(
+                item.categoryId,
+                { $pull: { foodInventoryIds: id } },
+                { new: true }
             );
         }
-
-        // Delete associated image from Cloudinary if it exists
-        if (item.image?.key) {
-            try {
-                await deleteFileFromCloudinary(item.image.key);
-            } catch (error) {
-                console.error('Error deleting image from Cloudinary:', error);
-                // Continue with deletion even if image deletion fails
-            }
-        }
-
-        // Delete the item from database
+        
+        // Delete the item from the database
         await FoodInventory.findByIdAndDelete(id);
         
-        return NextResponse.json(
-            { message: "Inventory item deleted successfully" }, 
-            { status: 200 }
-        );
+        return NextResponse.json({ message: 'Item deleted successfully' }, { status: 200 });
     } catch (error) {
         console.error('Error deleting inventory item:', error);
         return NextResponse.json(

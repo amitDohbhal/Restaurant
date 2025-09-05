@@ -35,25 +35,26 @@ export const CategoryCarousel = ({ categories = [] }) => {
 
 
 const CategoryCard = ({ category }) => {
-  // console.log(category)
+  if (!category || !category.url) {
+    return null; // Don't render if no category or URL
+  }
+  
   return (
-
-    <div className="group w-44 max-h-72 transition-transform mx-2 my-2 flex flex-col">
+    <Link href={category.url} className="group w-52 max-h-72 transition-transform mx-2 my-2 flex flex-col">
       <div className="relative w-full h-60 overflow-hidden rounded-xl mb-2">
         <Image
           src={category?.profileImage?.url || "/placeholder.jpeg"}
-          alt={category?.title}
+          alt={category?.title || 'Category image'}
           fill
           className="object-cover object-top h-full w-full rounded-xl group-hover:-translate-y-3 transition-transform duration-200"
           sizes="176px"
+          priority={false}
         />
       </div>
-      <Link href={category?.url || `/category/${category?.url || category?._id}`}>
-        <span className="font-semibold text-start text-gray-800 cursor-pointer hover:underline mt-5 whitespace-normal break-words">
-          {category?.title}
-        </span>
-      </Link>
-    </div >
+      <h3 className="text-center font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
+        {category?.title}
+      </h3>
+    </Link>
   );
 };
 

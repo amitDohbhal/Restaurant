@@ -194,8 +194,9 @@ const FoodInventory = () => {
       let bodyData = { ...values };
       if (selectedCategoryObj) {
         bodyData.categoryName = selectedCategoryObj.categoryName;
+        bodyData.categoryId = selectedCategoryObj._id; // Add category ID
       }
-      // Remove category id, only send categoryName
+      // Remove the form's category field as we're using categoryId and categoryName
       delete bodyData.category;
       if (editingId) {
         delete bodyData._id;
@@ -232,7 +233,8 @@ const FoodInventory = () => {
         sgstAmount: '',
         image: { url: '', key: '' },
         productTitle: '',
-        productDescription: ''
+        productDescription: '',
+        categoryId: ''
       });
       setEditingId(null);
       fetchInventory();

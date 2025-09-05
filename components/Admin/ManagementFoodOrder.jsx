@@ -57,7 +57,7 @@ const ManagementFoodOrder = () => {
     const [reason, setReason] = useState('');
     const [loadingInvoices, setLoadingInvoices] = useState(false);
     const [printInvoice, setPrintInvoice] = useState(null);
-    console.log(invoices)
+    // console.log(invoices)
     // Fetch invoices
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
@@ -292,7 +292,7 @@ const ManagementFoodOrder = () => {
         }
     };
     function handlePrint(inv) {
-        console.log(inv);
+        // console.log(inv);
         const printWindow = window.open('', '_blank');
 
         // Calculate amounts

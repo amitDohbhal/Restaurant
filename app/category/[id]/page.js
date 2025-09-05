@@ -34,82 +34,58 @@ export async function generateMetadata({ params }) {
     title: `${formatCategoryId(id)}`,
   };
 }
-
-// Get category information
-const getCategoryInfo = async (categoryData) => {
-  return (
-    {
-      title: categoryData?.title || "Category Title",
-      bannerImage: categoryData?.banner?.url || `${process.env.NEXT_PUBLIC_BASE_URL}/categoryBanner.jpg`,
-    }
-  )
-}
-
 const CategoryPage = async ({ params }) => {
   const { id } = await params;
-  // Fetch all menu items to get the main category name
-  const menuRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/getAllMenuItems`);
-  const menuItems = await menuRes.json();
-  
-  // Find the main category that contains this subcategory
-  const mainCategory = menuItems.find(mainCat => 
-    mainCat.subMenu?.some(subCat => subCat.url === id)
-  );
-  
   // Fetch category data
-  const categoryRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/getCategoryBanner/${id}`);
-  let categoryData = await categoryRes.json();
+  const categoryRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/getCategoryBanner/${id}`, { cache: 'no-store' });
+  const categoryData = await categoryRes.json();
+  console.log('Category Data:', categoryData);
   
-  // Combine main category title with category data
-  categoryData = {
-    ...categoryData,
-    mainCategoryTitle: mainCategory?.title
-  };
-  // products is now an array of full product objects
-  const products = Array.isArray(categoryData.products) ? categoryData.products : [];
-  const visibleProducts = products.filter(prod => prod.active !== false);
-  // console.log(visibleProducts)
-  const categoryInfo = await getCategoryInfo(categoryData);
-  // console.log(categoryAdList)
+  // Use the products array from the API response which contains full product data
+  const visibleProducts = Array.isArray(categoryData.products) ? categoryData.products : [];
+  // console.log('Visible Products:', visibleProducts);
+  
   // Fetch all categories for the category cards row
-  const allCategoriesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/getAllMenuItems`, { cache: 'no-store' });
+  const allCategoriesRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/foodCategory`, { cache: 'no-store' });
   const allCategories = await allCategoriesRes.json();
-  // console.log(allCategories)
 
   return (
     <SidebarInset>
       <div className="min-h-screen bg-[#fcf7f1]">
         {/* Category Banner at the top */}
         <CategoryBanner 
-        title={categoryData.title} 
-        bannerImage={categoryInfo.bannerImage} 
-        mainCategory={categoryData.mainCategoryTitle || categoryData.title} 
-      />
+          title={categoryData.categoryName} 
+          bannerImage={categoryData.categoryBannerImage?.url}
+          subCategory={categoryData.categoryName}
+        />
 
-        <div className="flex flex-col md:flex-row gap-6 w-full mt-4">
+        <div className="flex flex-col md:flex-row gap-6 w-full">
           {/* Middle Section: Category Cards + Package Cards */}
-          <div className="flex-1 min-w-0 gap-4 px-2">
+          <div className="flex-1 min-w-0 gap-4">
             {/* Category Cards Row */}
-            <div>
-              <h2 className="text-2xl font-bold px-4 underline">Category</h2>
-              <Carousel className="w-full mx-auto my-4">
+            <div className="bg-gray-200">
+              <div className="flex items-center gap-5 p-5">
+                <div className="flex flex-col gap-2 items-center">
+                  <h1 className="text-2xl font-bold">Taste The Difference</h1> 
+                  <p className="text-justify w-64">Deliciousness, Delivered in Every Slice Where Every Bite is a Flavour Explosion &quot;Experience the rich taste of our freshly prepared dishes, made with authentic flaviours and quanlity ingredients, Every bite promites confort, freshness, and unforgettable flavour.&quot;</p>          
+                </div>
+              <Carousel className="w-full mx-auto my-4 px-5">
                 <CarouselContent className="w-full gap-5">
-                  {Array.isArray(allCategories) && allCategories.flatMap(cat =>
-                    Array.isArray(cat.subMenu) ? cat.subMenu.map((sub, idx) => (
-                      <CarouselItem key={`${cat._id || cat.title || idx}-${sub._id || sub.url || idx}`} className="basis-1/2 md:basis-1/6 lg:basis-1/6 min-w-0 snap-start">
-                        <CategoryCard category={{
-                          title: sub.title,
-                          profileImage: sub.profileImage,
-                          url: `/category/${sub.url}`
-                        }} />
-                      </CarouselItem>
-                    )) : []
-                  )}
+                  {Array.isArray(allCategories) && allCategories.map((category, idx) => (
+                    <CarouselItem key={category._id || idx} className="basis-1/2 md:basis-1/6 lg:basis-1/6 min-w-0 snap-start">
+                      <CategoryCard category={{
+                        title: category.categoryName,
+                        profileImage: category.categoryProfileImage?.url ? { url: category.categoryProfileImage.url } : null,
+                        url: `/category/${category.slug}`
+                      }} />
+                    </CarouselItem>
+                  ))}
                 </CarouselContent>
                 <CarouselNext className="!right-2 !top-1/2 !-translate-y-1/2 z-10 " />
                 <CarouselPrevious className="!left-1 !top-1/2 !-translate-y-1/2 z-10" />
               </Carousel>
-            </div>
+              </div>
+              </div>
             < div className="h-[1px] bg-gray-300"></div>
             {/* Product Cards Row */}
             <CategoryProducts visibleProducts={visibleProducts} />

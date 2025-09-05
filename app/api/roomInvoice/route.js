@@ -9,7 +9,7 @@ export async function GET(req) {
         const limit = parseInt(searchParams.get('limit')) || 10;
         const skip = parseInt(searchParams.get('skip')) || 0;
         
-        console.log(`Query params - limit: ${limit}, skip: ${skip}`);
+        // console.log(`Query params - limit: ${limit}, skip: ${skip}`);
         
         const [invoices, total] = await Promise.all([
             RoomInvoice.find({})
@@ -20,12 +20,7 @@ export async function GET(req) {
             RoomInvoice.countDocuments({})
         ]);
         
-        console.log(`Found ${invoices.length} invoices out of ${total} total`);
-        
-        if (invoices.length === 0) {
-            console.log('No invoices found in the database');
-        }
-        
+        // console.log(`Found ${invoices.length} invoices out of ${total} total`);        
         return NextResponse.json({ 
             success: true,
             count: invoices.length,

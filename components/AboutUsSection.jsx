@@ -10,20 +10,6 @@ const AboutUsSection = () => {
     const [featuredPackages, setFeaturedPackages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
-
-    const dummyPackages = [
-        {
-            _id: "1",
-            link: "#",
-            image: { url: "https://dummyimage.com/1280x720/000/fff" },
-            headerText: "Spiritual Retreat",
-            title: "Himalayan Pilgrimage",
-            subTitle: "Find peace in the mountains",
-            location: "Uttarakhand, India",
-            footertext: "A journey to rejuvenate your soul",
-        },
-    ];
-
     useEffect(() => {
         const fetchPackages = async () => {
             try {
@@ -80,22 +66,13 @@ const AboutUsSection = () => {
         );
     }
     return (
-        <section className="bg-[#FCF7F1] relative py-10 w-full px-5 overflow-hidden max-w-screen overflow-x-hidden">
+        <section className="bg-gray-300 relative py-10 w-full px-5 overflow-hidden max-w-screen overflow-x-hidden">
             <div className="w-full">
                 <h2 className="font-bold text-2xl md:text-4xl text-center mt-2 md:mt-7 uppercase">
-                    <span className="italic"> Your Partner in Every Expedition.</span>
+                    <span className="italic"> Taste The Difference</span>
                 </h2>
-                {/* <p className=" text-xl font-lg md:text-xl text-center mt-2">
-                    emphasizes uniqueness, tradition, artistry, and authentic
-                </p> */}
-                <hr className="h-[2px] w-[50%] mx-auto bg-black" />
-
-                <p className="text-gray-600 md:py-8 py-4 text-center font-barlow md:w-[50%] w-full mx-auto">
-                    As an authorized dealer for top global brands like NRS, Camp, Wiley X, and Lafuma, we specialize in high-quality equipment for water sports, camping, trekking, high-altitude expeditions, and safety needs.
-                    <br />
-                    With over 25 years of industry experience, we are a trusted supplier to leading adventure companies across India, supporting activities such as rafting, bungee jumping, camping, and mountaineering. Our commitment to innovation and service excellence earned us the Great Place to Work® Certification in 2025.
-                    <br />
-                    We don’t just provide equipment — we deliver complete outdoor solutions, backed by expert leadership and a vision to elevate the adventure gear industry.
+                <p className="text-gray-600 py-4 text-center font-barlow md:w-[50%] w-full mx-auto">
+                 Deliciousness, Delivered in Every Slice where Every Bite is a Flavor Explosion
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 mx-auto">
                     {loading ? (

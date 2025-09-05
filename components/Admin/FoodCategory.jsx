@@ -22,10 +22,22 @@ const FoodCategory = () => {
     const [editBanner, setEditBanner] = useState(null);
     // Form state
 
+    // Slugify utility
+    function slugify(str) {
+        return str
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .replace(/-+/g, '-');
+    }
     const [formData, setFormData] = useState({
+        slug: "",
         categoryName: "",
+        categoryProfileImage:"",
+        categoryBannerImage:"",
         order: 1,
     });
+
     // Fetch food categories and determine the next order number
     useEffect(() => {
         const fetchCategories = async () => {
@@ -49,14 +61,75 @@ const FoodCategory = () => {
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
+    // Cloudinary-style image upload
+    const [uploading, setUploading] = useState({ profile: false, banner: false });
+    const profileFileInputRef = useRef(null);
+    const bannerFileInputRef = useRef(null);
+
+    const handleImageChange = async (e, type) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        setUploading(prev => ({ ...prev, [type]: true }));
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', file);
+        
+        try {
+            const res = await fetch('/api/cloudinary', {
+                method: 'POST',
+                body: formDataUpload
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.url) {
+                setFormData(prev => ({
+                    ...prev,
+                    [`category${type === 'profile' ? 'Profile' : 'Banner'}Image`]: {
+                        url: data.url,
+                        key: data.key || ''
+                    }
+                }));
+                toast.success(`${type === 'profile' ? 'Profile' : 'Banner'} image uploaded!`);
+            } else {
+                toast.error(`Failed to upload ${type} image: ${data.error || 'Unknown error'}`);
+            }
+        } catch (err) {
+            toast.error(`Error uploading ${type} image: ${err.message}`);
+        } finally {
+            setUploading(prev => ({ ...prev, [type]: false }));
+        }
+    };
+
+    // Remove image from formData
+    const handleDeleteImage = (type) => {
+        setFormData(prev => ({
+            ...prev,
+            [`category${type === 'profile' ? 'Profile' : 'Banner'}Image`]: { url: '', key: '' }
+        }));
+    };
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             const method = editBanner ? "PATCH" : "POST";
+            // Create a clean payload with only the necessary fields
+            // Generate slug from category name
+            const slug = slugify(formData.categoryName || '');
+            
             const payload = {
-                ...formData,
-                id: editBanner,
+                categoryName: formData.categoryName,
+                slug: slug,
+                order: formData.order,
+                id: editBanner || undefined,
             };
+
+            // Only include image data if it exists
+            if (formData.categoryProfileImage?.url) {
+                payload.categoryProfileImage = formData.categoryProfileImage;
+            }
+            if (formData.categoryBannerImage?.url) {
+                payload.categoryBannerImage = formData.categoryBannerImage;
+            }
+
             const response = await fetch("/api/foodCategory", {
                 method,
                 headers: { "Content-Type": "application/json" },
@@ -73,9 +146,12 @@ const FoodCategory = () => {
                 const updatedCategories = await fetch("/api/foodCategory").then((res) => res.json());
                 setBanners(updatedCategories);
 
-                // Reset form
+                // Reset form with proper image object structure
                 setFormData({
                     categoryName: "",
+                    slug: "",
+                    categoryProfileImage: { url: "", key: "" },
+                    categoryBannerImage: { url: "", key: "" },
                     order: updatedCategories.length + 1,
                 });
 
@@ -91,6 +167,9 @@ const FoodCategory = () => {
         setEditBanner(category._id);
         setFormData({
             categoryName: category.categoryName,
+            slug: category.slug || slugify(category.categoryName || ''),
+            categoryProfileImage: category.categoryProfileImage || { url: "", key: "" },
+            categoryBannerImage: category.categoryBannerImage || { url: "", key: "" },
             order: category.order,
         });
     };
@@ -133,16 +212,98 @@ const FoodCategory = () => {
         setShowDeleteModal(false);
         setBannerToDelete(null);
     };
-
     return (
         <div className="mx-auto py-10 w-full">
             <form onSubmit={handleSubmit} className="bg-white max-w-md mx-auto shadow-lg rounded-lg p-6 space-y-4 ">
-            <h2 className="text-xl font-bold mb-6">{editBanner ? "Edit Food Category" : "Add New Food Category"}</h2>
+                <h2 className="text-xl font-bold mb-6">{editBanner ? "Edit Food Category" : "Add New Food Category"}</h2>
                 <div className="flex items-center gap-5">
                     <div className="w-full">
                         <Label>Category Name</Label>
                         <Input name="categoryName" placeholder="Enter category name" type="text" value={formData.categoryName} onChange={handleInputChange} />
                     </div>
+                </div>
+                {/* Profile Image Upload */}
+                <div className="mb-4">
+                    <Label className="block mb-2 font-bold">Profile Image</Label>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageChange(e, 'profile')}
+                        ref={profileFileInputRef}
+                        className="hidden"
+                        id="profile-image-input"
+                    />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="mb-2 flex items-center gap-2 bg-blue-500 text-white"
+                        onClick={() => profileFileInputRef.current?.click()}
+                        disabled={uploading.profile}
+                    >
+                        <span>Select Profile Image</span>
+                        <UploadIcon className="w-4 h-4" />
+                    </Button>
+                    {uploading.profile && <div className="text-blue-600 font-semibold">Uploading...</div>}
+                    {formData.categoryProfileImage?.url && (
+                        <div className="relative w-48 h-48 border rounded-full overflow-hidden mb-2">
+                            <Image
+                                src={formData.categoryProfileImage.url}
+                                alt="Profile Preview"
+                                fill
+                                className="object-cover"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteImage('profile')}
+                                className="absolute top-1 right-1 bg-white bg-opacity-80 rounded-full p-1 hover:bg-red-200"
+                                title="Remove profile image"
+                            >
+                                <Trash2Icon className="w-5 h-5 text-red-600" />
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Banner Image Upload */}
+                <div className="mb-4">
+                    <Label className="block mb-2 font-bold">Banner Image</Label>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageChange(e, 'banner')}
+                        ref={bannerFileInputRef}
+                        className="hidden"
+                        id="banner-image-input"
+                    />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="mb-2 flex items-center gap-2 bg-blue-500 text-white"
+                        onClick={() => bannerFileInputRef.current?.click()}
+                        disabled={uploading.banner}
+                    >
+                        <span>Select Banner Image</span>
+                        <UploadIcon className="w-4 h-4" />
+                    </Button>
+                    {uploading.banner && <div className="text-blue-600 font-semibold">Uploading...</div>}
+                    {formData.categoryBannerImage?.url && (
+                        <div className="relative w-full h-48 border rounded-lg overflow-hidden mb-2">
+                            <Image
+                                src={formData.categoryBannerImage.url}
+                                alt="Banner Preview"
+                                fill
+                                className="object-cover"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteImage('banner')}
+                                className="absolute top-1 right-1 bg-white bg-opacity-80 rounded-full p-1 hover:bg-red-200"
+                                title="Remove banner image"
+                            >
+                                <Trash2Icon className="w-5 h-5 text-red-600" />
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <div className="flex gap-3">
                     <Button type="submit" className="bg-blue-600 hover:bg-blue-500 px-10">

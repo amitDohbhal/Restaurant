@@ -56,6 +56,12 @@ const data = {
     },
     { divider: true },
     {
+      name: "View Running Order",
+      url: "/admin/running_order",
+      icon: ShoppingCart,
+    },
+    { divider: true },
+    {
       name: "Create Room",
       url: "/admin/manage_products_category",
       icon: Boxes,
@@ -72,6 +78,20 @@ const data = {
     }, {
       name: "View Room Invoice Logs",
       url: "/admin/room_invoice_logs",
+      icon: Image,
+    },
+    { divider: true },
+    {
+      name: "Add Guest To Room",
+      url: "/admin/add_guest_to_room",
+      icon: Boxes,
+    }, {
+      name: "View Guest Staying In Room",
+      url: "/admin/view_guest_staying_in_room",
+      icon: Image,
+    }, {
+      name: "CheckOut Guest",
+      url: "/admin/check_out_guest",
       icon: Image,
     },
     { divider: true },
