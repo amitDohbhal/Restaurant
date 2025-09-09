@@ -234,56 +234,6 @@ export async function PUT(request) {
             
             console.log('Order updated successfully:', updatedOrder._id);
             
-            // If this is a room account order, update the room account
-            if (updatedOrder.roomNumber) {
-                try {
-                    const RoomAccount = (await import('@/models/RoomAccount')).default;
-                    const orderItem = {
-                        orderId: updatedOrder._id,
-                        orderNumber: updatedOrder.orderNumber,
-                        items: updatedOrder.items.map(item => ({
-                            productId: item.productId?.toString() || item._id?.toString(),
-                            name: item.name,
-                            price: item.price,
-                            quantity: item.quantity || item.qty,
-                            total: item.total || (item.price * (item.quantity || item.qty)),
-                            ...(item.cgstAmount && { cgstAmount: item.cgstAmount }),
-                            ...(item.sgstAmount && { sgstAmount: item.sgstAmount }),
-                            ...(item.cgstPercent && { cgstPercent: item.cgstPercent }),
-                            ...(item.sgstPercent && { sgstPercent: item.sgstPercent })
-                        })),
-                        totalAmount: updatedOrder.total,
-                        paymentMethod: 'online',
-                        paymentStatus: 'paid',
-                        status: 'confirmed',
-                        orderDate: new Date(),
-                        paidAt: new Date(),
-                        customer: {
-                            name: updatedOrder.customer?.name,
-                            email: updatedOrder.customer?.email,
-                            phone: updatedOrder.customer?.phone,
-                            roomNumber: updatedOrder.roomNumber
-                        }
-                    };
-
-                    // Move the order from unpaidOrders to paidOrders in the room account
-                    await RoomAccount.findOneAndUpdate(
-                        { roomNumber: updatedOrder.roomNumber },
-                        {
-                            $push: { paidOrders: orderItem },
-                            $pull: { unpaidOrders: { orderId: updatedOrder._id } },
-                            $set: { updatedAt: new Date() }
-                        },
-                        { new: true }
-                    );
-                    
-                    console.log(`Order ${updatedOrder.orderNumber} moved to paidOrders in room ${updatedOrder.roomNumber}`);
-                } catch (error) {
-                    console.error('Error updating room account after payment:', error);
-                    // Don't fail the request if room account update fails, just log it
-                }
-            }
-            
             // Return success response with updated order data
             return NextResponse.json({
                 success: true,
@@ -295,8 +245,7 @@ export async function PUT(request) {
                 amount: updatedOrder.total,
                 bank: paymentDetails.bank || null,
                 cardType: paymentDetails.card?.type || null,
-                message: 'Payment verified and order confirmed successfully',
-                roomAccountUpdated: !!updatedOrder.roomNumber
+                message: 'Payment verified and order confirmed successfully'
             });
             
         } catch (error) {

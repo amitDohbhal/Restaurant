@@ -36,23 +36,19 @@ export async function POST(request, { params }) {
     
     // Process items to ensure valid format
     const processedItems = orderData.items.map(item => {
-      // Use the original productId as is
-      const productId = item.productId || item.id || item._id;
+      // Handle different possible ID fields
+      const productId = item._id
       const quantity = parseInt(item.quantity || item.qty || 1);
       const price = parseFloat(item.price || 0);
       const total = parseFloat(item.total || (price * quantity));
       
-      // Include all relevant fields including tax information
       return {
-        productId: productId.toString(),
+        ...item,
+        productId: productId || null,
         name: item.name || 'Unnamed Item',
         quantity: quantity,
         price: price,
-        total: total,
-        ...(item.cgstAmount && { cgstAmount: parseFloat(item.cgstAmount) }),
-        ...(item.sgstAmount && { sgstAmount: parseFloat(item.sgstAmount) }),
-        ...(item.cgstPercent && { cgstPercent: parseFloat(item.cgstPercent) }),
-        ...(item.sgstPercent && { sgstPercent: parseFloat(item.sgstPercent) })
+        total: total
       };
     });
     
@@ -65,34 +61,28 @@ export async function POST(request, { params }) {
     
     if (!roomAccount) {
       return NextResponse.json(
-        { success: false, message: `Room account not found for room ${roomNumber}` },
+        { success: false, message: 'Room account not found' },
         { status: 404 }
       );
     }
     
     try {
-      // Create the unpaid order object with all required fields
+      // Create the unpaid order object
       const unpaidOrder = {
         orderId: orderData.orderId.toString(),
         orderNumber: orderData.orderNumber,
         items: processedItems,
         totalAmount: totalAmount,
-        paymentMethod: orderData.paymentMethod || 'pay_later',
-        paymentStatus: 'pending',
-        status: 'pending',
-        customer: {
-          ...(orderData.customer && typeof orderData.customer === 'object' ? orderData.customer : {}),
-          name: orderData.customer?.name || 'Guest',
-          email: orderData.customer?.email || '',
-          phone: orderData.customer?.phone || '',
-          roomNumber: roomNumber
+        customer: orderData.customer || {
+          name: 'Guest',
+          email: '',
+          phone: ''
         },
-        orderDate: orderData.orderDate ? new Date(orderData.orderDate) : new Date(),
+        status: 'pending',
+        orderDate: orderData.orderDate || new Date(),
         createdAt: new Date(),
         updatedAt: new Date()
       };
-      
-      console.log('Prepared unpaid order:', JSON.stringify(unpaidOrder, null, 2));
       
       console.log('Adding unpaid order:', JSON.stringify(unpaidOrder, null, 2));
       

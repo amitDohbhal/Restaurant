@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useRouter } from 'next/navigation';
 
 // Helper function to prevent body scroll
 const usePreventBodyScroll = (isOpen) => {
@@ -47,7 +48,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
   const [orderConfirmation, setOrderConfirmation] = useState(null);
   const [cart, setCart] = useState(initialCart);
   const [totalAmount, setTotalAmount] = useState(initialTotalAmount);
-
+  const router = useRouter();
   // Initialize with logged-in user's email if available
   useEffect(() => {
     const initializeGuestCheck = async () => {
@@ -61,23 +62,12 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           email
         }));
 
-        try {
-          // Check if guest exists by email
-          const { found: guestFound } = await searchGuestByEmail(email);
+        // Check if guest exists by email
+        const guestFound = await searchGuestByEmail(email);
 
-          // Only proceed to step 2 if guest is found and we're not already on a later step
-          if (guestFound) {
-            if (currentStep < 2) {
-              setCurrentStep(2);
-            }
-          } else {
-            // If no guest found, ensure we're on step 1 to collect guest info
-            setCurrentStep(1);
-          }
-        } catch (error) {
-          console.error('Error checking guest by email:', error);
-          // On error, default to step 1 to collect guest info
-          setCurrentStep(1);
+        // If guest found and we're not already on a later step, proceed to step 2
+        if (guestFound && currentStep < 2) {
+          setCurrentStep(2);
         }
       }
     };
@@ -345,27 +335,19 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
 
       // Prepare customer data with priority to selected guest data
       const customerData = {
-        // Use guest ID from selected guest if available
         _id: selectedGuest?._id || guestData._id,
-        // Use guest details from selected guest or form data
         name: selectedGuest?.name?.trim() || guestData.name?.trim() || 'Guest Customer',
         phone: selectedGuest?.phone?.trim() || guestData.phone?.trim() || '0000000000',
         email: selectedGuest?.email?.trim() || guestData.email?.trim() || 'guest@example.com',
-        // Use room number from URL, then selected guest, then form data
         roomNumber: roomNumber || selectedGuest?.roomNumber || guestData.roomNumber,
-        // Include guest ID if available from selected guest
         ...(selectedGuest?.guestId && { guestId: selectedGuest.guestId }),
-        // Include any additional guest data from the selected guest
         ...(selectedGuest?.roomId && { roomId: selectedGuest.roomId }),
         ...(selectedGuest?.checkIn && { checkIn: selectedGuest.checkIn }),
         ...(selectedGuest?.checkOut && { checkOut: selectedGuest.checkOut }),
-        // Make sure we're not using the dummy data if we have a real guest
         ...(selectedGuest && { isDummy: false })
       };
 
-      console.log('Using customer data for pay at hotel:', customerData);
-
-      // Prepare order data with all guest and room information
+      // Prepare order data
       const orderData = {
         items: cart.map(item => ({
           ...item,
@@ -379,9 +361,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           sgstPercent: parseFloat(item.sgstPercent) || 0
         })),
         customer: customerData,
-        paymentMethod: 'pay_later',
-        roomNumber: customerData.roomNumber || roomNumber || cart[0]?.roomNumber || null,
-        orderType: (customerData.roomNumber || roomNumber || cart[0]?.roomNumber) ? 'room-service' : 'takeaway',
+        paymentMethod: 'pay_at_hotel',
+        roomNumber: customerData.roomNumber,
+        orderType: customerData.roomNumber ? 'room-service' : 'takeaway',
         total: parseFloat(totalAmount).toFixed(2),
         subtotal: cart.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.qty)), 0).toFixed(2),
         tax: cart.reduce((sum, item) => {
@@ -389,13 +371,13 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           const sgst = parseFloat(item.sgstAmount) || 0;
           return sum + ((cgst + sgst) * parseInt(item.qty));
         }, 0).toFixed(2),
-        notes: `Order placed by ${customerData.name || 'Guest'} (${customerData.phone || 'No Phone'})`,
-        source: 'web-checkout',
         status: 'confirmed',
-        paymentStatus: 'pending'
+        paymentStatus: 'pending',
+        notes: `Order placed by ${customerData.name} (${customerData.phone}) to pay at hotel`,
+        source: 'web-checkout',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
-
-      console.log('Submitting pay at hotel order:', orderData);
 
       // Create order in database
       const orderResponse = await fetch('/api/runningOrder', {
@@ -403,74 +385,36 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...orderData,
-          // Ensure paymentMethod is set to 'pay_later' for room accounts
-          paymentMethod: 'pay_later',
-          // Add room account specific fields
-          isRoomAccountOrder: true,
-          // Add guest information to the order
-          guestId: customerData._id || customerData.guestId,
-          guestName: customerData.name,
-          guestPhone: customerData.phone,
-          guestEmail: customerData.email
-        })
+        body: JSON.stringify(orderData)
       });
 
       if (!orderResponse.ok) {
         const errorData = await orderResponse.json().catch(() => ({}));
-        console.error('Order creation failed:', errorData);
         throw new Error(errorData.message || 'Failed to create order');
       }
 
       const orderResponseData = await orderResponse.json();
-      console.log('Order created successfully:', orderResponseData);
 
-      // If this is a room account order, link it to the room account
+      // If this is a room account, add to unpaid orders
       if (customerData.roomNumber) {
-        try {
-          const addToRoomResponse = await fetch(`/api/roomAccount/${encodeURIComponent(customerData.roomNumber)}/addUnpaidOrder`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              orderId: orderResponseData._id || orderResponseData.orderId,
-              orderNumber: orderResponseData.orderNumber,
-              items: orderData.items.map(item => ({
-                productId: item.productId || item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.qty,
-                total: item.price * item.qty
-              })),
-              totalAmount: orderData.total,
-              paymentStatus: 'pending',
-              paymentMethod: 'pay_later',
-              customer: {
-                _id: customerData._id,
-                name: customerData.name,
-                email: customerData.email,
-                phone: customerData.phone,
-                roomNumber: customerData.roomNumber,
-                ...(customerData.roomId && { roomId: customerData.roomId })
-              },
-              createdAt: new Date().toISOString()
-            })
-          });
-
-          if (!addToRoomResponse.ok) {
-            const errorText = await addToRoomResponse.text();
-            console.error('Failed to add order to room account. Status:', addToRoomResponse.status, 'Response:', errorText);
-            // Don't fail the order if room account update fails
-          } else {
-            const result = await addToRoomResponse.json();
-            console.log('Order successfully added to room account:', result);
-          }
-        } catch (roomError) {
-          console.error('Error adding order to room account:', roomError);
-          // Don't fail the order if room account update fails
-        }
+        await fetch(`/api/roomAccount/${customerData.roomNumber}/addUnpaidOrder`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderId: orderResponseData._id,
+            orderNumber: orderResponseData.orderNumber,
+            items: orderData.items.map(item => ({
+              productId: item.productId,
+              name: item.name,
+              price: item.price,
+              quantity: item.qty,
+              total: item.price * item.qty
+            })),
+            totalAmount: orderData.total
+          })
+        });
       }
 
       // Clear the cart
@@ -484,7 +428,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       // Show order confirmation
       setOrderConfirmation({
         orderNumber: orderResponseData.orderNumber,
-        orderId: orderResponseData._id || orderResponseData.orderId,
+        orderId: orderResponseData._id,
         paymentMethod: 'Pay at Hotel',
         status: 'Confirmed',
         items: cart.map(item => ({
@@ -891,12 +835,12 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           // Step 2: Cart Review & Payment
           <div className="space-y-2">
             {currentStep === 3 && orderConfirmation ? (
-              <div className="text-center p-6 bg-green-50 rounded-lg">
-                <div className="text-green-500 text-5xl mb-4">✓</div>
-                <h2 className="text-2xl font-bold mb-2">Thank You for Your Order!</h2>
-                <p className="text-gray-600 mb-6">Your order has been {orderConfirmation.status === 'Paid' ? 'placed and paid successfully' : 'confirmed'}</p>
-
-                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 text-left">
+              <div className="text-center p-2 bg-green-50 rounded-lg">
+                <div className="text-green-500 text-2xl mb-4">✓</div>
+                <h2 className="text-2xl font-bold mb-2">Dear Guest, {selectedGuest?.name || guestInfo?.name || 'Valued Customer'}!</h2>
+                <p className="text-gray-600 my-2">Thank You !Your food order has been {orderConfirmation.status === 'Paid' ? 'placed and paid successfully' : 'confirmed'}</p>
+                <p className="text-gray-600 my-2">We will notify you once your order is ready.</p>
+                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 text-left h-[50vh] overflow-y-auto">
                   <div className="flex justify-between items-center border-b pb-3 mb-3">
                     <h3 className="font-semibold">Order #{orderConfirmation.orderNumber}</h3>
                     <span className={`px-3 py-1 rounded-full text-sm ${orderConfirmation.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
@@ -905,7 +849,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     </span>
                   </div>
 
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-2 mb-4 ">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Date:</span>
                       <span>{new Date(orderConfirmation.timestamp).toLocaleString()}</span>
@@ -925,17 +869,11 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   <h4 className="font-medium mb-2">Order Summary</h4>
                   <div className="space-y-3 mb-4">
                     {orderConfirmation.items.map((item, index) => {
-                      // Calculate tax percentages based on the price and tax amounts if not already set
-                      const cgstPercent = item.cgstPercent || (item.cgstAmount && item.price ? ((item.cgstAmount / item.price) * 100).toFixed(2) : 0);
-                      const sgstPercent = item.sgstPercent || (item.sgstAmount && item.price ? ((item.sgstAmount / item.price) * 100).toFixed(2) : 0);
-
-                      return (
+                        return (
                         <div key={index} className="border-b pb-2">
                           <div className="flex justify-between">
                             <span className="font-medium">{item.qty} × {item.name}</span>
                             <span>₹{(item.price * item.qty).toFixed(2)}</span>
-                            <span>₹{(item.cgstPercent * item.qty).toFixed(2)}</span>
-                            <span>₹{(item.sgstPercent * item.qty).toFixed(2)}</span>
                           </div>
                         </div>
                       );
@@ -959,15 +897,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                         return sum;
                       }, 0);
 
-                      const firstItemWithCGST = orderConfirmation.items.find(item => (item.cgstAmount && parseFloat(item.cgstAmount) > 0) || (item.cgstPercent && parseFloat(item.cgstPercent) > 0));
-                      const cgstPercent = firstItemWithCGST?.cgstPercent > 0 ?
-                        firstItemWithCGST.cgstPercent :
-                        (firstItemWithCGST?.cgstAmount > 0 && firstItemWithCGST?.price ?
-                          ((firstItemWithCGST.cgstAmount / firstItemWithCGST.price) * 100).toFixed(2) : '0');
-
                       return (
                         <div className="flex justify-between text-gray-600 text-sm">
-                          <span>Total CGST ({cgstPercent}%):</span>
+                          <span>Total CGST</span>
                           <span>₹{totalCGST.toFixed(2)}</span>
                         </div>
                       );
@@ -981,16 +913,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                         }
                         return sum;
                       }, 0);
-
-                      const firstItemWithSGST = orderConfirmation.items.find(item => (item.sgstAmount && parseFloat(item.sgstAmount) > 0) || (item.sgstPercent && parseFloat(item.sgstPercent) > 0));
-                      const sgstPercent = firstItemWithSGST?.sgstPercent > 0 ?
-                        firstItemWithSGST.sgstPercent :
-                        (firstItemWithSGST?.sgstAmount > 0 && firstItemWithSGST?.price ?
-                          ((firstItemWithSGST.sgstAmount / firstItemWithSGST.price) * 100).toFixed(2) : '0');
-
                       return (
                         <div className="flex justify-between text-gray-600 text-sm">
-                          <span>Total SGST ({sgstPercent}%):</span>
+                          <span>Total SGST</span>
                           <span>₹{totalSGST.toFixed(2)}</span>
                         </div>
                       );
@@ -1044,16 +969,16 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   </button>
                   <button
                     onClick={() => {
-                      // Reset and close
-                      setCurrentStep(1);
-                      onClose();
-                      // Reset cart
+                      // Clear cart and local storage
                       setCart([]);
                       setTotalAmount(0);
                       if (typeof window !== 'undefined') {
                         localStorage.removeItem('cart');
                         localStorage.removeItem('checkoutCurrentStep');
                       }
+                      // Close modal and redirect to home with reload
+                      onClose();
+                      window.location.href = '/';
                     }}
                     className="border border-gray-300 px-6 py-2 rounded hover:bg-gray-50 transition-colors"
                   >
@@ -1063,29 +988,22 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
               </div>
             ) : (
               <>
-                <div className="border rounded p-4 h-[50vh] overflow-y-auto">
+                <div className="border rounded p-4 h-fit overflow-y-auto">
+      
                   <h3 className="font-bold mb-2">Order Summary</h3>
                   {cart.map(item => (
                     <div key={item.id} className="flex justify-between py-2 border-b">
-                      <div className="flex flex-col">
-
                       <div className='flex items-center gap-5'>
                         <p className="font-medium">{item.name}</p>
                         <p className="text-sm text-gray-600">Qty: {item.qty}</p>
-                      </div>
-                      <div className='flex items-center gap-2'>
+                        <p className="text-sm text-gray-600">₹{(item.price * item.qty).toFixed(2)}</p>
                         {item.cgstPercent ? (
                           <p className="text-sm text-gray-600">CGST: {item.cgstPercent}%</p>
                         ) : (
                           <p className="text-sm text-gray-600">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
                         )}
-                        {item.sgstPercent ? (
-                          <p className="text-sm text-gray-600">SGST: {item.sgstPercent}%</p>
-                        ) : (
-                          <p className="text-sm text-gray-600">SGST: ₹{(item.sgstAmount * item.qty).toFixed(2)}</p>
-                        )}
+                        
                       </div>
-                        </div>
                       <p>₹{(item.price * item.qty).toFixed(2)}</p>
                     </div>
                   ))}

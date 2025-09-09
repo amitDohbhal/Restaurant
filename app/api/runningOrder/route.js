@@ -152,8 +152,7 @@ export async function POST(request) {
     if (roomNumberToUse) {
       try {
         // Determine if this is a paid or unpaid order
-        const isPaidOrder = ['online', 'cash'].includes(paymentMethod);
-        const orderListField = isPaidOrder ? 'paidOrders' : 'unpaidOrders';
+        const isPaidOrder = ['online', 'cash', 'card'].includes(paymentMethod);
         
         // Prepare order item for room account
         const orderItem = {
@@ -191,18 +190,40 @@ export async function POST(request) {
           orderItem.paidAt = new Date();
         }
 
+        // Prepare update operation
+        const updateOperation = {
+          $push: {},
+          $set: { updatedAt: new Date() }
+        };
+
+        // Always add to the appropriate list based on payment status
+        const targetList = isPaidOrder ? 'paidOrders' : 'unpaidOrders';
+        updateOperation.$push[targetList] = orderItem;
+
+        // If this is a pay-at-hotel order, also add to unpaidOrders
+        if (paymentMethod === 'pay_at_hotel') {
+          const unpaidOrderItem = { ...orderItem };
+          unpaidOrderItem.paymentStatus = 'pending';
+          unpaidOrderItem.status = 'pending';
+          updateOperation.$push.unpaidOrders = unpaidOrderItem;
+        }
+        // If this is an online payment, also add to paidOrders
+        else if (isPaidOrder) {
+          updateOperation.$push.paidOrders = orderItem;
+        }
+
         // Update the room account in one atomic operation
         const result = await RoomAccount.findOneAndUpdate(
           { roomNumber: roomNumberToUse },
-          {
-            $push: { [orderListField]: orderItem },
-            $set: { updatedAt: new Date() }
-          },
+          updateOperation,
           { new: true, upsert: false }
         );
 
         if (result) {
-          console.log(`Order ${order.orderNumber} added to room ${roomNumberToUse}'s ${orderListField}`);
+          console.log(`Order ${order.orderNumber} added to room ${roomNumberToUse}'s ${isPaidOrder ? 'paidOrders' : 'unpaidOrders'}`);
+          if (paymentMethod === 'pay_at_hotel') {
+            console.log(`Order ${order.orderNumber} also added to unpaidOrders for tracking`);
+          }
         } else {
           console.warn(`Room ${roomNumberToUse} not found, could not link order`);
         }
@@ -218,8 +239,7 @@ export async function POST(request) {
       orderId: order._id,
       orderNumber: order.orderNumber,
       total: order.total,
-      status: order.status,
-      linkedToRoom: !!roomNumber
+      status: order.status
     });
 
   } catch (error) {
