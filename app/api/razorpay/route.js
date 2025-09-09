@@ -114,7 +114,9 @@ export async function PUT(request) {
         let body;
         try {
             body = await request.json();
+            console.log('Received payment verification request:', JSON.stringify(body, null, 2));
         } catch (e) {
+            console.error('Error parsing request body:', e);
             return NextResponse.json(
                 { success: false, error: 'Invalid request body' },
                 { status: 400 }
@@ -149,59 +151,6 @@ export async function PUT(request) {
                 { status: 400 }
             );
         }
-
-        // Handle room and restaurant invoice payments
-        if ((type === 'room' || type === 'restaurant' || type === 'directFood') && invoiceId) {
-            try {
-                let invoice;
-                if (type === 'room') {
-                    const RoomInvoice = (await import('@/models/CreateRoomInvoice')).default;
-                    invoice = await RoomInvoice.findById(invoiceId);
-                } else if (type === 'restaurant') {
-                    const RestaurantInvoice = (await import('@/models/CreateRestaurantInvoice')).default;
-                    invoice = await RestaurantInvoice.findById(invoiceId);
-                } else if (type === 'directFood') {
-                    const DirectFoodInvoice = (await import('@/models/CreateDirectFoodInvoice')).default;
-                    invoice = await DirectFoodInvoice.findById(invoiceId);
-                }
-                
-                if (!invoice) {
-                    return NextResponse.json(
-                        { success: false, error: 'Invoice not found' },
-                        { status: 404 }
-                    );
-                }
-
-                // Update invoice with payment details
-                invoice.paymentStatus = 'completed';
-                invoice.paymentDate = new Date();
-                invoice.paymentId = razorpay_payment_id;
-                invoice.orderId = razorpay_order_id;
-                invoice.signature = razorpay_signature;
-                
-                // For restaurant invoices, update paidAmount and dueAmount
-                if (type === 'restaurant') {
-                    invoice.paidAmount = invoice.totalAmount || 0;
-                    invoice.dueAmount = 0;
-                }
-                
-                await invoice.save();
-
-                return NextResponse.json({
-                    success: true,
-                    message: 'Payment verified successfully',
-                    invoiceId: invoice._id,
-                    paymentStatus: 'completed'
-                });
-
-            } catch (error) {
-                console.error('Error updating room invoice:', error);
-                return NextResponse.json(
-                    { success: false, error: 'Failed to update invoice' },
-                    { status: 500 }
-                );
-            }
-        }
         // Fetch Full Payment Details from Razorpay
         const paymentResponse = await fetch(
             `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
@@ -216,20 +165,144 @@ export async function PUT(request) {
             }
         );
         const paymentDetails = await paymentResponse.json();
-        if (paymentResponse.ok) {
-            order.bank = paymentDetails.bank || null;
-            order.cardType = paymentDetails.card?.type || null;
+        if (!paymentResponse.ok) {
+            throw new Error('Failed to fetch payment details from Razorpay');
         }
-        // Return user-facing orderId and payment details
-        return NextResponse.json({
-            success: true,
-            orderId: order.orderId,
-            paymentId: razorpay_payment_id,
-            paymentMethod: paymentDetails.method,
-            paymentStatus: paymentDetails.status,
-            bank: paymentDetails.bank || null,
-            cardType: paymentDetails.card?.type || null,
-        });
+        // Handle regular order payments
+        const { orderId } = body;
+        
+        if (!orderId) {
+            console.error('Order ID is required in the request body');
+            return NextResponse.json(
+                { success: false, error: 'Order ID is required' },
+                { status: 400 }
+            );
+        }
+
+        try {
+            // Import the RunningOrder model
+            const RunningOrder = (await import('@/models/RunningOrder')).default;
+            
+            // Find the order first
+            console.log('Looking for order with ID:', orderId);
+            const order = await RunningOrder.findById(orderId);
+            
+            if (!order) {
+                console.error('Order not found with ID:', orderId);
+                return NextResponse.json(
+                    { success: false, error: 'Order not found' },
+                    { status: 404 }
+                );
+            }
+
+            console.log('Found order:', JSON.stringify(order, null, 2));
+            
+            // Update order with payment details
+            const updateData = {
+                status: 'confirmed',
+                paymentStatus: 'paid',
+                razorpayOrderId: razorpay_order_id,
+                razorpayPaymentId: razorpay_payment_id,
+                razorpaySignature: razorpay_signature,
+                payment: {
+                    method: paymentDetails.method,
+                    status: 'completed',
+                    transactionId: razorpay_payment_id,
+                    paymentDetails: {
+                        bank: paymentDetails.bank || null,
+                        cardType: paymentDetails.card?.type || null,
+                        vpa: paymentDetails.vpa || null,
+                        wallet: paymentDetails.wallet || null
+                    },
+                    paidAt: new Date()
+                },
+                updatedAt: new Date()
+            };
+
+            console.log('Updating order with data:', JSON.stringify(updateData, null, 2));
+            
+            // Update the order
+            const updatedOrder = await RunningOrder.findByIdAndUpdate(
+                orderId,
+                { $set: updateData },
+                { new: true }
+            );
+            
+            if (!updatedOrder) {
+                throw new Error('Failed to update order after payment');
+            }
+            
+            console.log('Order updated successfully:', updatedOrder._id);
+            
+            // If this is a room account order, update the room account
+            if (updatedOrder.roomNumber) {
+                try {
+                    const RoomAccount = (await import('@/models/RoomAccount')).default;
+                    const orderItem = {
+                        orderId: updatedOrder._id,
+                        orderNumber: updatedOrder.orderNumber,
+                        items: updatedOrder.items.map(item => ({
+                            productId: item.productId?.toString() || item._id?.toString(),
+                            name: item.name,
+                            price: item.price,
+                            quantity: item.quantity || item.qty,
+                            total: item.total || (item.price * (item.quantity || item.qty)),
+                            ...(item.cgstAmount && { cgstAmount: item.cgstAmount }),
+                            ...(item.sgstAmount && { sgstAmount: item.sgstAmount }),
+                            ...(item.cgstPercent && { cgstPercent: item.cgstPercent }),
+                            ...(item.sgstPercent && { sgstPercent: item.sgstPercent })
+                        })),
+                        totalAmount: updatedOrder.total,
+                        paymentMethod: 'online',
+                        paymentStatus: 'paid',
+                        status: 'confirmed',
+                        orderDate: new Date(),
+                        paidAt: new Date(),
+                        customer: {
+                            name: updatedOrder.customer?.name,
+                            email: updatedOrder.customer?.email,
+                            phone: updatedOrder.customer?.phone,
+                            roomNumber: updatedOrder.roomNumber
+                        }
+                    };
+
+                    // Move the order from unpaidOrders to paidOrders in the room account
+                    await RoomAccount.findOneAndUpdate(
+                        { roomNumber: updatedOrder.roomNumber },
+                        {
+                            $push: { paidOrders: orderItem },
+                            $pull: { unpaidOrders: { orderId: updatedOrder._id } },
+                            $set: { updatedAt: new Date() }
+                        },
+                        { new: true }
+                    );
+                    
+                    console.log(`Order ${updatedOrder.orderNumber} moved to paidOrders in room ${updatedOrder.roomNumber}`);
+                } catch (error) {
+                    console.error('Error updating room account after payment:', error);
+                    // Don't fail the request if room account update fails, just log it
+                }
+            }
+            
+            // Return success response with updated order data
+            return NextResponse.json({
+                success: true,
+                orderId: updatedOrder._id,
+                orderNumber: updatedOrder.orderNumber,
+                paymentId: razorpay_payment_id,
+                paymentMethod: paymentDetails.method,
+                paymentStatus: 'completed',
+                amount: updatedOrder.total,
+                bank: paymentDetails.bank || null,
+                cardType: paymentDetails.card?.type || null,
+                message: 'Payment verified and order confirmed successfully',
+                roomAccountUpdated: !!updatedOrder.roomNumber
+            });
+            
+        } catch (error) {
+            console.error('Error updating order:', error);
+            throw error; // This will be caught by the outer catch block
+        }
     } catch (error) {
         // console.error("Error verifying Razorpay payment:", error);
         return NextResponse.json(

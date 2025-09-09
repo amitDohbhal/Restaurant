@@ -1,7 +1,7 @@
 "use client"
-import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Search, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { format, parseISO } from 'date-fns';
+import { Calendar as CalendarIcon, Search, Filter, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,33 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-
-// Sample data - replace with your actual data fetching logic
-const sampleGuestData = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '+1 (555) 123-4567',
-    roomNumber: '101',
-    roomType: 'Deluxe',
-    checkInDate: new Date('2025-09-01'),
-    checkOutDate: new Date('2025-09-08'),
-  },
-  {
-    id: 2,
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    phone: '+1 (555) 987-6543',
-    roomNumber: '201',
-    roomType: 'Suite',
-    checkInDate: new Date('2025-09-05'),
-    checkOutDate: new Date('2025-09-12'),
-  },
-  // Add more sample data as needed
-];
+import { toast } from 'react-hot-toast';
 
 const ViewGuestStayingInRoom = () => {
+  const [guests, setGuests] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState({
     from: undefined,
@@ -43,17 +21,40 @@ const ViewGuestStayingInRoom = () => {
   });
   const [showDateFilter, setShowDateFilter] = useState(false);
 
+  // Fetch guests from API
+  useEffect(() => {
+    const fetchGuests = async () => {
+      try {
+        const response = await fetch('/api/addGuestToRoom');
+        if (!response.ok) throw new Error('Failed to fetch guests');
+        const data = await response.json();
+        setGuests(data);
+      } catch (error) {
+        console.error('Error fetching guests:', error);
+        toast.error('Failed to load guest data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchGuests();
+  }, []);
+
   // Filter guests based on search term and date range
-  const filteredGuests = sampleGuestData.filter((guest) => {
-    const matchesSearch = guest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         guest.roomNumber.includes(searchTerm);
-    
+  const filteredGuests = guests.filter((guest) => {
+    const matchesSearch = guest.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      guest.roomNumber?.includes(searchTerm) ||
+      guest.phone?.includes(searchTerm);
+
     if (!dateFilter.from && !dateFilter.to) {
       return matchesSearch;
     }
 
-    const checkIn = new Date(guest.checkInDate);
-    const checkOut = new Date(guest.checkOutDate);
+    const checkIn = guest.checkIn ? new Date(guest.checkIn) : null;
+    const checkOut = guest.checkOut ? new Date(guest.checkOut) : null;
+
+    if (!checkIn || !checkOut) return matchesSearch;
+
     const filterFrom = dateFilter.from ? new Date(dateFilter.from) : null;
     const filterTo = dateFilter.to ? new Date(dateFilter.to) : null;
 
@@ -64,15 +65,15 @@ const ViewGuestStayingInRoom = () => {
         (checkIn <= filterFrom && checkOut >= filterTo)
       );
     }
-    
+
     if (filterFrom) {
       return matchesSearch && checkOut >= filterFrom;
     }
-    
+
     if (filterTo) {
       return matchesSearch && checkIn <= filterTo;
     }
-    
+
     return matchesSearch;
   });
 
@@ -169,36 +170,42 @@ const ViewGuestStayingInRoom = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredGuests.length > 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <div className="flex justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredGuests.length > 0 ? (
                 filteredGuests.map((guest) => (
-                  <TableRow key={guest.id}>
+                  <TableRow key={guest._id}>
                     <TableCell className="font-medium">{guest.name}</TableCell>
                     <TableCell>
                       <div className="text-sm text-muted-foreground">
-                        <div>{guest.email}</div>
-                        <div>{guest.phone}</div>
+                        <div>{guest.email || 'N/A'}</div>
+                        <div>{guest.phone || 'N/A'}</div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">Room {guest.roomNumber}</div>
-                      <div className="text-sm text-muted-foreground">{guest.roomType}</div>
+                      <div className="text-sm text-muted-foreground">{guest.roomType || 'Standard'}</div>
                     </TableCell>
                     <TableCell>
-                      {format(new Date(guest.checkInDate), 'MMM d, yyyy')}
+                      {guest.checkIn ? format(parseISO(guest.checkIn), 'MMM d, yyyy') : 'N/A'}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(guest.checkOutDate), 'MMM d, yyyy')}
+                      {guest.checkOut ? format(parseISO(guest.checkOut), 'MMM d, yyyy') : 'N/A'}
                     </TableCell>
                     <TableCell>
                       <span className={cn(
                         'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-                        new Date(guest.checkInDate) <= new Date() && new Date(guest.checkOutDate) >= new Date()
+                        guest.status === 'checked-in'
                           ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                           : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                       )}>
-                        {new Date(guest.checkInDate) <= new Date() && new Date(guest.checkOutDate) >= new Date()
-                          ? 'Currently Staying'
-                          : 'Upcoming Stay'}
+                        {guest.status === 'checked-in' ? 'Currently Staying' : 'Reserved'}
                       </span>
                     </TableCell>
                   </TableRow>

@@ -55,25 +55,32 @@ const PackageCard = ({
     
     // Process each selected option
     productData.forEach(item => {
+      const quantity = item.quantity || 1;
+      // Create a cart item with all the original product data
       const cartItem = {
+        // Spread all original item properties first
+        ...item,
+        // Then override with cart-specific properties
         id: `${item._id}_${item.selectedOption}`, // Unique ID with option
         name: `${item.title} (${item.optionLabel || item.selectedOption})`,
-        image: item.image?.url || "/placeholder.jpeg",
-        price: item.price,
-        originalPrice: item.originalPrice || item.price,
-        qty: item.quantity || 1,
-        selectedOption: item.selectedOption,
-        optionLabel: item.optionLabel || item.selectedOption,
-        productCode: item.code || item.productCode || '',
-        cgstPercent: item.cgstPercent || 0,
-        sgstPercent: item.sgstPercent || 0,
+        qty: quantity,
+        // Ensure these are numbers
+        price: parseFloat(item.price),
+        originalPrice: parseFloat(item.originalPrice || item.price),
+        cgstPercent: parseFloat(item.cgstPercent) || 0,
+        sgstPercent: parseFloat(item.sgstPercent) || 0,
+        // Ensure image is properly formatted
+        image: item.image?.url ? item.image : { url: "/placeholder.jpeg" },
+        // Add any missing properties with defaults
+        productCode: item.productCode || item.code || '',
         description: item.description || item.productDescription || ''
       };
       
       console.log('Adding cart item:', cartItem);
       
       if (addToCartFn) {
-        addToCartFn(cartItem, item.quantity || 1);
+        // Pass the cart item and quantity to addToCartFn
+        addToCartFn(cartItem, quantity);
       }
     });
     

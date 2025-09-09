@@ -143,15 +143,13 @@ const MenuBar = (props) => {
             )} ref={menuRef}>
                 {allMenuItems.length > 0 && allMenuItems.map((cat, index) => (
                     <div key={index} className="border-b">
-                        {cat.catTitle === "Contact Us" ? (
-                            <Link 
-                                href="/contact" 
-                                className="w-full block p-3 text-sm font-medium hover:bg-gray-100"
-                                onClick={closeMobileMenu}
-                            >
-                                {cat.catTitle}
-                            </Link>
-                        ) : (
+                       <Link
+                            href="/"
+                            className="w-full block p-3 text-sm font-medium hover:bg-gray-100"
+                            onClick={closeMobileMenu}
+                        >
+                            Home
+                        </Link>
                             <>
                                 <button
                                     onClick={() => toggleFixedMenu(index)}
@@ -183,7 +181,6 @@ const MenuBar = (props) => {
                                     </ul>
                                 </div>
                             </>
-                        )}
                     </div>
                 ))}
             </div>
@@ -191,6 +188,11 @@ const MenuBar = (props) => {
             {/* Desktop Navigation */}
             <NavigationMenu.Root className="hidden lg:flex relative justify-center" >
                 <NavigationMenu.List className="flex space-x-2">
+                <Link
+                        href="/"
+                        className="flex items-center px-4 py-2 text-sm font-semibold hover:bg-blue-400 data-[state=open]:bg-blue-300 data-[state=open]:text-black rounded-md">
+                        Home
+                    </Link>
                     {allMenuItems.length > 0 && allMenuItems.map((cat, index) => (
                         <NavigationMenu.Item key={index} className="relative flex justify-end">
                             {cat.catTitle === "Contact Us" ? (

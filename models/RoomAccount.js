@@ -24,6 +24,11 @@ const roomAccountSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  roomType: {
+    type: String,
+    required: true,
+    trim: true
+  },
   roomId:{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'RoomInfo',
@@ -42,6 +47,79 @@ const roomAccountSchema = new mongoose.Schema({
     enum: ['checked-in', 'checked-out', 'reserved'],
     default: 'checked-in'
   },
+  unpaidOrders: [{
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RunningOrder',
+      required: true
+    },
+    orderNumber: {
+      type: String,
+      required: true
+    },
+    items: [{
+      productId: {
+        type: String,
+        required: true
+      },
+      name: String,
+      price: Number,
+      quantity: Number,
+      total: Number
+    }],
+    totalAmount: {
+      type: Number,
+      required: true
+    },
+    paymentMethod: String,
+    paymentStatus: {
+      type: String,
+      default: 'pending'
+    },
+    paidAt: Date,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  paidOrders: [{
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RunningOrder',
+      required: true
+    },
+    orderNumber: {
+      type: String,
+      required: true
+    },
+    items: [{
+      productId: {
+        type: String,
+        required: true
+      },
+      name: String,
+      price: Number,
+      quantity: Number,
+      total: Number
+    }],
+    totalAmount: {
+      type: Number,
+      required: true
+    },
+    paymentMethod: String,
+    paymentStatus: {
+      type: String,
+      default: 'paid'
+    },
+    paidAt: {
+      type: Date,
+      default: Date.now
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   createdAt: {
     type: Date,
     default: Date.now

@@ -15,8 +15,9 @@ function getInitial(key, fallback) {
 
 function getAvailableQty(item) {
   if (item?.totalQuantity !== undefined) return item.totalQuantity;
-  return 1; // fallback if nothing present
+  return 9999; // Return a large number as default to avoid stock limit issues
 }
+
 
 export function CartProvider({ children, session }) {
   const [cart, setCart] = useState(() => getInitial("cart", []));
@@ -31,45 +32,57 @@ export function CartProvider({ children, session }) {
   useEffect(() => {
     localStorage.setItem("wishlist", JSON.stringify(wishlist));
   }, [wishlist]);
-
-  // Rest of your component code...
-  // Make sure there are no extra opening braces in the rest of the file
-
   // Cart functions
   const addToCart = (item, qty = 1) => {
     setCart(prev => {
-      const idx = prev.findIndex(i => i.id === item.id);
+      // Create a unique ID that includes the selected option if it exists
+      const itemId = item.selectedOption ? `${item._id || item.id}_${item.selectedOption}` : (item._id || item.id);
+      
+      // Find if item with same ID and selected option exists
+      const existingItemIndex = prev.findIndex(i => i.id === itemId);
+      
       const maxQty = getAvailableQty(item);
-      if (idx > -1) {
+      const quantityToAdd = Math.max(1, parseInt(qty, 10));
+      
+      if (existingItemIndex > -1) {
+        // If item with same option exists, update its quantity and preserve all data
         const updated = [...prev];
-        const newQty = Math.min(updated[idx].qty + qty, maxQty);
-        if (updated[idx].qty + qty > maxQty) {
-          toast.error(`Only ${maxQty} left in stock!`);
-        }
-        updated[idx] = {
-          ...updated[idx],
-          ...item,
-          qty: newQty,
+        const existingItem = updated[existingItemIndex];
+        const newQty = Math.min((parseInt(existingItem.qty, 10) || 0) + quantityToAdd, maxQty);
+        
+        // Preserve all existing data and update quantity
+        updated[existingItemIndex] = {
+          ...existingItem,  // Keep all existing data
+          ...item,         // Update with any new data
+          qty: newQty,     // Update quantity
+          id: itemId       // Ensure ID is correct
         };
+        
         return updated;
+      } else {
+        // If item doesn't exist, add it with all data and specified quantity
+        const finalQty = Math.min(quantityToAdd, maxQty);
+        return [
+          ...prev, 
+          { 
+            ...item,      // Include all item data
+            id: itemId,   // Set the correct ID
+            qty: finalQty // Set the quantity
+          }
+        ];
       }
-      if (qty > maxQty) {
-        toast.error(`Only ${maxQty} left in stock!`);
-      }
-      return [...prev, { ...item, qty: Math.min(qty, maxQty) }];
     });
   };
   const removeFromCart = (id) => {
     setIsClearing(true);
 
     setCart(prev => {
-      const updatedCart = prev.filter(i => i.id !== id);
-
-      // Sync with database if user is authenticated
-      if (session?.user) {
-        const userId = session.user._id || session.user.id || session.user.email;
-        // Only clear cart in local state and localStorage, do NOT call API
-        setCart([]);
+      // Handle both ID formats (with or without the _option suffix)
+      const updatedCart = prev.filter(i => i.id !== id && 
+        !(i._id === id.split('_')[0] && i.selectedOption === id.split('_')[1]));
+      
+      // Clear cart in localStorage if it's empty after removal
+      if (updatedCart.length === 0) {
         try {
           localStorage.removeItem("cart");
           localStorage.removeItem("checkoutCart");
@@ -82,16 +95,16 @@ export function CartProvider({ children, session }) {
         } catch (error) {
           console.error('Error clearing cart/checkout data from localStorage:', error);
         }
-        setTimeout(() => setIsClearing(false), 500);
-          }
+      }
+      
+      setTimeout(() => setIsClearing(false), 500);
       return updatedCart;
     });
   };
   const updateCartQty = (id, qty) => setCart(prev => prev.map(i => {
     if (i.id === id) {
       const maxQty = getAvailableQty(i);
-      if (qty > maxQty) {``
-        toast.error(`Only ${maxQty} left in stock!`);
+      if (qty > maxQty) {
         return { ...i, qty: maxQty };
       }
       return { ...i, qty: Math.max(1, qty) };
@@ -100,42 +113,6 @@ export function CartProvider({ children, session }) {
   }));
   const clearCart = async () => {
   setIsClearing(true);
-
-  // Clear cart from database if user is authenticated
-  // if (session?.user) {
-  //   try {
-  //     console.log('[CartContext][clearCart] session.user:', session.user);
-  //     const userId = session.user._id || session.user.id || session.user.email;
-  //     console.log('[CartContext][clearCart] Using userId for cart sync:', userId);
-  //     const response = await fetch('/api/sync-cart', {
-  //       method: 'DELETE',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ userId })
-  //     });
-  //     const data = await response.json();
-  //     if (data.success) {
-  //       setCart([]);
-  //       try {
-  //         localStorage.removeItem("cart");
-  //         Object.keys(localStorage).forEach(key => {
-  //           if (key.startsWith('cart_')) {
-  //             localStorage.removeItem(key);
-  //           }
-  //         });
-  //       } catch (error) {
-  //         console.error('Error clearing cart data from localStorage:', error);
-  //       } finally {
-  //         setTimeout(() => setIsClearing(false), 1000);
-  //       }
-  //     } else {
-  //       console.error('Failed to clear cart from database:', data.error);
-  //     }
-  //   } catch (error) {
-  //     console.error('Error clearing cart from database:', error);
-  //   } finally {
-  //     setTimeout(() => setIsClearing(false), 1000);
-  //   }
-  // }
 };
 
   // Wishlist functions
