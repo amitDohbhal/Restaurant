@@ -23,6 +23,7 @@ const usePreventBodyScroll = (isOpen) => {
 };
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
+import { Loader } from 'lucide-react';
 
 const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initialTotalAmount }) => {
   usePreventBodyScroll(isOpen);
@@ -48,32 +49,93 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
   const [orderConfirmation, setOrderConfirmation] = useState(null);
   const [cart, setCart] = useState(initialCart);
   const [totalAmount, setTotalAmount] = useState(initialTotalAmount);
-  const router = useRouter();
-  // Initialize with logged-in user's email if available
+  // Add this state with your other useState declarations
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  // Check for existing guest when session changes
+  // useEffect(() => {
+  //   // Don't modify step if we're already on the thank you page (step 3)
+  //   if (currentStep === 3) return;
+
+  //   const initializeGuestCheck = async () => {
+  //     if (session?.user?.email) {
+  //       const email = session.user.email;
+
+  //       // First try to find guest by email
+  //       const { found: foundByEmail, guest: emailGuest } = await searchGuestByEmail(email);
+
+  //       if (foundByEmail) {
+  //         // If found by email, proceed to step 2
+  //         if (currentStep < 2) {
+  //           setCurrentStep(2);
+  //         }
+  //         return;
+  //       }
+
+  //       // If not found by email, try to find by phone if available in session
+  //       if (session?.user?.phone) {
+  //         const phone = session.user.phone;
+  //         const { found: foundByPhone, guest: phoneGuest } = await searchGuestByPhone(phone);
+
+  //         if (foundByPhone) {
+  //           // If found by phone, update guest info and proceed to step 2
+  //           setGuestInfo(prev => ({
+  //             ...prev,
+  //             email: email, // Set the email from session
+  //             phone: phoneGuest?.phone || phone,
+  //             name: phoneGuest?.name || prev.name
+  //           }));
+  //           setSelectedGuest(phoneGuest);
+  //           if (currentStep < 2) {
+  //             setCurrentStep(2);
+  //           }
+  //           return;
+  //         }
+  //       }
+
+  //       // If not found by either email or phone, stay on step 1
+  //       setCurrentStep(1);
+  //     }
+  //   };
+
+  //   initializeGuestCheck();
+  // }, [session, currentStep]);
   useEffect(() => {
-    const initializeGuestCheck = async () => {
-      // Don't modify step if we're already on the thank you page (step 3)
-      if (currentStep === 3) return;
+    // Don't modify step if we're already on the thank you page (step 3)
+    if (currentStep === 3) return;
 
-      if (session?.user?.email) {
-        const email = session.user.email;
-        setGuestInfo(prev => ({
-          ...prev,
-          email
-        }));
+    // Only run automatic check if we haven't manually entered step 1 yet
+    // and if the form hasn't been filled out
+    if (currentStep === 1 && !guestInfo.email && !guestInfo.phone && !guestInfo.name) {
+      const initializeGuestCheck = async () => {
+        if (session?.user?.email) {
+          const email = session.user.email;
 
-        // Check if guest exists by email
-        const guestFound = await searchGuestByEmail(email);
+          // First try to find guest by email
+          const { found: foundByEmail, guest: emailGuest } = await searchGuestByEmail(email);
 
-        // If guest found and we're not already on a later step, proceed to step 2
-        if (guestFound && currentStep < 2) {
-          setCurrentStep(2);
+          if (foundByEmail) {
+            // If found by email, proceed to step 2
+            setCurrentStep(2);
+            setSelectedGuest(emailGuest);
+            setGuestInfo({
+              name: emailGuest.name || '',
+              phone: emailGuest.phone || '',
+              email: emailGuest.email || email
+            });
+            return;
+          }
+
+          // If not found by email, pre-fill the form with session data but stay on step 1
+          setGuestInfo(prev => ({
+            ...prev,
+
+          }));
         }
-      }
-    };
+      };
 
-    initializeGuestCheck();
-  }, [session, currentStep]);
+      initializeGuestCheck();
+    }
+  }, [session]); // Remove currentStep from dependencies to avoid re-running
 
   // Persist step changes to localStorage
   useEffect(() => {
@@ -100,11 +162,71 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
     }));
   };
 
+  // Search for existing guest by phone number
+  const searchGuestByPhone = async (phone) => {
+    if (!phone) return { found: false, guest: null };
+
+    setIsSearching(true);
+    try {
+      console.log('Searching guest by phone:', phone);
+      const response = await fetch(`/api/addGuestToRoom?search=${encodeURIComponent(phone)}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Phone search results:', data);
+
+      if (Array.isArray(data) && data.length > 0) {
+        // The API now does exact phone matching, so we can use the first result
+        const guest = data[0];
+
+        if (guest) {
+          console.log('Found guest by phone:', guest);
+          // Map the guest data to the expected format
+          const formattedGuest = {
+            _id: guest._id,
+            guestId: guest.guestId || guest._id,
+            name: guest.name,
+            email: guest.email,
+            phone: guest.phone,
+            roomNumber: guest.roomNumber,
+            roomId: guest.roomId,
+            checkIn: guest.checkIn,
+            checkOut: guest.checkOut,
+            ...guest
+          };
+
+          setSelectedGuest(formattedGuest);
+          setGuestInfo(prev => ({
+            ...prev,
+            name: formattedGuest.name || '',
+            phone: formattedGuest.phone || phone,
+            email: formattedGuest.email || '',
+            roomNumber: formattedGuest.roomNumber || ''
+          }));
+
+          setIsGuestFound(true);
+          return { found: true, guest: formattedGuest };
+        }
+      }
+
+      console.log('No guest found with phone:', phone);
+      return { found: false, guest: null };
+
+    } catch (error) {
+      console.error('Error searching for guest by phone:', error);
+      return { found: false, guest: null };
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   // Search for existing guest by email
   const searchGuestByEmail = async (email) => {
     if (!email) return { found: false, guest: null };
 
-    setIsSearching(true);
     try {
       console.log('Searching guest by email:', email);
       const response = await fetch(`/api/addGuestToRoom?search=${encodeURIComponent(email)}`);
@@ -117,8 +239,8 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       console.log('Search results:', data);
 
       if (Array.isArray(data) && data.length > 0) {
-        // The API now does exact email matching, so we can use the first result
-        const guest = data[0];
+        // Find exact email match
+        const guest = data.find(g => g.email?.toLowerCase() === email.toLowerCase());
 
         if (guest) {
           console.log('Found guest by email:', guest);
@@ -133,91 +255,20 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
             roomId: guest.roomId,
             checkIn: guest.checkIn,
             checkOut: guest.checkOut,
-            // Include any additional fields that might be needed
             ...guest
           };
-
-          setSelectedGuest(formattedGuest);
-          setGuestInfo(prev => ({
-            ...prev,
-            name: formattedGuest.name || '',
-            phone: formattedGuest.phone || '',
-            email: formattedGuest.email || email,
-            roomNumber: formattedGuest.roomNumber || ''
-          }));
-
-          setIsGuestFound(true);
-          toast.success('Guest found!');
           return { found: true, guest: formattedGuest };
         }
       }
 
       console.log('No guest found with email:', email);
-      setSearchResults([]);
-      setIsGuestFound(false);
-      toast.error('No guest found with this email');
       return { found: false, guest: null };
 
     } catch (error) {
       console.error('Error searching for guest by email:', error);
-      toast.error('Error searching for guest information');
       return { found: false, guest: null };
-    } finally {
-      setIsSearching(false);
     }
   };
-
-  // Search for guest by phone or name
-  const searchGuest = async () => {
-    if (!guestInfo.phone && !guestInfo.name) {
-      toast.error('Please enter phone number or name to search');
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const searchTerm = guestInfo.phone || guestInfo.name;
-      console.log('Searching guest by:', searchTerm);
-      const response = await fetch(`/api/addGuestToRoom?search=${encodeURIComponent(searchTerm)}`);
-      const data = await response.json();
-      console.log('Search results:', data);
-
-      if (data && data.length > 0) {
-        // If searching by phone, find exact match
-        const guest = guestInfo.phone
-          ? data.find(g => g.phone === guestInfo.phone)
-          : data[0]; // If searching by name, take first match
-
-        if (guest) {
-          console.log('Found guest:', guest);
-          setSelectedGuest(guest);
-          setGuestInfo(prev => ({
-            ...prev,
-            name: guest.name || prev.name,
-            phone: guest.phone || prev.phone,
-            email: guest.email || prev.email
-          }));
-          setIsGuestFound(true);
-          setCurrentStep(2);
-          toast.success('Guest found!');
-          return;
-        }
-      }
-
-      // No guest found
-      console.log('No guest found with search term:', searchTerm);
-      setSearchResults(data || []);
-      setIsGuestFound(false);
-      toast.info('No guest found. Please enter your details.');
-
-    } catch (error) {
-      console.error('Error searching for guest:', error);
-      toast.error('Error searching for guest');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
   // Select a guest from search results
   const selectGuest = (guest) => {
     setSelectedGuest(guest);
@@ -232,9 +283,55 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
     e.preventDefault();
 
     // Basic validation
-    if (!guestInfo.name || !guestInfo.phone) {
-      toast.error('Please provide your name and phone number');
+    if (!guestInfo.name || !guestInfo.phone || !guestInfo.email) {
+      toast.error('Please provide your name, email, and phone number');
       return;
+    }
+
+    setIsSearching(true);
+    try {
+      // First try to find by email
+      const { found: foundByEmail, guest: emailGuest } = await searchGuestByEmail(guestInfo.email);
+
+      if (foundByEmail) {
+        // If found by email, update guest info and proceed to step 2
+        setSelectedGuest(emailGuest);
+        setGuestInfo(prev => ({
+          ...prev,
+          name: emailGuest.name || prev.name,
+          phone: emailGuest.phone || prev.phone,
+          roomNumber: emailGuest.roomNumber || prev.roomNumber
+        }));
+        setCurrentStep(2);
+        return;
+      }
+
+      // If not found by email, try by phone
+      const { found: foundByPhone, guest: phoneGuest } = await searchGuestByPhone(guestInfo.phone);
+
+      if (foundByPhone) {
+        // If found by phone, update guest info and proceed to step 2
+        setSelectedGuest(phoneGuest);
+        setGuestInfo(prev => ({
+          ...prev,
+          name: phoneGuest.name || prev.name,
+          email: phoneGuest.email || prev.email,
+          roomNumber: phoneGuest.roomNumber || prev.roomNumber
+        }));
+        setCurrentStep(2);
+        return;
+      }
+
+      // If not found by either, show error
+      toast.error('No guest found with these details. Please check your information.');
+      setSearchResults([]);
+      setIsGuestFound(false);
+
+    } catch (error) {
+      console.error('Error searching for guest:', error);
+      toast.error('Error searching for guest information');
+    } finally {
+      setIsSearching(false);
     }
 
     try {
@@ -326,6 +423,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
   // Handle Pay at Hotel
   const handlePayAtHotel = async () => {
     try {
+      setIsProcessingPayment(true);
       // Get room number from URL if it exists (for room service)
       const urlParams = new URLSearchParams(window.location.search);
       const roomNumber = urlParams.get('roomNumber') || null;
@@ -450,6 +548,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
     } catch (error) {
       console.error('Error creating pay at hotel order:', error);
       toast.error(error.message || 'Failed to place order. Please try again.');
+    }
+    finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -701,15 +802,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           <h2 className="text-xl font-bold text-center w-full">
             {currentStep === 1 ? "Guest Information" : "Review & Payment"}
           </h2>
-          <button
-            onClick={onClose}
-            className="absolute top-0 right-0 m-4 text-gray-500 hover:text-gray-700 bg-white rounded-full p-2 hover:bg-gray-400 transition-colors"
-            aria-label="Close modal"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
+          
         </div>
 
         {/* Progress Steps */}
@@ -728,108 +821,86 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         {currentStep === 1 ? (
           // Step 1: Guest Information
           <form onSubmit={handleGuestSubmit} className="space-y-4">
-            {isSearching ? (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                <p className="mt-2 text-sm text-gray-600">Checking guest information...</p>
-              </div>
-            ) : isGuestFound ? (
-              <div className="bg-green-50 p-4 rounded-md mb-4">
-                <h3 className="font-medium text-green-800">Guest Information Found</h3>
-                <p className="text-sm text-green-700 mt-1">
-                  {guestInfo.name} • {guestInfo.phone} • {guestInfo.email}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedGuest(null);
-                    setIsGuestFound(false);
-                  }}
-                  className="mt-2 text-sm text-blue-600 hover:underline"
-                >
-                  Not you? Click to enter different information
-                </button>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={guestInfo.name}
-                    onChange={handleInputChange}
-                    className="w-full p-2 border rounded"
-                    required
-                    disabled={isSearching}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={guestInfo.email}
-                    onChange={handleInputChange}
-                    className="w-full p-2 border rounded"
-                    required
-                    disabled={isSearching || !!session?.user?.email}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Phone</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={guestInfo.phone}
-                      onChange={handleInputChange}
-                      className="flex-1 p-2 border rounded"
-                      required
-                      disabled={isSearching}
-                    />
-                    <button
-                      type="button"
-                      onClick={searchGuest}
-                      disabled={isSearching}
-                      className="bg-blue-500 text-white px-4 rounded disabled:bg-blue-300"
+            <div>
+              <label className="block text-sm font-medium mb-1">Name</label>
+              <input
+                type="text"
+                name="name"
+                placeholder='Enter Name'
+                value={guestInfo.name}
+                onChange={handleInputChange}
+                className="w-full p-2 border rounded"
+                required
+                disabled={isSearching}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <input
+                type="email"
+                name="email"
+                placeholder='Enter Email'
+                value={guestInfo.email}
+                onChange={handleInputChange}
+                className="w-full p-2 border rounded"
+                required
+                disabled={isSearching}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Phone</label>
+              <input
+                type="tel"
+                name="phone"
+                placeholder='Enter Phone'
+                pattern="[0-9]{10}"
+                maxLength={10}
+                value={guestInfo.phone}
+                onChange={handleInputChange}
+                className="w-full p-2 border rounded"
+                required
+                disabled={isSearching}
+              />
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="mt-2 border rounded p-2 max-h-40 overflow-y-auto">
+                  <p className="text-sm text-gray-600 mb-2">Existing guests found:</p>
+                  {searchResults.map(guest => (
+                    <div
+                      key={guest._id}
+                      className={`p-2 cursor-pointer hover:bg-gray-100 ${selectedGuest?._id === guest._id ? 'bg-blue-50' : ''}`}
+                      onClick={() => selectGuest(guest)}
                     >
-                      {isSearching ? 'Searching...' : 'Search'}
-                    </button>
-                  </div>
-
-                  {/* Search Results */}
-                  {searchResults.length > 0 && (
-                    <div className="mt-2 border rounded p-2 max-h-40 overflow-y-auto">
-                      <p className="text-sm text-gray-600 mb-2">Existing guests found:</p>
-                      {searchResults.map(guest => (
-                        <div
-                          key={guest._id}
-                          className={`p-2 cursor-pointer hover:bg-gray-100 ${selectedGuest?._id === guest._id ? 'bg-blue-50' : ''}`}
-                          onClick={() => selectGuest(guest)}
-                        >
-                          {guest.name} - {guest.phone}
-                        </div>
-                      ))}
+                      {guest.name} - {guest.phone}
                     </div>
-                  )}
-
-                  {searchResults.length === 0 && guestInfo.phone && !isSearching && (
-                    <p className="text-sm text-gray-600 mt-1">No existing guest found. Please enter your details.</p>
-                  )}
+                  ))}
                 </div>
+              )}
 
-                <div className="flex justify-end pt-4">
-                  <button
-                    type="submit"
-                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
-                    disabled={!guestInfo.name || !guestInfo.phone}
-                  >
-                    Continue to Payment
-                  </button>
-                </div>
-              </>
-            )}
+              {searchResults.length === 0 && guestInfo.phone && !isSearching && (
+                <p className="text-sm text-gray-600 mt-1">No existing guest found. Please enter your details.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <button
+                type="submit"
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-blue-300 flex items-center gap-2"
+                disabled={!guestInfo.name || !guestInfo.phone || !guestInfo.email || isSearching}
+              >
+                {isSearching ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Searching...
+                  </>
+                ) : 'Continue to Payment'}
+              </button>
+            </div>
+
           </form>
         ) : (
           // Step 2: Cart Review & Payment
@@ -869,7 +940,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   <h4 className="font-medium mb-2">Order Summary</h4>
                   <div className="space-y-3 mb-4">
                     {orderConfirmation.items.map((item, index) => {
-                        return (
+                      return (
                         <div key={index} className="border-b pb-2">
                           <div className="flex justify-between">
                             <span className="font-medium">{item.qty} × {item.name}</span>
@@ -989,20 +1060,25 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
             ) : (
               <>
                 <div className="border rounded p-4 h-fit overflow-y-auto">
-      
+
                   <h3 className="font-bold mb-2">Order Summary</h3>
                   {cart.map(item => (
                     <div key={item.id} className="flex justify-between py-2 border-b">
                       <div className='flex items-center gap-5'>
                         <p className="font-medium">{item.name}</p>
                         <p className="text-sm text-gray-600">Qty: {item.qty}</p>
-                        <p className="text-sm text-gray-600">₹{(item.price * item.qty).toFixed(2)}</p>
-                        {item.cgstPercent ? (
-                          <p className="text-sm text-gray-600">CGST: {item.cgstPercent}%</p>
-                        ) : (
-                          <p className="text-sm text-gray-600">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
-                        )}
-                        
+                        <div className='flex items-center gap-2'>
+                          {item.cgstPercent ? (
+                            <p className="text-sm text-gray-600">CGST: {item.cgstPercent}%</p>
+                          ) : (
+                            <p className="text-sm text-gray-600">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
+                          )}
+                          {item.sgstPercent ? (
+                            <p className="text-sm text-gray-600">SGST: {item.sgstPercent}%</p>
+                          ) : (
+                            <p className="text-sm text-gray-600">SGST: ₹{(item.sgstAmount * item.qty).toFixed(2)}</p>
+                          )}
+                        </div>
                       </div>
                       <p>₹{(item.price * item.qty).toFixed(2)}</p>
                     </div>
@@ -1015,13 +1091,29 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     {(cart[0]?.cgstPercent || cart[0]?.cgstAmount) && (
                       <div className="flex justify-between text-sm text-black">
                         <span>CGST Amount:</span>
-                        <span>₹{cart.reduce((sum, item) => sum + (parseFloat(item.cgstAmount || 0) * item.qty || 0), 0).toFixed(2)}</span>
+                        <span>₹{cart.reduce((sum, item) => {
+                          if (item.cgstPercent) {
+                            // Calculate tax based on percentage
+                            return sum + (item.price * item.qty * (parseFloat(item.cgstPercent) / 100) || 0);
+                          } else {
+                            // Use fixed amount
+                            return sum + (parseFloat(item.cgstAmount || 0) * item.qty || 0);
+                          }
+                        }, 0).toFixed(2)}</span>
                       </div>
                     )}
                     {(cart[0]?.sgstPercent || cart[0]?.sgstAmount) && (
                       <div className="flex justify-between text-sm text-black">
                         <span>SGST Amount:</span>
-                        <span>₹{cart.reduce((sum, item) => sum + (parseFloat(item.sgstAmount || 0) * item.qty || 0), 0).toFixed(2)}</span>
+                        <span>₹{cart.reduce((sum, item) => {
+                          if (item.sgstPercent) {
+                            // Calculate tax based on percentage
+                            return sum + (item.price * item.qty * (parseFloat(item.sgstPercent) / 100) || 0);
+                          } else {
+                            // Use fixed amount
+                            return sum + (parseFloat(item.sgstAmount || 0) * item.qty || 0);
+                          }
+                        }, 0).toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-bold pt-2 border-t">
@@ -1042,8 +1134,18 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   <button
                     onClick={() => handlePaymentMethod('paylater')}
                     className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+                    disabled={isProcessingPayment}
                   >
-                    Pay at Hotel
+                    {isProcessingPayment ? (
+                      <>
+                      <span className='flex items-center justify-center gap-2'>
+                       <Loader className='animate-spin mr-2'/>
+                        Processing order...
+                      </span>
+                      </>
+                    ) : (
+                      'Pay at Hotel'
+                    )}
                   </button>
                 </div>
 
