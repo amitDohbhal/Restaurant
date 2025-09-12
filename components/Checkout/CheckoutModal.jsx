@@ -802,7 +802,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           <h2 className="text-xl font-bold text-center w-full">
             {currentStep === 1 ? "Guest Information" : "Review & Payment"}
           </h2>
-          
+
         </div>
 
         {/* Progress Steps */}
@@ -1003,51 +1003,137 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     </div>
                   </div>
                 </div>
-
                 <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-3 justify-center">
                   <button
-                    onClick={() => {
-                      // Generate and download invoice
-                      const invoiceContent = `
-                        Invoice #${orderConfirmation.orderNumber}
-                        Date: ${new Date(orderConfirmation.timestamp).toLocaleString()}
-                        Status: ${orderConfirmation.status}
-                        Payment Method: ${orderConfirmation.paymentMethod}
-                        
-                        ITEMS:
-                        ${orderConfirmation.items.map(item =>
-                        `${item.qty} × ${item.name} - ₹${(item.price * item.qty).toFixed(2)}`
-                      ).join('\n')}
-                        
-                        TOTAL: ₹${parseFloat(orderConfirmation.total).toFixed(2)}
-                        
-                        Thank you for your order!
+                    onClick={async () => {
+                      const html2pdf = (await import('html2pdf.js')).default;
+                      
+                      // Create a temporary div to hold our HTML content
+                      const element = document.createElement('div');
+                      element.style.padding = '20px';
+                      element.style.fontFamily = 'Arial, sans-serif';
+                      
+                      // Calculate values
+                      const subtotal = orderConfirmation.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                      const totalCGST = orderConfirmation.items.reduce((sum, item) => {
+                        if (item.cgstAmount) return sum + (parseFloat(item.cgstAmount) * item.qty) || 0;
+                        if (item.cgstPercent && item.price) return sum + ((item.price * parseFloat(item.cgstPercent) / 100) * item.qty) || 0;
+                        return sum;
+                      }, 0);
+                      const totalSGST = orderConfirmation.items.reduce((sum, item) => {
+                        if (item.sgstAmount) return sum + (parseFloat(item.sgstAmount) * item.qty) || 0;
+                        if (item.sgstPercent && item.price) return sum + ((item.price * parseFloat(item.sgstPercent) / 100) * item.qty) || 0;
+                        return sum;
+                      }, 0);
+                      const totalIGST = orderConfirmation.items.reduce((sum, item) => {
+                        if (item.igstAmount) return sum + (parseFloat(item.igstAmount) * item.qty) || 0;
+                        if (item.igstPercent && item.price) return sum + ((item.price * parseFloat(item.igstPercent) / 100) * item.qty) || 0;
+                        return sum;
+                      }, 0);
+                      const grandTotal = subtotal + totalCGST + totalSGST + totalIGST;
+                      // Build HTML content
+                      element.innerHTML = `
+                        <div style="width: 100%; max-width: 800px; margin: 0 auto; border: 1px solid #eee; border-radius: 5px; overflow: hidden;">
+                          <!-- Header -->
+                          <div style="background-color: #1e1e1e; color: white; padding: 10px 0; text-align: center;">
+                            <h1 style="margin: 0; font-size: 20px; font-weight: bold;">RESTAURANT INVOICE</h1>
+                          </div>
+                          
+                          <!-- Company Name -->
+                          <div style="background-color: #228b78; color: white; padding: 10px 0; text-align: center;">
+                            <h2 style="margin: 0; font-size: 22px; font-weight: bold;">HOTEL SHIVAN RESIDENCE</h2>
+                          </div>
+                          
+                          <!-- Invoice Info -->
+                          <div style="border: 1px solid #e0e0e0; border-radius: 5px; margin: 15px; padding: 10px; font-size: 12px;">
+                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                              <div>
+                                <p style="margin: 5px 0;"><strong>Invoice #:</strong> ${orderConfirmation.orderNumber}</p>
+                                <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date(orderConfirmation.timestamp).toLocaleString()}</p>
+                                <p style="margin: 5px 0;"><strong>Status:</strong> ${orderConfirmation.status}</p>
+                              </div>
+                              <div style="text-align: right;">
+                                <p style="margin: 5px 0;"><strong>Contact:</strong> +91 1234567890</p>
+                                <p style="margin: 5px 0;"><strong>Email:</strong> info@hotelshivan.com</p>
+                                <p style="margin: 5px 0;"><strong>GSTIN:</strong> 12ABCDE3456F7Z8</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <!-- Guest Info -->
+                          <div style="background-color: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 5px; margin: 0 15px 15px; padding: 10px;">
+                            <h3 style="margin: 0 0 10px 0; font-size: 14px;">Guest Information</h3>
+                              <p style="margin: 5px 0;"><strong>Name:</strong> ${selectedGuest?.name || guestInfo?.name || 'Customer'}</p>
+                              ${(selectedGuest?.phone || guestInfo?.phone) ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${selectedGuest?.phone || guestInfo?.phone}</p>` : ''}
+                              ${(selectedGuest?.email || guestInfo?.email) ? `<p style="margin: 5px 0;"><strong>Email:</strong> ${selectedGuest?.email || guestInfo?.email}</p>` : ''}
+                              ${selectedGuest?.address ? `<p style="margin: 5px 0;"><strong>Address:</strong> ${selectedGuest.address}</p>` : ''}
+                          </div>
+                          
+                          <!-- Items Table -->
+                          <table style="width: 100%; border-collapse: collapse; margin: 0 15px 15px; font-size: 12px;">
+                            <thead>
+                              <tr style="background-color: #228b78; color: white;">
+                                <th style="padding: 10px; text-align: left;">Item</th>
+                                <th style="padding: 10px; text-align: center;">Qty</th>
+                                <th style="padding: 10px; text-align: center;">Rate</th>
+                                <th style="padding: 10px; text-align: center;">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              ${orderConfirmation.items.map(item => `
+                                <tr style="border-bottom: 1px solid #eee;">
+                                  <td style="padding: 10px;">${item.name}</td>
+                                  <td style="padding: 10px; text-align: center;">${item.qty}</td>
+                                  <td style="padding: 10px; text-align: center;">₹${item.price.toFixed(2)}</td>
+                                  <td style="padding: 10px; text-align: center;">₹${(item.price * item.qty).toFixed(2)}</td>
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                          <!-- Totals -->
+                          <div style="margin: 0 15px 15px; text-align: right; font-size: 12px;">
+                            <p style="margin: 5px 0;"><strong>Subtotal:</strong> ₹${subtotal.toFixed(2)}</p>
+                            ${totalCGST > 0 ? `<p style="margin: 5px 0;"><strong>CGST:</strong> ₹${totalCGST.toFixed(2)}</p>` : ''}
+                            ${totalSGST > 0 ? `<p style="margin: 5px 0;"><strong>SGST:</strong> ₹${totalSGST.toFixed(2)}</p>` : ''}
+                            ${totalIGST > 0 ? `<p style="margin: 5px 0;"><strong>IGST:</strong> ₹${totalIGST.toFixed(2)}</p>` : ''}
+                            <p style="margin: 15px 0 5px 0; font-size: 14px; font-weight: bold;">
+                              <strong>GRAND TOTAL: ₹${grandTotal.toFixed(2)}</strong>
+                            </p>
+                          </div>
+                          <!-- Footer -->
+                          <div style="background-color: #f9f9f9; padding: 10px; text-align: center; color: #666; font-size: 10px; border-top: 1px solid #eee;">
+                            <p style="margin: 5px 0;">* This is a computer generated invoice, no signature required.</p>
+                            <p style="margin: 5px 0;">* Thank you for dining with us!</p>
+                          </div>
+                        </div>
                       `;
 
-                      const blob = new Blob([invoiceContent], { type: 'text/plain' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `invoice-${orderConfirmation.orderNumber}.txt`;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(url);
+                      // Generate PDF
+                      const opt = {
+                        margin: 10,
+                        filename: `invoice-${orderConfirmation.orderNumber}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                      };
+
+                      // Generate and download the PDF
+                      html2pdf().set(opt).from(element).save();
                     }}
                     className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
                   >
                     Download Invoice
                   </button>
+
                   <button
                     onClick={() => {
-                      // Clear cart and local storage
                       setCart([]);
                       setTotalAmount(0);
                       if (typeof window !== 'undefined') {
                         localStorage.removeItem('cart');
                         localStorage.removeItem('checkoutCurrentStep');
                       }
-                      // Close modal and redirect to home with reload
                       onClose();
                       window.location.href = '/';
                     }}
@@ -1056,6 +1142,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     New Order
                   </button>
                 </div>
+
               </div>
             ) : (
               <>
@@ -1138,10 +1225,10 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   >
                     {isProcessingPayment ? (
                       <>
-                      <span className='flex items-center justify-center gap-2'>
-                       <Loader className='animate-spin mr-2'/>
-                        Processing order...
-                      </span>
+                        <span className='flex items-center justify-center gap-2'>
+                          <Loader className='animate-spin mr-2' />
+                          Processing order...
+                        </span>
                       </>
                     ) : (
                       'Pay at Hotel'
