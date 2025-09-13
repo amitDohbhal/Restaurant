@@ -199,7 +199,7 @@ export async function PUT(request) {
             
             // Update order with payment details
             const updateData = {
-                status: 'confirmed',
+                status: 'pending',
                 paymentStatus: 'paid',
                 razorpayOrderId: razorpay_order_id,
                 razorpayPaymentId: razorpay_payment_id,

@@ -138,8 +138,8 @@ export async function POST(request) {
       ...(paymentMethod === 'room-account' || orderType === 'room-service' ? { roomNumber } : {}),
       tableNumber: orderType === 'dine-in' ? tableNumber : null,
       notes,
-      status: paymentMethod === 'online' ? 'pending_payment' : 'confirmed',
-      paymentStatus: paymentMethod === 'online' ? 'pending' : paymentMethod === 'pay_later' ? 'pending' : 'paid'
+      status: 'pending',
+      paymentStatus: paymentMethod === 'online' ? 'pending' : paymentMethod === 'pay_later' ? 'pending' : 'pending'
     };
 
     // Create a new RunningOrder instance
@@ -172,7 +172,7 @@ export async function POST(request) {
           totalAmount: order.total,
           paymentMethod: paymentMethod,
           paymentStatus: isPaidOrder ? 'paid' : 'pending',
-          status: isPaidOrder ? 'confirmed' : 'pending',
+          status: 'pending',
           orderDate: new Date(),
           createdAt: new Date(),
           // Include customer information for reference
@@ -246,6 +246,79 @@ export async function POST(request) {
     console.error('Error creating order:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to create order' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    console.log('PATCH /api/runningOrder - Connecting to DB...');
+    await connectDB();
+    
+    const requestData = await request.json();
+    console.log('PATCH /api/runningOrder - Request data:', JSON.stringify(requestData, null, 2));
+    
+    const { orderId, status } = requestData;
+
+    if (!orderId || !status) {
+      console.error('PATCH /api/runningOrder - Missing required fields:', { orderId, status });
+      return NextResponse.json(
+        { success: false, message: 'Order ID and status are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status value
+    const validStatuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      console.error('PATCH /api/runningOrder - Invalid status value:', status);
+      return NextResponse.json(
+        { success: false, message: `Invalid status value. Must be one of: ${validStatuses.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    console.log(`PATCH /api/runningOrder - Updating order ${orderId} to status: ${status}`);
+    
+    const updateData = { 
+      status,
+      updatedAt: new Date(),
+      ...(status === 'completed' && { completedAt: new Date() }),
+      ...(status === 'cancelled' && { cancelledAt: new Date() })
+    };
+    
+    console.log('PATCH /api/runningOrder - Update data:', JSON.stringify(updateData, null, 2));
+
+    const updatedOrder = await RunningOrder.findByIdAndUpdate(
+      orderId,
+      updateData,
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      console.error(`PATCH /api/runningOrder - Order not found with ID: ${orderId}`);
+      return NextResponse.json(
+        { success: false, message: 'Order not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log(`PATCH /api/runningOrder - Successfully updated order ${orderId}`);
+    return NextResponse.json({
+      success: true,
+      data: updatedOrder
+    });
+
+  } catch (error) {
+    console.error('PATCH /api/runningOrder - Error:', error);
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: 'Internal server error', 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

@@ -469,7 +469,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           const sgst = parseFloat(item.sgstAmount) || 0;
           return sum + ((cgst + sgst) * parseInt(item.qty));
         }, 0).toFixed(2),
-        status: 'confirmed',
+        status: 'pending',
         paymentStatus: 'pending',
         notes: `Order placed by ${customerData.name} (${customerData.phone}) to pay at hotel`,
         source: 'web-checkout',
@@ -528,7 +528,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         orderNumber: orderResponseData.orderNumber,
         orderId: orderResponseData._id,
         paymentMethod: 'Pay at Hotel',
-        status: 'Confirmed',
+        status: 'pending',
         items: cart.map(item => ({
           ...item,
           cgstAmount: parseFloat(item.cgstAmount) || 0,
@@ -742,7 +742,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                 orderNumber: result.orderNumber,
                 orderId: verificationData.orderId,
                 paymentMethod: 'Online',
-                status: 'Paid',
+                status: 'pending',
                 paymentId: verificationData.razorpay_payment_id,
                 items: cart.map(item => ({
                   ...item,
@@ -1146,7 +1146,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
               </div>
             ) : (
               <>
-                <div className="border rounded p-4 h-fit overflow-y-auto">
+                <div className="border rounded p-4 h-[55vh] overflow-y-auto">
 
                   <h3 className="font-bold mb-2">Order Summary</h3>
                   {cart.map(item => (

@@ -66,6 +66,7 @@ const runningOrderSchema = new mongoose.Schema({
     enum: [
       'pending_payment', 
       'confirmed', 
+      'pending', 
       'preparing', 
       'ready', 
       'served', 
