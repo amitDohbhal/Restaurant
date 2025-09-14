@@ -40,7 +40,7 @@ const CategoryCard = ({ category }) => {
   }
   
   return (
-    <Link href={category.url} className="group w-52 max-h-72 transition-transform mx-2 my-2 flex flex-col">
+    <Link href={category.url} className="group w-48 h-60 md:w-52 md:max-h-72 transition-transform mx-2 my-2 flex flex-col">
       <div className="relative w-full h-60 overflow-hidden rounded-xl mb-2">
         <Image
           src={category?.profileImage?.url || "/placeholder.jpeg"}
@@ -51,7 +51,7 @@ const CategoryCard = ({ category }) => {
           priority={false}
         />
       </div>
-      <h3 className="text-center font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
+      <h3 className="text-start px-2 font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
         {category?.title}
       </h3>
     </Link>

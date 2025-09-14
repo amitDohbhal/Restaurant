@@ -42,11 +42,6 @@ const CartDetails = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const handleCheckout = () => {
-    if (!termsChecked) {
-      toast.error('Please accept the terms and conditions');
-      return;
-    }
-
     if (!session) {
       // Store the current URL to redirect back after sign in
       const currentUrl = window.location.pathname;
@@ -63,7 +58,6 @@ const CartDetails = () => {
 
   const [promoCode, setPromoCode] = React.useState("");
   const [promoError, setPromoError] = React.useState("");
-  const [termsChecked, setTermsChecked] = React.useState(false);
   const [appliedPromo, setAppliedPromo] = React.useState(null); // to track applied promo
   const totalAfterDiscount = Array.isArray(cart)
     ? cart.reduce((sum, item) => sum + getAfterDiscount(item) * item.qty, 0)
@@ -341,6 +335,7 @@ const CartDetails = () => {
                 </tbody>
               </table>
             </div>
+            {/* Mobile View */}
             <div className="md:hidden flex">
               <div className="w-full border-collapse rounded overflow-hidden shadow text-xs md:text-base">
                 <div className="md:hidden flex flex-col gap-4">
@@ -375,24 +370,39 @@ const CartDetails = () => {
                       </div>
 
                       {/* Right Column: Product Info */}
-                      <div className="text-sm space-y-1">
+                      <div className="text-[15px] space-y-3">
                         <div>
                           <span className="font-semibold">Name:</span> {item.name}
-                        </div>
-                        <div>
-                          <span className="font-semibold">Code:</span> {item.productCode || "N/A"}
                         </div>
                         <div>
                           <span className="font-semibold">Base Price:</span> ₹{item.originalPrice ?? item.price}
                         </div>
                         <div>
-                          <span className="font-semibold">Weight:</span> {item.weight ?? 0}g
+                          <span className="font-semibold flex items-center gap-1">CGST :{item.cgstAmount ? (
+                            <div className="flex flex-col">
+                              <span>₹{parseFloat(item.cgstAmount).toFixed(2)}</span>
+                            </div>
+                          ) : ''}
+                            {item.cgstPercent ? (
+                              <div className="flex flex-col">
+                                <span>{parseFloat(item.cgstPercent).toFixed(2)}%</span>
+                              </div>
+                            ) : ''}
+                          </span>
+
                         </div>
                         <div>
-                          <span className="font-semibold">CGST ({item.cgstPercent || 0}%):</span> {item.cgstAmount ? `₹${parseFloat(item.cgstAmount).toFixed(2)}` : 'N/A'}
-                        </div>
-                        <div>
-                          <span className="font-semibold">SGST ({item.sgstPercent || 0}%):</span> {item.sgstAmount ? `₹${parseFloat(item.sgstAmount).toFixed(2)}` : 'N/A'}
+                          <span className="font-semibold flex items-center gap-1">SGST :{item.sgstAmount ? (
+                            <div className="flex flex-col">
+                              <span>₹{parseFloat(item.sgstAmount).toFixed(2)}</span>
+                            </div>
+                          ) : ''}
+                            {item.sgstPercent ? (
+                              <div className="flex flex-col">
+                                <span>{parseFloat(item.sgstPercent).toFixed(2)}%</span>
+                              </div>
+                            ) : ''}
+                          </span>
                         </div>
                         <div>
                           <span className="font-semibold">Total:</span> ₹{getAmount(item)}
@@ -499,7 +509,7 @@ const CartDetails = () => {
               {/* Total CGST/SGST */}
               <div className="flex justify-between items-center text-sm mb-2">
                 <span className="text-gray-600">
-                  Total CGST 
+                  Total CGST
                   {cart.some(item => item.cgstPercent) && `(${cart[0]?.cgstPercent || 0}%)`}
                 </span>
                 <span className="text-gray-900 font-medium">
@@ -516,7 +526,7 @@ const CartDetails = () => {
               </div>
               <div className="flex justify-between items-center text-sm mb-2">
                 <span className="text-gray-600">
-                  Total SGST 
+                  Total SGST
                   {cart.some(item => item.sgstPercent) && `(${cart[0]?.sgstPercent || 0}%)`}
                 </span>
                 <span className="text-gray-900 font-medium">
@@ -538,23 +548,8 @@ const CartDetails = () => {
                 <span>Final Amount</span>
                 <span>₹{finalAmount}</span>
               </div>
-
-              {/* Terms and Pay Button */}
-              <div className="flex items-center gap-2 mb-2">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  className="accent-black"
-                  checked={termsChecked}
-                  onChange={(e) => setTermsChecked(e.target.checked)}
-                />
-                <label htmlFor="terms" className="text-xs">
-                  I have read and agree to the website terms and conditions
-                </label>
-              </div>
               <button
                 className="w-full py-3 bg-orange-500 text-white font-bold text-base hover:bg-orange-600 mb-2"
-                disabled={!termsChecked}
                 onClick={() => {
                   handleCheckout();
                 }}
@@ -613,7 +608,7 @@ const CartDetails = () => {
                 className="w-full py-3 bg-green-700 text-white font-bold text-base hover:bg-green-800 my-2"
                 onClick={() => (window.location.href = "/")}
               >
-                Continue Shopping
+                Make New Order
               </button>
 
               {/* Info Footer */}
@@ -623,7 +618,7 @@ const CartDetails = () => {
                 described in our privacy policy.
               </div>
             </div>
-            <div className="flex flex-col items-center mt-3">
+            {/* <div className="flex flex-col items-center mt-3">
               <div className="flex items-center gap-1 text-gray-800 text-sm">
                 <svg
                   className="w-4 h-4"
@@ -645,7 +640,7 @@ const CartDetails = () => {
                 Your Rishikesh Handmade Guides are available 24/7/365 to answer
                 your question and help you better understand your purchase.
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Checkout Modal - Only render when isCheckoutOpen is true */}

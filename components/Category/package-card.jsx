@@ -46,8 +46,7 @@ const PackageCard = ({
   }
 
   const handleAddToCartWithOptions = (productData) => {
-    console.log('Adding to cart:', productData);
-    
+   
     // If it's a single item (backward compatibility)
     if (!Array.isArray(productData)) {
       productData = [productData];
@@ -76,7 +75,7 @@ const PackageCard = ({
         description: item.description || item.productDescription || ''
       };
       
-      console.log('Adding cart item:', cartItem);
+      
       
       if (addToCartFn) {
         // Pass the cart item and quantity to addToCartFn
@@ -91,7 +90,7 @@ const PackageCard = ({
     <>
       <div className="flex flex-col w-58 md:w-[300px] rounded-md mb-2 group cursor-pointer bg-white">
       {/* Image Section */}
-      <div className="relative w-full h-48 md:h-60 rounded-t-3xl overflow-hidden">
+      <div className="relative w-full h-42 md:h-60 rounded-t-3xl overflow-hidden">
         <Image
           src={typeof pkg.image === 'string' ? pkg.image : (pkg.image?.url || "/placeholder.jpeg")}
           alt={pkg?.title || pkg?.name || "Food Image"}
@@ -104,7 +103,7 @@ const PackageCard = ({
       {/* Product Info Section */}
       <div className="p-4 flex-grow flex flex-col">
         {/* Product Title */}
-        <h3 className="font-bold text-gray-900 text-sm md:text-base mb-2 line-clamp-2 h-10">
+        <h3 className="font-bold text-gray-900 text-md md:text-base mb-2 line-clamp-2 h-10">
           {pkg?.title}
         </h3>
         {/* Action Buttons */}
@@ -154,7 +153,6 @@ const PackageCard = ({
             <ShoppingCart size={16} />
             Add to Cart
           </Button>
-          
         </div>
           <Button 
             variant="outline" 

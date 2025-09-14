@@ -64,15 +64,15 @@ const CategoryPage = async ({ params }) => {
           <div className="flex-1 min-w-0 gap-4">
             {/* Category Cards Row */}
             <div className="bg-gray-200">
-              <div className="flex items-center gap-5 p-5">
+              <div className="flex items-center flex-col md:flex-row gap-5 p-2 md:p-5">
                 <div className="flex flex-col gap-2 items-center">
                   <h1 className="text-2xl font-bold">Taste The Difference</h1> 
-                  <p className="text-justify w-64">Deliciousness, Delivered in Every Slice Where Every Bite is a Flavour Explosion &quot;Experience the rich taste of our freshly prepared dishes, made with authentic flaviours and quanlity ingredients, Every bite promites confort, freshness, and unforgettable flavour.&quot;</p>          
+                  <p className="text-justify px-5 md:px-0 md:w-64">Deliciousness, Delivered in Every Slice Where Every Bite is a Flavour Explosion &quot;Experience the rich taste of our freshly prepared dishes, made with authentic flaviours and quanlity ingredients, Every bite promites confort, freshness, and unforgettable flavour.&quot;</p>          
                 </div>
               <Carousel className="w-full mx-auto my-4 px-5">
                 <CarouselContent className="w-full gap-5">
                   {Array.isArray(allCategories) && allCategories.map((category, idx) => (
-                    <CarouselItem key={category._id || idx} className="basis-1/2 md:basis-1/6 lg:basis-1/6 min-w-0 snap-start">
+                    <CarouselItem key={category._id || idx} className="pl-5 basis-1/3 md:basis-1/6 lg:basis-1/6 min-w-0 snap-start">
                       <CategoryCard category={{
                         title: category.categoryName,
                         profileImage: category.categoryProfileImage?.url ? { url: category.categoryProfileImage.url } : null,

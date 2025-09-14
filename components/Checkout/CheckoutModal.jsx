@@ -52,54 +52,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
   const [totalAmount, setTotalAmount] = useState(initialTotalAmount);
   // Add this state with your other useState declarations
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  // Check for existing guest when session changes
-  // useEffect(() => {
-  //   // Don't modify step if we're already on the thank you page (step 3)
-  //   if (currentStep === 3) return;
-
-  //   const initializeGuestCheck = async () => {
-  //     if (session?.user?.email) {
-  //       const email = session.user.email;
-
-  //       // First try to find guest by email
-  //       const { found: foundByEmail, guest: emailGuest } = await searchGuestByEmail(email);
-
-  //       if (foundByEmail) {
-  //         // If found by email, proceed to step 2
-  //         if (currentStep < 2) {
-  //           setCurrentStep(2);
-  //         }
-  //         return;
-  //       }
-
-  //       // If not found by email, try to find by phone if available in session
-  //       if (session?.user?.phone) {
-  //         const phone = session.user.phone;
-  //         const { found: foundByPhone, guest: phoneGuest } = await searchGuestByPhone(phone);
-
-  //         if (foundByPhone) {
-  //           // If found by phone, update guest info and proceed to step 2
-  //           setGuestInfo(prev => ({
-  //             ...prev,
-  //             email: email, // Set the email from session
-  //             phone: phoneGuest?.phone || phone,
-  //             name: phoneGuest?.name || prev.name
-  //           }));
-  //           setSelectedGuest(phoneGuest);
-  //           if (currentStep < 2) {
-  //             setCurrentStep(2);
-  //           }
-  //           return;
-  //         }
-  //       }
-
-  //       // If not found by either email or phone, stay on step 1
-  //       setCurrentStep(1);
-  //     }
-  //   };
-
-  //   initializeGuestCheck();
-  // }, [session, currentStep]);
+  const [isOnlineProcessingPayment, setIsOnlineProcessingPayment] = useState(false);
   useEffect(() => {
     // Don't modify step if we're already on the thank you page (step 3)
     if (currentStep === 3) return;
@@ -449,7 +402,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       // Get user ID from session
       const userId = session?.user?.id;
       if (!userId) {
-        throw new Error('User ID is required');
+        throw new Error('User must be logged in to place an order');
       }
 
       // Prepare order data
@@ -569,6 +522,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
   // Handle Razorpay payment
   const handleRazorpayPayment = async () => {
     try {
+      setIsOnlineProcessingPayment(true);
       // Get room number from URL if it exists (for room service)
       const urlParams = new URLSearchParams(window.location.search);
       const roomNumber = urlParams.get('roomNumber') || null;
@@ -600,17 +554,14 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
 
       // Get user ID from session
       const userId = session?.user?.id;
-      
       if (!userId) {
-        console.error('No user ID found in session');
-        // Handle unauthenticated user case if needed
+        throw new Error('User must be logged in to place an order');
       }
 
       // Prepare order data with all guest and room information
       const orderData = {
         // Include user ID at root level
-        userId: userId || null,
-        
+        userId: userId,
         // Map cart items
         items: cart.map(item => ({
           id: item.id || item._id,
@@ -622,11 +573,11 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           cgstPercent: parseFloat(item.cgstPercent) || 0,
           sgstPercent: parseFloat(item.sgstPercent) || 0
         })),
-        
+
         // Customer information
         customer: {
-          // Include user ID in customer object
-          ...(userId && { userId }),
+          // Include user ID in customer object (required)
+          userId: userId,
           // Guest identification
           _id: customerData._id,
           guestId: customerData.guestId || customerData._id || null,
@@ -819,6 +770,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       console.error('Payment error:', error);
       toast.error('Failed to process payment');
     }
+    finally {
+      setIsOnlineProcessingPayment(false);
+    }
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto">
@@ -827,9 +781,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           <h2 className="text-xl font-bold text-center w-full">
             {currentStep === 1 ? "Guest Information" : "Review & Payment"}
           </h2>
-
         </div>
-
         {/* Progress Steps */}
         <div className="flex justify-between mb-6">
           <div className={`text-center ${currentStep >= 1 ? 'text-blue-600 font-bold' : 'text-gray-400'}`}>
@@ -845,7 +797,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
 
         {currentStep === 1 ? (
           // Step 1: Guest Information
-          <form onSubmit={handleGuestSubmit} className="space-y-4">
+          <form onSubmit={handleGuestSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium mb-1">Name</label>
               <input
@@ -875,7 +827,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
             <div>
               <label className="block text-sm font-medium mb-1">Phone</label>
               <input
-                type="tel"
+                type="number"
                 name="phone"
                 placeholder='Enter Phone'
                 pattern="[0-9]{10}"
@@ -903,9 +855,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                 </div>
               )}
 
-              {searchResults.length === 0 && guestInfo.phone && !isSearching && (
+              {/* {searchResults.length === 0 && guestInfo.phone && !isSearching && (
                 <p className="text-sm text-gray-600 mt-1">No existing guest found. Please enter your details.</p>
-              )}
+              )} */}
             </div>
 
             <div className="flex justify-end pt-4">
@@ -925,19 +877,18 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                 ) : 'Continue to Payment'}
               </button>
             </div>
-
           </form>
         ) : (
           // Step 2: Cart Review & Payment
-          <div className="space-y-2">
+          <div className="space-y-1">
             {currentStep === 3 && orderConfirmation ? (
-              <div className="text-center p-2 bg-green-50 rounded-lg">
+              <div className="text-center p-2 bg-green-50 rounded-lg h-[80vh] overflow-y-auto">
                 <div className="text-green-500 text-2xl mb-4">✓</div>
                 <h2 className="text-2xl font-bold mb-2">Dear Guest, {selectedGuest?.name || guestInfo?.name || 'Valued Customer'}!</h2>
                 <p className="text-gray-600 my-2">Thank You !Your food order has been {orderConfirmation.status === 'Paid' ? 'placed and paid successfully' : 'confirmed'}</p>
                 <p className="text-gray-600 my-2">We will notify you once your order is ready.</p>
-                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 text-left h-[50vh] overflow-y-auto">
-                  <div className="flex justify-between items-center border-b pb-3 mb-3">
+                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 text-left h-[30vh] md:h-[50vh] overflow-y-auto">
+                  <div className="flex flex-col md:flex-row md:justify-between items-start gap-2 md:items-center border-b pb-3 mb-3">
                     <h3 className="font-semibold">Order #{orderConfirmation.orderNumber}</h3>
                     <span className={`px-3 py-1 rounded-full text-sm ${orderConfirmation.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
                       }`}>
@@ -962,7 +913,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     )}
                   </div>
 
-                  <h4 className="font-medium mb-2">Order Summary</h4>
+                  <h4 className="font-medium mb-2 border-b pb-2">Order Summary</h4>
                   <div className="space-y-3 mb-4">
                     {orderConfirmation.items.map((item, index) => {
                       return (
@@ -1028,16 +979,16 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-5 justify-center">
+                <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-5 justify-center">
                   <button
                     onClick={async () => {
                       const html2pdf = (await import('html2pdf.js')).default;
-                      
+
                       // Create a temporary div to hold our HTML content
                       const element = document.createElement('div');
                       element.style.padding = '20px';
                       element.style.fontFamily = 'Arial, sans-serif';
-                      
+
                       // Calculate values
                       const subtotal = orderConfirmation.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
                       const totalCGST = orderConfirmation.items.reduce((sum, item) => {
@@ -1146,7 +1097,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                       // Generate and download the PDF
                       html2pdf().set(opt).from(element).save();
                     }}
-                    className="bg-blue-500 text-white px-5 py-2 rounded hover:bg-blue-600 transition-colors flex items-center"
+                    className="bg-blue-500 text-white px-5 py-2 rounded hover:bg-blue-600 transition-colors flex justify-center items-center"
                   >
                     <Printer className="mr-2" size="20" />
                     Download Invoice
@@ -1167,8 +1118,8 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   >
                     New Order
                   </button>
-              
-                    <button
+
+                  <button
                     onClick={() => {
                       setCart([]);
                       setTotalAmount(0);
@@ -1179,41 +1130,55 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                       onClose();
                       window.location.href = '/dashboard?section=orders';
                     }}
-                      className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
-                      type="button"
-                    >
-                      
-                      View Order in Dashboard
-                    </button>
-              
+                    className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
+                    type="button"
+                  >
+
+                    View Order in Dashboard
+                  </button>
+
                 </div>
 
               </div>
             ) : (
               <>
-                <div className="border rounded p-4 h-[55vh] overflow-y-auto">
-
+                <div className="border rounded p-4 h-[50vh] overflow-y-auto md:h-[50vh]">
                   <h3 className="font-bold mb-2">Order Summary</h3>
                   {cart.map(item => (
-                    <div key={item.id} className="flex justify-between py-2 border-b">
-                      <div className='flex items-center gap-5'>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-sm text-gray-600">Qty: {item.qty}</p>
-                        <div className='flex items-center gap-2'>
-                          {item.cgstPercent ? (
-                            <p className="text-sm text-gray-600">CGST: {item.cgstPercent}%</p>
-                          ) : (
-                            <p className="text-sm text-gray-600">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
-                          )}
-                          {item.sgstPercent ? (
-                            <p className="text-sm text-gray-600">SGST: {item.sgstPercent}%</p>
-                          ) : (
-                            <p className="text-sm text-gray-600">SGST: ₹{(item.sgstAmount * item.qty).toFixed(2)}</p>
-                          )}
+                    <>
+                      <div key={item.id} className="flex justify-between py-2 md:border-b">
+                        <div className='flex items-center gap-5'>
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-sm text-black">Qty: {item.qty}</p>
+                          <div className='hidden md:flex items-center gap-2'>
+                            {item.cgstPercent ? (
+                              <p className="text-sm text-black">CGST: {item.cgstPercent}%</p>
+                            ) : (
+                              <p className="text-sm text-black">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
+                            )}
+                            {item.sgstPercent ? (
+                              <p className="text-sm text-black">SGST: {item.sgstPercent}%</p>
+                            ) : (
+                              <p className="text-sm text-black">SGST: ₹{(item.sgstAmount * item.qty).toFixed(2)}</p>
+                            )}
+                          </div>
                         </div>
+                        <p>₹{(item.price * item.qty).toFixed(2)}</p>
                       </div>
-                      <p>₹{(item.price * item.qty).toFixed(2)}</p>
-                    </div>
+                      <div className='md:hidden flex items-center gap-2 pb-2'>
+                        {item.cgstPercent ? (
+                          <p className="text-sm text-black">CGST: {item.cgstPercent}%</p>
+                        ) : (
+                          <p className="text-sm text-black">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
+                        )}
+                        {item.sgstPercent ? (
+                          <p className="text-sm text-black">SGST: {item.sgstPercent}%</p>
+                        ) : (
+                          <p className="text-sm text-black">SGST: ₹{(item.sgstAmount * item.qty).toFixed(2)}</p>
+                        )}
+                      </div>
+                    </>
+
                   ))}
                   <div className="space-y-2 mt-4 pt-2 border-t">
                     <div className="flex justify-between">
@@ -1260,8 +1225,18 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   <button
                     onClick={() => handlePaymentMethod('payonline')}
                     className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
+                    disabled={isOnlineProcessingPayment}
                   >
-                    Pay Online
+                    {isOnlineProcessingPayment ? (
+                      <>
+                        <span className='flex items-center justify-center gap-2'>
+                          <Loader className='animate-spin mr-2' />
+                          Processing order...
+                        </span>
+                      </>
+                    ) : (
+                      'Pay Online'
+                    )}
                   </button>
                   <button
                     onClick={() => handlePaymentMethod('paylater')}
