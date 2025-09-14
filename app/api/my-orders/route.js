@@ -8,7 +8,7 @@ export async function GET() {
     // Get the current user session
     const session = await getServerSession(authOptions);
     
-    if (!session || !session.user || !session.user.email) {
+    if (!session?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
@@ -17,17 +17,35 @@ export async function GET() {
 
     await connectDB();
 
-    // Find orders for the logged-in user by their ID
-    const orders = await RunningOrder.find({ 
-      $or: [
-        { 'userId': session.user.id }, // Check for direct user ID match
-        { 'customer.email': session.user.email } // Fallback to email for backward compatibility
-      ]
-    })
-    .sort({ createdAt: -1 }) // Sort by most recent first
-    .lean();
+    // Base query for finding orders
+    const query = {
+      $or: []
+    };
 
-    return new Response(JSON.stringify(orders), {
+    // Add user ID to query if available
+    if (session.user.id) {
+      query.$or.push({ 'userId': session.user.id });
+    }
+
+    // Add email to query if available
+    if (session.user.email) {
+      query.$or.push({ 'customer.email': session.user.email });
+    }
+
+    // If no valid query conditions, return empty array
+    if (query.$or.length === 0) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Find and return orders
+    const orders = await RunningOrder.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return new Response(JSON.stringify(orders || []), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
