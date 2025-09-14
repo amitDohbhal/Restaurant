@@ -24,7 +24,7 @@ const customerSchema = new mongoose.Schema({
   email: { type: String },
   
   // Room information
-  roomNumber: { type: String },
+  roomNumber: { type: String, required: true },
   roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
   checkIn: { type: Date },
   checkOut: { type: Date },
@@ -50,6 +50,8 @@ const paymentSchema = new mongoose.Schema({
 
 const runningOrderSchema = new mongoose.Schema({
   orderNumber: { type: String, required: true, unique: true },
+  // Reference to the user who created the order (if logged in)
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User',required:true },
   customer: customerSchema,
   items: [orderItemSchema],
   subtotal: { type: Number, required: true },

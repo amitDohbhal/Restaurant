@@ -75,16 +75,23 @@ const OrderDetail = ({ order, onBack }) => {
       checkCancellation();
     }
   }, [orderData?._id]);
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      // Fallback to browser's history if onBack is not provided
+      window.history.back();
+    }
+  };
+
   return (
     <>
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="px-4 py-1 bg-gray-200 hover:bg-gray-300 rounded text-md font-medium"
-        >
-          ← Back to Order Details
-        </button>
-      )}
+      <button
+        onClick={handleBack}
+        className="px-4 py-1 bg-gray-200 hover:bg-gray-300 rounded text-md font-medium mb-4"
+      >
+        ← Back to Orders
+      </button>
 
       <div className="bg-white rounded-2xl shadow p-8 max-w-4xl mx-auto mt-6">
         {/* Header */}

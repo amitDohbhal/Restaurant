@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react"
 import LanguageSelector from "./LanguageSelector"
 import SearchBar from "./SearchBar"
 import Cart from "./Cart";
-import { ShoppingCart, Heart, User } from "lucide-react"
+import { ShoppingCart, User } from "lucide-react"
 import { useCart } from "../context/CartContext";
 import { ArrowDown, Menu, X } from "lucide-react";
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
@@ -207,25 +207,6 @@ const Header = () => {
                   </div>
                 )}
               </div>
-              {/* Wishlist Button */}
-              <div className="relative group">
-                <button
-                  onClick={() => { setInitialCartTab('wishlist'); setIsCartOpen(true); }}
-                  className="flex flex-col items-center p-2 rounded-lg hover:bg-neutral-100 transition-colors"
-                  aria-label="Wishlist"
-                >
-                  <div className="relative">
-                    <Heart size={20} />
-                    {wishlist.length > 0 && (
-                      <span className="absolute -top-3 -right-3 bg-pink-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow">
-                        {wishlist.length}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs font-medium mt-1">Wishlist</span>
-                </button>
-              </div>
-
               {/* Cart Button */}
               <div className="relative group">
                 <button
@@ -243,17 +224,6 @@ const Header = () => {
                   </div>
                   <span className="text-xs font-medium mt-1">Cart</span>
                 </button>
-              </div>
-
-              {/* Track Order Button */}
-              <div className="group">
-                <Link
-                  href="/dashboard?section=track"
-                  className="flex flex-col items-center p-2 rounded-lg hover:bg-neutral-100 transition-colors"
-                >
-                  <Truck size={20} />
-                  <span className="text-xs font-medium mt-1">Track Order</span>
-                </Link>
               </div>
               {/* SearchBar aligned to the right */}
               <div className="group">
@@ -293,19 +263,6 @@ const Header = () => {
         </Link>
 
         <div className="flex items-center gap-3">
-
-          <button
-            className="relative p-2 rounded-full hover:bg-neutral-100 transition"
-            onClick={() => { setInitialCartTab('wishlist'); setIsCartOpen(true); }}
-            aria-label="Open Wishlist"
-          >
-            <Heart size={20} />
-            {wishlist.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-pink-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow">
-                {wishlist.length}
-              </span>
-            )}
-          </button>
           {/* Cart & Wishlist Icons */}
           <button
             className="relative p-2 rounded-full hover:bg-neutral-100 transition"

@@ -138,7 +138,7 @@ const MenuBar = (props) => {
             </div>
 
             <div className={clsx(
-                "absolute top-8  md:top-12 mt-4 rounded-xl left-0 w-[90vw] text-black bg-white shadow-md lg:hidden transition-all duration-300 overflow-hidden",
+                "absolute top-8 md:top-12 mt-4 rounded-xl left-0 w-[90vw] text-black bg-white shadow-md lg:hidden transition-all duration-300 overflow-hidden z-100",
                 isOpen ? "max-h-[500px] overflow-y-auto" : "max-h-0"
             )} ref={menuRef}>
                 {allMenuItems.length > 0 && allMenuItems.map((cat, index) => (

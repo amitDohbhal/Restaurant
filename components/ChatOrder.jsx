@@ -99,14 +99,20 @@ function OrderChat({ userId, orderId, userName, userImage, onBack }) {
     // 
     const fileInputRef = useRef();
 
-    // Fetch messages for this order
-    useEffect(() => {
+    // Function to fetch messages
+    const fetchMessages = async () => {
         if (!userId || !orderId) return;
-        const fetchMessages = async () => {
+        try {
             const res = await fetch(`/api/getOrderChat?userId=${userId}&orderId=${orderId}`);
             const data = await res.json();
             setMessages(Array.isArray(data.messages) ? data.messages : []);
-        };
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+        }
+    };
+
+    // Fetch messages for this order
+    useEffect(() => {
         fetchMessages();
         const interval = setInterval(fetchMessages, 3000);
         return () => clearInterval(interval);

@@ -191,7 +191,7 @@ const AddGuestToRoom = () => {
                                     id="name"
                                     value={formData.name}
                                     onChange={(e) => handleChange('name', e.target.value)}
-                                    placeholder="John Doe"
+                                    placeholder="Enter Guest Name"
                                     required
                                 />
                             </div>
@@ -202,7 +202,7 @@ const AddGuestToRoom = () => {
                                     type="email"
                                     value={formData.email}
                                     onChange={(e) => handleChange('email', e.target.value)}
-                                    placeholder="john@example.com"
+                                placeholder="Enter Guest Email"
                                     required
                                 />
                             </div>
@@ -213,7 +213,7 @@ const AddGuestToRoom = () => {
                                     type="tel"
                                     value={formData.phone}
                                     onChange={(e) => handleChange('phone', e.target.value)}
-                                    placeholder="+1 (555) 123-4567"
+                                    placeholder="Enter Guest Phone Number"
                                     required
                                 />
                             </div>

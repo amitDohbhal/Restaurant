@@ -11,12 +11,6 @@ export default function Cart({ open, onClose, initialTab = "cart" }) {
   const firstRender = React.useRef(true);
   const { cart: rawCart, wishlist, setCart, setWishlist, updateCartQty, removeFromCart, removeFromWishlist, isClearing,clearCart } = useCart();
   const cart = Array.isArray(rawCart) ? rawCart : [];
-  const { data: session, status } = useSession();
-  const userId = session?.user?.id || session?.user?.email;
-  const cartItems = Array.isArray(rawCart) ? rawCart : [];
-  const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const isLoggedIn = status === "authenticated" && userId;
-
   useEffect(() => {
     if (open) {
       setShow(true);
@@ -38,70 +32,6 @@ export default function Cart({ open, onClose, initialTab = "cart" }) {
       if (!open) setShow(false);
     }
   }, []);
-
-  // Sync cart to backend on change (DISABLED)
-  /*
-  useEffect(() => {
-    if (!isLoggedIn || !userId || isClearing) return; // Prevent sync when clearing
-    
-    // Only sync if cart actually changed
-    const currentCart = localStorage.getItem('cart');
-    const currentCartData = currentCart ? JSON.parse(currentCart) : [];
-    if (JSON.stringify(cart) !== JSON.stringify(currentCartData)) {
-      fetch("/api/sync-cart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, cart }),
-      });
-    }
-  }, [cart, isLoggedIn, userId, isClearing]);
-  */
-
-  // Sync wishlist to backend on change
-  // useEffect(() => {
-  //   if (isLoggedIn) {
-  //     // console.log('[Cart.jsx] Syncing wishlist to backend', wishlist);
-  //     fetch("/api/sync-wishlist", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ userId, wishlist }),
-  //     });
-  //   }
-  // }, [wishlist, isLoggedIn, userId]);
-
-  // Fetch cart/wishlist from backend on mount if logged in
-  // useEffect(() => {
-  //   if (isLoggedIn && cart.length === 0 && !isClearing) {
-  //     fetch(`/api/sync-cart`, {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ userId, cart: [] }), // empty triggers fetch only
-  //     })
-  //       .then(res => res.json())
-  //       .then(data => {
-  //         if (data.cart) {
-  //           // console.log('[Cart.jsx] setCart from backend fetch', data.cart);
-  //           setCart(data.cart);
-  //         }
-  //       });
-  //   }
-  //   if (isLoggedIn && wishlist.length === 0) {
-  //     fetch(`/api/sync-wishlist`, {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ userId, wishlist: [] }),
-  //     })
-  //       .then(res => res.json())
-  //       .then(data => {
-  //         if (data.wishlist) {
-  //           // console.log('[Cart.jsx] setWishlist from backend fetch', data.wishlist);
-  //           setWishlist(data.wishlist);
-  //         }
-  //       });
-  //   }
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [isLoggedIn, userId]);
-
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   if (!show || typeof window === "undefined") return null;
 
@@ -117,7 +47,7 @@ export default function Cart({ open, onClose, initialTab = "cart" }) {
 
         {/* Cart Sidebar */}
         <div
-          className={`fixed top-0 right-0 h-full w-[370px] bg-[#fcf7f1] shadow-lg z-[999] flex flex-col border-l border-neutral-200 
+          className={`fixed top-0 right-0 h-full w-[400px] bg-[#fcf7f1] shadow-lg z-[999] flex flex-col border-l border-neutral-200 
           transition-all duration-500 ease-in-out transform-gpu
           ${open ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 scale-95'}`}
           style={{ maxWidth: "100vw" }}
@@ -139,7 +69,7 @@ export default function Cart({ open, onClose, initialTab = "cart" }) {
                 className={`flex items-center gap-2 pb-2 border-b-2 ${tab === "wishlist" ? "border-black" : "border-transparent"}`}
                 onClick={() => setTab("wishlist")}
               >
-                Wishlist <span className="ml-1 text-xs bg-black text-white rounded-full px-2">{wishlist.length}</span>
+                Previous Orders
               </button>
             </div>
             <button onClick={onClose} aria-label="Close"><X size={24} /></button>
@@ -201,16 +131,24 @@ export default function Cart({ open, onClose, initialTab = "cart" }) {
           )}
 
           {/* Wishlist Footer: Check Wishlist button */}
-          {tab === "wishlist" && (
+          {tab === "previous_orders" && (
             <div className="px-6 pt-2 pb-6 border-t border-neutral-200">
-              <Link href="/wislist" className="block w-full">
+              <Link href="/previous_orders" className="block w-full">
                 <button
-                  className="w-full py-2 bg-black text-white rounded-lg font-semibold mt-2 hover:bg-neutral-800 transition"
+                  className="w-full bg-black text-white rounded-lg font-semibold mt-2 hover:bg-neutral-800 transition"
                   onClick={onClose}
                   type="button"
-                >Check Wishlist</button>
+                >Check Previous Orders</button>
+              </Link>
+              <Link href="/cartDetails" className="block w-full">
+                <button
+                  className="w-full py-2 bg-black text-white rounded-lg font-semibold"
+                  onClick={onClose}
+                  type="button"
+                >View Cart</button>
               </Link>
             </div>
+            
           )}
         </div>
       </div>

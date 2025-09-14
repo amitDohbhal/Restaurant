@@ -75,9 +75,20 @@ export async function POST(request) {
       customer
     });
 
+    // Validate userId is present
+    if (!customer.userId) {
+      console.error('No userId provided in customer data');
+      return NextResponse.json(
+        { success: false, message: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
     // Create the order with guest and room information
     const orderData = {
       orderNumber,
+      // Include user ID
+      userId: customer.userId,
       items: items.map(item => ({
         productId: item.id,
         name: item.name,
@@ -93,6 +104,8 @@ export async function POST(request) {
       })),
       // Customer information
       customer: {
+        // User identification (required)
+        userId: customer.userId,
         // Guest identification
         _id: customer._id || null,
         guestId: customer.guestId || customer._id || null,
@@ -326,15 +339,28 @@ export async function PATCH(request) {
 
 export async function GET(request) {
   try {
-    console.log('Connecting to database...');
     await connectDB();
-    console.log('Database connected successfully');
     
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const roomNumber = searchParams.get('roomNumber');
-    const guestId = searchParams.get('guestId');
+    const orderNumber = searchParams.get('orderNumber');
     
+    // If orderNumber is provided, fetch a single order
+    if (orderNumber) {
+      const order = await RunningOrder.findOne({ orderNumber });
+      
+      if (!order) {
+        return NextResponse.json(
+          { success: false, message: 'Order not found' },
+          { status: 404 }
+        );
+      }
+      
+      return NextResponse.json(order);
+    }
+    
+    // Otherwise, fetch multiple orders with filters
     let query = {};
     
     if (status) {
@@ -342,29 +368,18 @@ export async function GET(request) {
     }
     
     if (roomNumber) {
-      query.roomNumber = roomNumber;
+      query['customer.roomNumber'] = roomNumber;
     }
-    
-    if (guestId) {
-      query['customer.guestId'] = guestId;
-    }
-    
-    console.log('Executing query with params:', { query });
     
     const orders = await RunningOrder.find(query)
-      .sort({ createdAt: -1 })
-      .populate('customer.guestId', 'name roomNumber')
-      .lean();
+      .sort({ createdAt: -1 });
     
-    console.log(`Found ${orders.length} orders`);
-    return NextResponse.json(orders);
-    
-  } catch (error) {
-    console.error('Error in GET /api/runningOrder:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
+    return NextResponse.json({
+      success: true,
+      data: orders
     });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
     return NextResponse.json(
       { 
         success: false, 

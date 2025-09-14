@@ -45,46 +45,60 @@ export default function Chat({
     // Optionally, add logic to mark messages as read for admin/user if needed for e-commerce chat
 
 
-    // const fetchMessages = useCallback(async () => {
-    //     try {
-    //         // Fetch messages for user-admin/product chat
-    //         const res = await fetch(`/api/getMessages?userId=${userId}`)
-    //         const data = await res.json()
+    const fetchMessages = useCallback(async () => {
+        if (!userId) return;
+        
+        try {
+            // Fetch messages for user-admin/product chat
+            const res = await fetch(`/api/getMessages?userId=${userId}`);
+            if (!res.ok) throw new Error('Failed to fetch messages');
+            
+            const data = await res.json();
 
-    //         if (data.messages && Array.isArray(data.messages)) {
-    //             setMessages((prev) => (JSON.stringify(prev) !== JSON.stringify(data.messages) ? data.messages : prev))
-    //             setAdminName(null);
-    //             // Find the most recent admin message
-    //             const adminMsg = [...data.messages].reverse().find(msg => msg.adminName);
-    //             if (adminMsg?.adminName) {
-    //                 setAdminName(adminMsg.adminName);
-    //             }
-    //         } else {
-    //             setMessages([])
-    //             setAdminName(null); // Reset when no messages
-    //         }
-    //     } catch (error) {
-    //         // console.error("Error fetching messages:", error)
-    //         setAdminName(null); // Reset on error
-    //     }
-    // }, [userId])
+            if (data.messages && Array.isArray(data.messages)) {
+                setMessages(prev => {
+                    // Only update if messages have changed
+                    return JSON.stringify(prev) !== JSON.stringify(data.messages) 
+                        ? data.messages 
+                        : prev;
+                });
+                
+                // Find the most recent admin message
+                const adminMsg = [...data.messages].reverse().find(msg => msg.adminName);
+                setAdminName(adminMsg?.adminName || null);
+            } else {
+                setMessages([]);
+                setAdminName(null); // Reset when no messages
+            }
+        } catch (error) {
+            console.error("Error fetching messages:", error);
+            setAdminName(null); // Reset on error
+        }
+    }, [userId]);
 
     // Removed enquiry and booking details logic for e-commerce chat
 
-    // And update your useEffect to call it when type is "booking"
+    // Handle chat initialization and message polling
     useEffect(() => {
-        
         // Only merge chatbot_history once per session
         let mergedBotHistory = false;
         const botHistory = localStorage.getItem("chatbot_history");
         let parsedBotHistory = [];
+        
         if (botHistory) {
             parsedBotHistory = JSON.parse(botHistory).map(msg => ({
                 ...msg,
                 from: msg.from === "bot" ? "Bot" : "You"
             }));
         }
-        // fetchMessages();
+
+        // Initial message load
+        fetchMessages();
+        
+        // Set up polling for new messages
+        const interval = setInterval(fetchMessages, 3000);
+        
+        // Merge bot history if needed
         setMessages(prev => {
             const hasBotHistory = prev.some(msg => msg.from === "Bot");
             if (!hasBotHistory && parsedBotHistory.length > 0 && !mergedBotHistory) {
@@ -95,9 +109,13 @@ export default function Chat({
             }
             return prev;
         });
-        const interval = setInterval(fetchMessages, 3000);
-        return () => { clearInterval(interval); setAdminName(null); }
-    }, [fetchMessages]);
+
+        // Cleanup function
+        return () => {
+            clearInterval(interval);
+            setAdminName(null);
+        };
+    }, [fetchMessages, type]);
 
     const fileInputRef = useRef();
     const [attachmentUploading, setAttachmentUploading] = useState(false);

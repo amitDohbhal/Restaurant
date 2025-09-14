@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 // Helper function to prevent body scroll
 const usePreventBodyScroll = (isOpen) => {
@@ -23,7 +24,7 @@ const usePreventBodyScroll = (isOpen) => {
 };
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import { Loader } from 'lucide-react';
+import { Loader, Printer } from 'lucide-react';
 
 const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initialTotalAmount }) => {
   usePreventBodyScroll(isOpen);
@@ -445,20 +446,31 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         ...(selectedGuest && { isDummy: false })
       };
 
+      // Get user ID from session
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error('User ID is required');
+      }
+
       // Prepare order data
       const orderData = {
+        // Include user ID at root level
+        userId: userId,
         items: cart.map(item => ({
-          ...item,
-          productId: item.id || item._id,
+          id: item.id || item._id,
           name: item.name,
           price: parseFloat(item.price),
           qty: parseInt(item.qty),
           cgstAmount: parseFloat(item.cgstAmount) || 0,
-          sgstAmount: parseFloat(item.sgstAmount) || 0,
           cgstPercent: parseFloat(item.cgstPercent) || 0,
+          sgstAmount: parseFloat(item.sgstAmount) || 0,
           sgstPercent: parseFloat(item.sgstPercent) || 0
         })),
-        customer: customerData,
+        customer: {
+          ...customerData,
+          // Include user ID in customer object
+          userId: userId
+        },
         paymentMethod: 'pay_at_hotel',
         roomNumber: customerData.roomNumber,
         orderType: customerData.roomNumber ? 'room-service' : 'takeaway',
@@ -586,11 +598,22 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
 
       console.log('Using customer data:', customerData);
 
+      // Get user ID from session
+      const userId = session?.user?.id;
+      
+      if (!userId) {
+        console.error('No user ID found in session');
+        // Handle unauthenticated user case if needed
+      }
+
       // Prepare order data with all guest and room information
       const orderData = {
+        // Include user ID at root level
+        userId: userId || null,
+        
+        // Map cart items
         items: cart.map(item => ({
-          ...item,
-          productId: item.id || item._id,
+          id: item.id || item._id,
           name: item.name,
           price: parseFloat(item.price),
           qty: parseInt(item.qty),
@@ -599,16 +622,18 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           cgstPercent: parseFloat(item.cgstPercent) || 0,
           sgstPercent: parseFloat(item.sgstPercent) || 0
         })),
+        
+        // Customer information
         customer: {
+          // Include user ID in customer object
+          ...(userId && { userId }),
           // Guest identification
           _id: customerData._id,
-          guestId: customerData.guestId,
-
+          guestId: customerData.guestId || customerData._id || null,
           // Contact information
           name: customerData.name || 'Guest Customer',
           phone: customerData.phone || '0000000000',
           email: customerData.email || 'guest@example.com',
-
           // Room information
           ...(customerData.roomNumber && { roomNumber: customerData.roomNumber }),
           ...(customerData.roomId && { roomId: customerData.roomId }),
@@ -1003,7 +1028,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-3 justify-center">
+                <div className="flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-5 justify-center">
                   <button
                     onClick={async () => {
                       const html2pdf = (await import('html2pdf.js')).default;
@@ -1121,8 +1146,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                       // Generate and download the PDF
                       html2pdf().set(opt).from(element).save();
                     }}
-                    className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
+                    className="bg-blue-500 text-white px-5 py-2 rounded hover:bg-blue-600 transition-colors flex items-center"
                   >
+                    <Printer className="mr-2" size="20" />
                     Download Invoice
                   </button>
 
@@ -1137,10 +1163,29 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                       onClose();
                       window.location.href = '/';
                     }}
-                    className="border border-gray-300 px-6 py-2 rounded hover:bg-gray-50 transition-colors"
+                    className="bg-green-500 text-white px-10 py-2 rounded hover:bg-green-600 transition-colors"
                   >
                     New Order
                   </button>
+              
+                    <button
+                    onClick={() => {
+                      setCart([]);
+                      setTotalAmount(0);
+                      if (typeof window !== 'undefined') {
+                        localStorage.removeItem('cart');
+                        localStorage.removeItem('checkoutCurrentStep');
+                      }
+                      onClose();
+                      window.location.href = '/dashboard?section=orders';
+                    }}
+                      className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
+                      type="button"
+                    >
+                      
+                      View Order in Dashboard
+                    </button>
+              
                 </div>
 
               </div>

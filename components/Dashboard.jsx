@@ -4,33 +4,100 @@ import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Menu, X, ChevronLeft, ChevronRight, ChevronLast } from "lucide-react";
-import Profile from "./Profile";
-import OrderConfirm from "./OrderConfirm";
 import OrderDetail from "./OrderDetail";
 import AllOrders from "./AllOrders";
-import Address from "./Address";
-import ReturnRequest from "./ReturnRequest";
-import CancelOrder from "./CancelOrder";
 import Chat from "./Chat";
 
 const sections = [
   { key: "orders", label: "Order Overview" },
   // { key: "cancel", label: "Cancel Order" },
   { key: "chatbot", label: "Chat With Admin" },
-  { key: "track", label: "Track Order" },
 ];
-const settings = [
-  { key: "profile", label: "Profile" },
-  { key: "address", label: "Address" },
-];
-
 import ChatOrder from "./ChatOrder";
-import TrackOrder from "./TrackOrder";
-function SectionContent({ section, orderId, onViewOrder, onBackHome, showOrderDetail, selectedOrder, orderChatMode, onChatOrder, onBack, returnOrder }) {
+
+
+function SectionContent({ section, orderId, onViewOrder, onBackHome, showOrderDetail: initialShowOrderDetail, selectedOrder: initialSelectedOrder, orderChatMode, onChatOrder, onBack, returnOrder }) {
+  const [order, setOrder] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(!!orderId);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(initialSelectedOrder || null);
+  const [showOrderDetail, setShowOrderDetail] = useState(initialShowOrderDetail || false);
+  
+  // Update local state when props change
+  useEffect(() => {
+    if (initialSelectedOrder) {
+      setSelectedOrder(initialSelectedOrder);
+    }
+  }, [initialSelectedOrder]);
+  
+  useEffect(() => {
+    if (initialShowOrderDetail !== undefined) {
+      setShowOrderDetail(initialShowOrderDetail);
+    }
+  }, [initialShowOrderDetail]);
+
+  useEffect(() => {
+    if (orderId) {
+      const fetchOrder = async () => {
+        try {
+          setLoading(true);
+          const res = await fetch(`/api/runningOrder?orderNumber=${orderId}`);
+          const data = await res.json();
+          
+          if (!res.ok) throw new Error(data.message || 'Failed to fetch order');
+          
+          // If the response has a data property, use that (for array responses)
+          // Otherwise use the response directly (for single order responses)
+          const orderData = Array.isArray(data) ? data[0] : data;
+          
+          setOrder(orderData);
+          setError(null);
+        } catch (err) {
+          console.error('Error fetching order:', err);
+          setError(err.message || 'Failed to load order');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchOrder();
+    }
+  }, [orderId]);
+
+  // Fetch user's orders
+  useEffect(() => {
+    if (section === 'orders' && !orderId) {
+      const fetchUserOrders = async () => {
+        try {
+          setOrdersLoading(true);
+          const res = await fetch('/api/my-orders');
+          
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || 'Failed to fetch your orders');
+          }
+          
+          const ordersData = await res.json();
+          console.log('Fetched user orders:', ordersData);
+          
+          setOrders(Array.isArray(ordersData) ? ordersData : []);
+          setError(null);
+        } catch (err) {
+          console.error('Error fetching user orders:', err);
+          setError(err.message || 'Failed to load your orders');
+          setOrders([]);
+        } finally {
+          setOrdersLoading(false);
+        }
+      };
+      
+      fetchUserOrders();
+    }
+  }, [orderId]);
   const { data: session } = useSession()
-  if (section === "profile") return <Profile />;
   if (section === "orders" && selectedOrder && orderChatMode) return <ChatOrder order={selectedOrder} onBack={onBack} onViewOrder={onViewOrder} />;
-  if (section === "orders" && selectedOrder) return <OrderDetail order={selectedOrder} onBack={onBack} />;
   if (section === "chatbot") {
     // Get orderId from URL if present
     const searchParams = new URLSearchParams(window.location.search);
@@ -63,30 +130,68 @@ function SectionContent({ section, orderId, onViewOrder, onBackHome, showOrderDe
     }
     return <Chat userId={userId} />;
   }
-  if (section === "orders") return <AllOrders onViewOrder={onViewOrder} onChatOrder={onChatOrder} />;
-  if (section === "track") return <TrackOrder orderId={orderId} />;
-  if (section === "address") return <Address />;
-  if (section === "return") return <ReturnRequest order={returnOrder} orderId={orderId} />;
-  if (section === "cancel") return <CancelOrder orderId={orderId} />;
-  if (section === "dashboard" && orderId && !showOrderDetail) {
-    return <OrderConfirm orderId={orderId} onViewOrder={onViewOrder} onBackHome={onBackHome} />;
-  }
-  if (section === "dashboard" && orderId && showOrderDetail) {
-    return <OrderDetail orderId={orderId} />;
-  }
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold capitalize">{section}</h1>
-      <p className="mt-4 text-gray-600">This is the <b>{section}</b> section content.</p>
-    </div>
-  );
-}
+  // Handle close order details modal
+  const handleCloseOrderDetails = () => {
+    setShowOrderDetail(false);
+    // Don't reset selectedOrder here to allow for smooth transitions
+  };
 
+
+  if (section === "orders") {
+    // Handle direct order ID in URL
+    if (orderId && !showOrderDetail) {
+      if (loading) return <div className="p-4 text-center">Loading order details...</div>;
+      if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
+      if (!order) return <div className="p-4">Order not found</div>;
+      
+      // Set the selected order and show the modal
+      setSelectedOrder(order);
+      setShowOrderDetail(true);
+    }
+    
+    return (
+      <div className="relative">
+        <AllOrders 
+          orders={orders}
+          loading={ordersLoading}
+          error={error}
+        />
+        
+        {/* Order Detail Modal */}
+        {showOrderDetail && selectedOrder && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <div 
+                className="fixed inset-0 transition-opacity" 
+                aria-hidden="true"
+                onClick={() => setShowOrderDetail(false)}
+              >
+                <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+              </div>
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+              <div 
+                className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <OrderDetail 
+                  order={selectedOrder} 
+                  onBack={handleCloseOrderDetails} 
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+}
 const Dashboard = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const sidebarRef = useRef(null);
-  const [ordersCache, setOrdersCache] = useState([]); // Cache for orders
+    const [ordersCache, setOrdersCache] = useState([]); // Cache for orders
+  const [selectedOrder, setSelectedOrder] = useState(null); // Track selected order for modal
+  const [showOrderDetail, setShowOrderDetail] = useState(false); // Control modal visibility
 
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -98,8 +203,6 @@ const Dashboard = () => {
   const sectionFromUrl = searchParams.get("section") || "dashboard";
 
   const [activeSection, setActiveSection] = useState(sectionFromUrl);
-  const [showOrderDetail, setShowOrderDetail] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderChatMode, setOrderChatMode] = useState(false);
   const [returnOrder, setReturnOrder] = useState(null);
 
@@ -210,25 +313,25 @@ const Dashboard = () => {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        className="md:hidden fixed top-24 left-4 z-50 p-2 bg-white rounded-lg shadow-md"
+        className="md:hidden fixed top-24 -left-1 z-40 p-2 bg-white rounded-lg shadow-md"
         aria-label="Toggle menu"
       >
-        {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        {isMobileMenuOpen ? <X size={24} /> : <ChevronRight size={24} />}
       </button>
       {/* Sidebar */}
       <aside
         ref={sidebarRef}
         className={`
-          fixed top-2 bottom-2 md:top-0 md:bottom-0 z-40 h-[80vh] my-auto md:static md:h-screen overflow-y-auto w-fit bg-white rounded-2xl shadow-lg m-2 transition-all duration-300 ease-in-out 
+          fixed top-2 bottom-2 md:top-0 md:bottom-0 z-30 h-[70vh] my-auto md:static md:h-screen overflow-y-auto w-fit bg-white rounded-2xl shadow-lg m-2 transition-all duration-300 ease-in-out 
           flex flex-col overflow-hidden
-          ${isMobileMenuOpen ? 'left-2' : '-left-[300px]'} 
+          ${isMobileMenuOpen ? '-left-2' : '-left-[300px]'} 
           md:left-0 md:translate-x-0 md:rounded-none md:m-0 md:shadow-lg
           ${isSidebarCollapsed ? 'md:w-24' : 'md:w-72'}
         `}>
            {/* Collapse/Expand button for desktop */}
            <button 
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="hidden md:flex items-center justify-center w-8 h-8 absolute -right-2 top-6 bg-white rounded-full shadow-md z-55"
+          className="hidden md:flex items-center justify-center w-8 h-8 absolute -right-2 top-6 bg-white rounded-full shadow-md z-50"
           aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
@@ -275,37 +378,13 @@ const Dashboard = () => {
               )}
             </button>
           ))}
-
-          <div className={`px-4 py-2 mt-4 text-sm md:text-base text-gray-500 bg-red-100 font-semibold ${isSidebarCollapsed ? 'text-center' : 'px-6'}`}>
-            {isSidebarCollapsed ? '⚙️' : 'ACCOUNT SETTINGS'}
-          </div>
-          {settings.map(({ key, label, icon }) => (
-            <button
-              key={key}
-              className={`w-full text-left py-3 md:py-2 hover:bg-gray-50 rounded transition flex items-center ${
-                activeSection === key ? "font-bold text-black bg-gray-100" : "text-gray-800"
-              } ${isSidebarCollapsed ? 'justify-center px-0' : 'px-6'}`}
-              onClick={() => {
-                setShowOrderDetail(false);
-                setIsMobileMenuOpen(false);
-                router.push(`/dashboard?section=${key}`);
-              }}
-              title={isSidebarCollapsed ? label : ''}
-            >
-              {isSidebarCollapsed ? (
-                <span className="text-lg">{icon || label.charAt(0)}</span>
-              ) : (
-                <span className="truncate">{label}</span>
-              )}
-            </button>
-          ))}
         </nav>
       </aside>
 
       {/* Main Content */}
       <main className={`flex-1 bg-[#fdf6ee] rounded-2xl min-h-[calc(100vh-1rem)] overflow-y-auto shadow-lg p-2 md:p-6 lg:p-8 transition-all duration-300 ${
         isSidebarCollapsed ? 'md:ml-24' : 'md:ml-0'
-      } mt-16 md:mt-2`}>
+      } mt-10 md:mt-2`}>
         <SectionContent
           section={activeSection}
           orderId={orderId}

@@ -64,26 +64,26 @@ export default function RunningOrder() {
   };
 
   // Polling interval in milliseconds (e.g., 5000ms = 5 seconds)
-  const POLLING_INTERVAL = 5000;
+  const POLLING_INTERVAL = 30000;
 
   // Fetch orders with polling
-  // useEffect(() => {
-  //   let pollInterval;
-
-  //   // Initial fetch
-  //   fetchOrders();
-
-  //   // Set up polling
-  //   pollInterval = setInterval(fetchOrders, POLLING_INTERVAL);
-
-  //   // Clean up interval on component unmount
-  //   return () => {
-  //     if (pollInterval) clearInterval(pollInterval);
-  //   };
-  // }, []);
   useEffect(() => {
-    fetchOrders()
-  }, [])
+    let pollInterval;
+
+    // Initial fetch
+    fetchOrders();
+
+    // Set up polling
+    pollInterval = setInterval(fetchOrders, POLLING_INTERVAL);
+
+    // Clean up interval on component unmount
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, []);
+  // useEffect(() => {
+  //   fetchOrders()
+  // }, [])
 
   const fetchOrders = async () => {
     try {
@@ -95,8 +95,8 @@ export default function RunningOrder() {
         throw new Error(errorData.message || 'Failed to fetch orders');
       }
 
-      const data = await response.json();
-      setOrders(data);
+      const { data } = await response.json();
+      setOrders(data || []);
     } catch (error) {
       console.error('Error in fetchOrders:', {
         message: error.message,
