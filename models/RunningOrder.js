@@ -16,20 +16,29 @@ const orderItemSchema = new mongoose.Schema({
 const customerSchema = new mongoose.Schema({
   // Guest identification
   _id: { type: mongoose.Schema.Types.ObjectId, required: false },
-  guestId: { type: mongoose.Schema.Types.ObjectId, ref: 'RoomAccount' },
+  guestId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'RoomAccount',
+    required: false
+  },
   
   // Contact information
   name: { type: String, required: true },
   phone: { type: String, required: true },
   email: { type: String },
   
+  // User identification
+  userId: { type: String, required: true },
+  
   // Room information
-  roomNumber: { type: String, required: true },
-  roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
+  roomNumber: { type: String, required: false }, // Made not required to handle non-room orders
+  roomId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Room',
+    required: false 
+  },
   checkIn: { type: Date },
-  checkOut: { type: Date },
-  // For backward compatibility
-  ...(this.guestId && { guestId: this.guestId })
+  checkOut: { type: Date }
 }, { _id: false });  // Prevent creating _id for subdocument
 
 const paymentSchema = new mongoose.Schema({
