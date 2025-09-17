@@ -6,10 +6,10 @@ import RoomAccount from '@/models/RoomAccount';
 export async function POST(request) {
   try {
     await connectDB();
-    
+
     const body = await request.json();
-    const { 
-      items, 
+    const {
+      items,
       customer = {},
       paymentMethod = 'online',
       orderType = 'takeaway',
@@ -29,47 +29,47 @@ export async function POST(request) {
       );
     }
 
-    // Process items - just parse the values as they are, no calculations
+    // In runningOrder/route.js - Update the item processing
     let processedItems = items.map(item => {
       const price = parseFloat(item.price) || 0;
       const qty = parseInt(item.qty) || 1;
-      
-      // Simply parse all tax values as they are
-      const cgstPercent = parseFloat(item.cgstPercent) || 0;
-      const sgstPercent = parseFloat(item.sgstPercent) || 0;
-      const cgstAmount = parseFloat(item.cgstAmount) || 0;
-      const sgstAmount = parseFloat(item.sgstAmount) || 0;
-      
       const itemSubtotal = price * qty;
-      const itemTax = (cgstAmount + sgstAmount) * qty;
+
+      // Get tax rates (convert from percentage to decimal)
+      const cgstRate = parseFloat(item.cgstPercent) || 0;
+      const sgstRate = parseFloat(item.sgstPercent) || 0;
+
+      // Calculate tax amounts based on rates
+      const cgstAmount = (itemSubtotal * cgstRate) / 100;
+      const sgstAmount = (itemSubtotal * sgstRate) / 100;
+      const itemTax = cgstAmount + sgstAmount;
       const itemTotal = itemSubtotal + itemTax;
-      
+
       return {
         ...item,
         price,
         quantity: qty,
-        cgstPercent,
-        sgstPercent,
-        cgstAmount,
-        sgstAmount,
-        total: itemTotal
+        cgstAmount: parseFloat(cgstAmount.toFixed(2)),
+        sgstAmount: parseFloat(sgstAmount.toFixed(2)),
+        tax: parseFloat(itemTax.toFixed(2)),
+        total: parseFloat(itemTotal.toFixed(2))
       };
     });
-    
+
     // Calculate order totals with proper type conversion
     const subtotal = processedItems.reduce((sum, item) => {
       return sum + (parseFloat(item.price) * parseInt(item.quantity));
     }, 0);
-    
+
     // Calculate tax amount for each item, considering both amounts and percentages
     processedItems = processedItems.map(item => {
       const price = parseFloat(item.price) || 0;
       const qty = parseInt(item.quantity) || 1;
-      
+
       // Calculate tax amounts from percentages if needed
       let cgstAmount = parseFloat(item.cgstAmount) || 0;
       let sgstAmount = parseFloat(item.sgstAmount) || 0;
-      
+
       // If tax amounts are not provided but percentages are, calculate them
       if (!cgstAmount && item.cgstPercent) {
         cgstAmount = (price * parseFloat(item.cgstPercent) / 100);
@@ -77,7 +77,7 @@ export async function POST(request) {
       if (!sgstAmount && item.sgstPercent) {
         sgstAmount = (price * parseFloat(item.sgstPercent) / 100);
       }
-      
+
       // Update the item with calculated tax amounts
       return {
         ...item,
@@ -87,17 +87,17 @@ export async function POST(request) {
         total: (price + cgstAmount + sgstAmount) * qty
       };
     });
-    
+
     // Calculate total tax
     const tax = processedItems.reduce((sum, item) => {
       return sum + ((item.cgstAmount + item.sgstAmount) * parseInt(item.quantity));
     }, 0);
-    
+
     const total = subtotal + tax;
-    
-    console.log('Order totals:', { 
-      subtotal, 
-      tax, 
+
+    console.log('Order totals:', {
+      subtotal,
+      tax,
       total,
       itemCount: processedItems.length,
       firstItem: processedItems[0] // Log first item for debugging
@@ -119,9 +119,9 @@ export async function POST(request) {
           { status: 400 }
         );
       }
-      
+
       // Find the guest and verify they are checked in
-      const guest = await RoomAccount.findOne({ 
+      const guest = await RoomAccount.findOne({
         $or: [
           { _id: customer._id },
           { guestId: customer._id }
@@ -129,17 +129,17 @@ export async function POST(request) {
         status: 'checked-in',
         roomNumber: roomNumber || customer.roomNumber
       });
-      
+
       if (!guest) {
         return NextResponse.json(
-          { 
-            success: false, 
-            message: 'Guest not found or not checked in to the specified room. Please check in first.' 
+          {
+            success: false,
+            message: 'Guest not found or not checked in to the specified room. Please check in first.'
           },
           { status: 400 }
         );
       }
-      
+
       // Update customer data with guest information
       customer._id = guest._id;
       customer.guestId = guest.guestId || guest._id;
@@ -149,7 +149,7 @@ export async function POST(request) {
 
     // Create order number
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    
+
     // Log incoming customer data for debugging
     console.log('Creating order with customer data:', {
       customerId: customer._id,
@@ -203,12 +203,12 @@ export async function POST(request) {
         // Guest identification
         _id: customer._id || null,
         guestId: customer.guestId || customer._id || null,
-        
+
         // Contact information
         name: customer.name || 'Guest Customer',
         phone: customer.phone || '0000000000',
         email: customer.email || 'guest@example.com',
-        
+
         // Room information
         ...(roomNumber && { roomNumber }),
         ...(customer.roomId && { roomId: customer.roomId }),
@@ -220,12 +220,12 @@ export async function POST(request) {
         // Guest identification
         _id: customer._id || null,
         guestId: customer.guestId || customer._id || null,
-        
+
         // Contact information
         name: customer.name || 'Guest Customer',
         phone: customer.phone || '0000000000',
         email: customer.email || 'guest@example.com',
-        
+
         // Room information
         ...(roomNumber && { roomNumber }),
         ...(customer.roomId && { roomId: customer.roomId }),
@@ -233,8 +233,8 @@ export async function POST(request) {
         ...(customer.checkOut && { checkOut: customer.checkOut })
       },
       // Add room number at the root level if it's a room account or room service
-      ...((paymentMethod === 'room-account' || orderType === 'room-service' || roomNumber) ? { 
-        roomNumber: roomNumber || customer.roomNumber 
+      ...((paymentMethod === 'room-account' || orderType === 'room-service' || roomNumber) ? {
+        roomNumber: roomNumber || customer.roomNumber
       } : {}),
       subtotal,
       tax,
@@ -255,12 +255,12 @@ export async function POST(request) {
 
     // Find the room account using roomNumber from the order or customer data
     const roomNumberToUse = roomNumber || (order.customer && order.customer.roomNumber);
-    
+
     if (roomNumberToUse) {
       try {
         // Determine if this is a paid or unpaid order
         const isPaidOrder = ['online', 'cash', 'card'].includes(paymentMethod);
-        
+
         // Prepare order item for room account
         const orderItem = {
           orderId: order._id,
@@ -362,10 +362,10 @@ export async function PATCH(request) {
   try {
     console.log('PATCH /api/runningOrder - Connecting to DB...');
     await connectDB();
-    
+
     const requestData = await request.json();
     console.log('PATCH /api/runningOrder - Request data:', JSON.stringify(requestData, null, 2));
-    
+
     const { orderId, status } = requestData;
 
     if (!orderId || !status) {
@@ -387,14 +387,14 @@ export async function PATCH(request) {
     }
 
     console.log(`PATCH /api/runningOrder - Updating order ${orderId} to status: ${status}`);
-    
-    const updateData = { 
+
+    const updateData = {
       status,
       updatedAt: new Date(),
       ...(status === 'completed' && { completedAt: new Date() }),
       ...(status === 'cancelled' && { cancelledAt: new Date() })
     };
-    
+
     console.log('PATCH /api/runningOrder - Update data:', JSON.stringify(updateData, null, 2));
 
     const updatedOrder = await RunningOrder.findByIdAndUpdate(
@@ -420,9 +420,9 @@ export async function PATCH(request) {
   } catch (error) {
     console.error('PATCH /api/runningOrder - Error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Internal server error', 
+      {
+        success: false,
+        message: 'Internal server error',
         error: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
@@ -434,40 +434,40 @@ export async function PATCH(request) {
 export async function GET(request) {
   try {
     await connectDB();
-    
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const roomNumber = searchParams.get('roomNumber');
     const orderNumber = searchParams.get('orderNumber');
-    
+
     // If orderNumber is provided, fetch a single order
     if (orderNumber) {
       const order = await RunningOrder.findOne({ orderNumber });
-      
+
       if (!order) {
         return NextResponse.json(
           { success: false, message: 'Order not found' },
           { status: 404 }
         );
       }
-      
+
       return NextResponse.json(order);
     }
-    
+
     // Otherwise, fetch multiple orders with filters
     let query = {};
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (roomNumber) {
       query['customer.roomNumber'] = roomNumber;
     }
-    
+
     const orders = await RunningOrder.find(query)
       .sort({ createdAt: -1 });
-    
+
     return NextResponse.json({
       success: true,
       data: orders
@@ -475,8 +475,8 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching orders:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Failed to fetch orders',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       },

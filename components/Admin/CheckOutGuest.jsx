@@ -36,7 +36,7 @@ const CheckOutGuest = () => {
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [checkedOutGuests, setCheckedOutGuests] = useState([]);
   const [isLoadingCheckedOut, setIsLoadingCheckedOut] = useState(true);
-  const[isGeneratingPdf,setisGeneratingPdf]=useState(false)
+  const [isGeneratingPdf, setisGeneratingPdf] = useState(false)
   console.log(hotelLogo)
 
   const handleSearch = async () => {
@@ -86,13 +86,6 @@ const CheckOutGuest = () => {
   const handleCheckout = async () => {
     if (!selectedGuest) return;
 
-    // Check if there are unpaid orders
-    const hasUnpaidOrders = selectedGuest.unpaidOrders?.length > 0;
-    if (hasUnpaidOrders) {
-      toast.error('Cannot check out with unpaid orders. Please process payments first.');
-      return;
-    }
-
     setIsCheckingOut(true);
     try {
       const response = await fetch(`/api/addGuestToRoom`, {
@@ -105,10 +98,22 @@ const CheckOutGuest = () => {
           status: 'checked-out',
           actualCheckOut: new Date().toISOString(),
           roomId: selectedGuest.roomId,
+          guestInfo: {
+            name: selectedGuest.name,
+            email: selectedGuest.email,
+            phone: selectedGuest.phone,
+            checkIn: selectedGuest.checkIn,
+            checkOut: selectedGuest.checkOut,
+            roomNumber: selectedGuest.roomNumber,
+            roomType: selectedGuest.roomType,
+          }
         })
       });
 
-      if (!response.ok) throw new Error('Failed to process checkout');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to process checkout');
+      }
 
       // Update local state
       setSearchResults(prev => prev.filter(guest => guest._id !== selectedGuest._id));
@@ -122,7 +127,7 @@ const CheckOutGuest = () => {
       toast.success('Guest checked out successfully');
     } catch (error) {
       console.error('Error during checkout:', error);
-      toast.error('Failed to process checkout');
+      toast.error(error.message || 'Failed to process checkout');
     } finally {
       setIsCheckingOut(false);
     }
@@ -306,289 +311,71 @@ const CheckOutGuest = () => {
   };
 
   const handleProcessPayment = async () => {
-    if (!selectedGuest || !selectedGuest.unpaidOrders?.length) return;
+    if (!selectedGuest || !selectedGuest.unpaidOrders?.length) {
+      toast.error('No unpaid orders found');
+      return;
+    }
 
     setIsProcessingPayment(true);
 
     try {
       const orderIds = selectedGuest.unpaidOrders.map(order => order.orderId);
+      console.log('Processing payment for order IDs:', orderIds);
 
       if (paymentMethod === 'online') {
         await processRazorpayPayment(orderIds);
-        return; // Exit after initiating online payment
+        return;
       }
 
-      // Process cash payment directly since we don't have a processPayment endpoint
-      // First, create the invoice
-      const invoiceResponse = await fetch('/api/CreateRoomInvoice', {
+      // For cash payments
+      const response = await fetch('/api/processPayment', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guestId: selectedGuest._id,
-          guestName: selectedGuest.name,
-          guestEmail: selectedGuest.email,
-          guestPhone: selectedGuest.phone,
-          roomNumber: selectedGuest.roomNumber,
-          roomType: selectedGuest.roomType,
-          checkInDate: selectedGuest.checkInDate,
-          checkOutDate: selectedGuest.checkOutDate,
-          paymentMethod: 'cash',
-          paymentStatus: 'completed',
           orderIds,
-          foodItems: selectedGuest.unpaidOrders.map(order => ({
-            foodItem: order._id,
-            name: order.name,
-            qty: order.quantity,
-            price: order.price,
-          })),
-          roomPrice: selectedGuest.roomPrice || 0,
-          totalDays: selectedGuest.totalDays || 1,
-          extraCharges: 0,
-          discount: 0,
+          paymentMethod: 'cash'
         }),
       });
 
-      if (!invoiceResponse.ok) {
-        const errorData = await invoiceResponse.json().catch(() => ({}));
-        console.error('Invoice generation failed:', errorData);
-        throw new Error(errorData.error || 'Failed to generate invoice');
+      const data = await response.json();
+      console.log('Payment API response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to process payment');
       }
 
-      const invoiceData = await invoiceResponse.json();
+      // Only update local state if the server confirmed the update
+      setSelectedGuest(prev => {
+        const newUnpaidOrders = prev.unpaidOrders.filter(
+          order => !orderIds.includes(order.orderId)
+        );
+        const paidOrders = [
+          ...(prev.paidOrders || []),
+          ...prev.unpaidOrders.filter(order =>
+            orderIds.includes(order.orderId)
+          ).map(order => ({
+            ...order,
+            paymentMethod: 'cash',
+            paymentStatus: 'paid',
+            paidAt: new Date().toISOString()
+          }))
+        ];
 
-      // Update local state with the new invoice data
-      const paymentId = `cash-${Date.now()}`;
-      const invoiceState = {
-        ...invoiceData,
-        guest: selectedGuest,
-        orderIds,
-        paymentId,
-        timestamp: new Date().toISOString(),
-        invoiceUrl: invoiceData.invoiceUrl || null
-      };
-
-      setInvoiceData(invoiceState);
-
-      // Update local state to reflect the payment
-      setSelectedGuest(prev => ({
-        ...prev,
-        unpaidOrders: [],
-        paidOrders: [...(prev.paidOrders || []), ...prev.unpaidOrders]
-      }));
-
-      // If we have an invoice URL, download it
-      if (invoiceState.invoiceUrl) {
-        setInvoiceUrl(invoiceState.invoiceUrl);
-        const link = document.createElement('a');
-        link.href = invoiceState.invoiceUrl;
-        link.download = `invoice-${Date.now()}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        // If no URL, generate PDF client-side
-        generateAndDownloadPdf(invoiceState);
-      }
+        return {
+          ...prev,
+          unpaidOrders: newUnpaidOrders,
+          paidOrders
+        };
+      });
 
       toast.success('Payment processed successfully');
     } catch (error) {
-      console.error('Error processing payment:', error);
+      console.error('Payment error:', error);
       toast.error(error.message || 'Failed to process payment');
     } finally {
       setIsProcessingPayment(false);
     }
-  };
-
-  const handleDownloadInvoice = () => {
-    if (!invoiceData) return;
-
-    setLoadingStates(prev => ({ ...prev, sendEmail: false }));
-
-    // Use setTimeout to ensure the DOM is updated before generating PDF
-    setTimeout(() => {
-      try {
-        const element = invoiceRef.current;
-        if (!element) return;
-
-        const { guest, orderIds, paymentId, timestamp } = invoiceData;
-        const orderItems = guest.unpaidOrders.filter(order => orderIds.includes(order._id));
-
-        // Calculate totals
-        const subtotal = orderItems.reduce((sum, item) => sum + (parseFloat(item.price || 0) * (parseInt(item.quantity) || 1)), 0);
-        
-        // Calculate CGST and SGST for each item
-        const itemsWithTaxes = orderItems.map(item => {
-          const price = parseFloat(item.price || 0);
-          const quantity = parseInt(item.quantity) || 1;
-          const cgstRate = parseFloat(item.cgstPercent || 0);
-          const sgstRate = parseFloat(item.sgstPercent || 0);
-          const cgstAmount = (price * cgstRate / 100) * quantity;
-          const sgstAmount = (price * sgstRate / 100) * quantity;
-          const itemSubtotal = price * quantity;
-          const itemTotal = itemSubtotal + cgstAmount + sgstAmount;
-          
-          return {
-            ...item,
-            _cgstAmount: cgstAmount,
-            _sgstAmount: sgstAmount,
-            _itemSubtotal: itemSubtotal,
-            _itemTotal: itemTotal
-          };
-        });
-        
-        // Calculate total taxes and grand total
-        const totalCGST = itemsWithTaxes.reduce((sum, item) => sum + (item._cgstAmount || 0), 0);
-        const totalSGST = itemsWithTaxes.reduce((sum, item) => sum + (item._sgstAmount || 0), 0);
-        const grandTotal = subtotal + totalCGST + totalSGST;
-
-        // Generate HTML for the invoice
-        element.innerHTML = `
-          <div style="width: 100%; max-width: 800px; margin: 0 auto; border: 1px solid #eee; border-radius: 5px; overflow: hidden;">
-            <!-- Header with Logo -->
-            <div style="display: flex; justify-content: space-between; align-items: center; background-color: #1e1e1e; color: white; padding: 10px 20px;">
-              ${hotelLogo ? `
-                <div style="width: 80px; height: 80px; display: flex; align-items: center;">
-                  <img src="${hotelLogo}" alt="Hotel Logo" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
-                </div>
-              ` : ''}
-              <div style="flex-grow: 1; text-align: center;">
-                <h1 style="margin: 0; font-size: 20px; font-weight: bold;">RESTAURANT INVOICE</h1>
-              </div>
-              ${hotelLogo ? '<div style="width: 80px;"></div>' : ''} <!-- Empty div for balance -->
-            </div>
-            
-            <!-- Company Name -->
-            <div style="background-color: #228b78; color: white; padding: 10px 0; text-align: center;">
-              <h2 style="margin: 0; font-size: 22px; font-weight: bold;">HOTEL SHIVAN RESIDENCE</h2>
-            </div>
-            
-            <!-- Invoice Info -->
-            <div style="border: 1px solid #e0e0e0; border-radius: 5px; margin: 15px; padding: 10px; font-size: 12px;">
-              <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                <div>
-                  <p style="margin: 5px 0;"><strong>Invoice #:</strong> INV-${Date.now().toString().slice(-4)}</p>
-                  <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date(timestamp).toLocaleString()}</p>
-                  <p style="margin: 5px 0;"><strong>Payment ID:</strong> ${paymentId || 'N/A'}</p>
-                </div>
-                <div style="text-align: right;">
-                  <p style="margin: 5px 0;"><strong>Contact:</strong> ${hotelData?.contactNumber1 || '+91 1234567890'}</p>
-                  <p style="margin: 5px 0;"><strong>Email:</strong> ${hotelData?.email1 || 'info@hotelshivan.com'}</p>
-                  <p style="margin: 5px 0;"><strong>GSTIN:</strong> ${hotelData?.gstNumber || '12ABCDE3456F7Z8'}</p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Guest Info -->
-            <div style="background-color: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 5px; margin: 0 15px 15px; padding: 10px;">
-              <h3 style="margin: 0 0 10px 0; font-size: 14px;">Guest Information</h3>
-              <p style="margin: 5px 0;"><strong>Name:</strong> ${guest.name || 'Guest'}</p>
-              ${guest.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${guest.phone}</p>` : ''}
-              ${guest.email ? `<p style="margin: 5px 0;"><strong>Email:</strong> ${guest.email}</p>` : ''}
-              ${guest.roomNumber ? `<p style="margin: 5px 0;"><strong>Room:</strong> ${guest.roomNumber}</p>` : ''}
-            </div>
-            
-            <!-- Items Table -->
-            <table style="width: 100%; border-collapse: collapse; margin: 0 15px 15px; font-size: 12px;">
-              <thead>
-                <tr style="background-color: #228b78; color: white;">
-                  <th style="padding: 10px; text-align: left;">Item</th>
-                  <th style="padding: 10px; text-align: right;">Price</th>
-                  <th style="padding: 10px; text-align: center;">Qty</th>
-                  <th style="padding: 10px; text-align: right;">CGST</th>
-                  <th style="padding: 10px; text-align: right;">SGST</th>
-                  <th style="padding: 10px; text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemsWithTaxes.map((item, index) => {
-                  const itemPrice = parseFloat(item.price) || 0;
-                  const quantity = parseInt(item.quantity) || 1;
-                  const cgstRate = parseFloat(item.cgstPercent) || 0;
-                  const sgstRate = parseFloat(item.sgstPercent) || 0;
-                  
-                  return `
-                    <tr key="${index}">
-                      <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name || 'N/A'}</td>
-                      <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">₹${itemPrice.toFixed(2)}</td>
-                      <td style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">${quantity}</td>
-                      <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${cgstRate > 0 ? `₹${item._cgstAmount.toFixed(2)} (${cgstRate}%)` : '-'}</td>
-                      <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${sgstRate > 0 ? `₹${item._sgstAmount.toFixed(2)} (${sgstRate}%)` : '-'}</td>
-                      <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">₹${item._itemTotal.toFixed(2)}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colspan="3" style="text-align: right; padding: 10px; font-weight: bold; border-top: 1px solid #ddd;">Subtotal:</td>
-                  <td colspan="2" style="text-align: right; padding: 10px; font-weight: bold; border-top: 1px solid #ddd;">₹${subtotal.toFixed(2)}</td>
-                  <td style="text-align: right; padding: 10px; font-weight: bold; border-top: 1px solid #ddd;">₹${subtotal.toFixed(2)}</td>
-                </tr>
-                ${totalCGST > 0 ? `
-                <tr>
-                  <td colspan="3" style="text-align: right; padding: 5px 10px;">Total CGST:</td>
-                  <td colspan="2" style="text-align: right; padding: 5px 10px;">₹${totalCGST.toFixed(2)}</td>
-                  <td style="text-align: right; padding: 5px 10px;"></td>
-                </tr>
-                ` : ''}
-                ${totalSGST > 0 ? `
-                <tr>
-                  <td colspan="3" style="text-align: right; padding: 5px 10px;">Total SGST:</td>
-                  <td colspan="2" style="text-align: right; padding: 5px 10px;">₹${totalSGST.toFixed(2)}</td>
-                  <td style="text-align: right; padding: 5px 10px;"></td>
-                </tr>
-                ` : ''}
-                <tr>
-                  <td colspan="3" style="text-align: right; padding: 10px; font-weight: bold; font-size: 1.1em; border-top: 2px solid #228b78;">Total Amount:</td>
-                  <td colspan="2" style="text-align: right; padding: 10px; font-weight: bold; font-size: 1.1em; border-top: 2px solid #228b78;">
-                    ${totalCGST > 0 || totalSGST > 0 ? `(Incl. Tax)` : ''}
-                  </td>
-                  <td style="text-align: right; padding: 10px; font-weight: bold; font-size: 1.1em; border-top: 2px solid #228b78;">₹${grandTotal.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
-            
-            <!-- Totals -->
-            <div style="margin: 0 15px 15px; text-align: right; font-size: 12px;">
-              <p style="margin: 5px 0;"><strong>Subtotal:</strong> ₹${subtotal.toFixed(2)}</p>
-              ${totalCGST > 0 ? `<p style="margin: 5px 0;"><strong>CGST:</strong> ₹${totalCGST.toFixed(2)}</p>` : ''}
-              ${totalSGST > 0 ? `<p style="margin: 5px 0;"><strong>SGST:</strong> ₹${totalSGST.toFixed(2)}</p>` : ''}
-              <p style="margin: 15px 0 5px 0; font-size: 14px; font-weight: bold;">
-                <strong>GRAND TOTAL: ₹${grandTotal.toFixed(2)}</strong>
-              </p>
-            </div>
-            
-            <!-- Footer -->
-            <div style="background-color: #f9f9f9; padding: 10px; text-align: center; color: #666; font-size: 10px; border-top: 1px solid #eee;">
-              <p style="margin: 5px 0;">* This is a computer generated invoice, no signature required.</p>
-              <p style="margin: 5px 0;">* Thank you for dining with us!</p>
-            </div>
-          </div>
-        `;
-
-        // Generate PDF
-        const opt = {
-          margin: 10,
-          filename: `invoice-${guest.name ? guest.name.replace(/\s+/g, '-').toLowerCase() : 'guest'}-${Date.now()}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2 },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-        };
-
-        // Generate and download the PDF
-        if (typeof window !== 'undefined' && html2pdf) {
-          html2pdf().set(opt).from(element).save();
-        }
-      } catch (error) {
-        console.error('Error generating PDF:', error);
-        toast.error('Failed to generate invoice');
-      } finally {
-        setLoadingStates(prev => ({ ...prev, downloadInvoice: false }));
-      }
-    }, 100);
   };
   const handleSendInvoiceEmail = async (guest) => {
     if (!guest?.email) {
@@ -602,17 +389,33 @@ const CheckOutGuest = () => {
       // Get all items from all orders
       const allItems = (guest.paidOrders || []).flatMap(order => order.items || []);
 
-      // Calculate taxes and totals for each item
       const itemsWithTaxes = allItems.map(item => {
         const price = parseFloat(item.price || 0);
         const quantity = parseInt(item.quantity) || 1;
-        const cgstRate = parseFloat(item.cgstPercent || 0);
-        const sgstRate = parseFloat(item.sgstPercent || 0);
-        const cgstAmount = (price * cgstRate / 100) * quantity;
-        const sgstAmount = (price * sgstRate / 100) * quantity;
+        let cgstRate = parseFloat(item.cgstPercent || 0);
+        let sgstRate = parseFloat(item.sgstPercent || 0);
+        let cgstAmount = parseFloat(item.cgstAmount || 0);
+        let sgstAmount = parseFloat(item.sgstAmount || 0);
         const itemSubtotal = price * quantity;
+
+        // If tax amounts are 0 but we have rates, calculate them
+        if ((!cgstAmount || cgstAmount === 0) && cgstRate > 0) {
+          cgstAmount = (itemSubtotal * cgstRate) / 100;
+        }
+        if ((!sgstAmount || sgstAmount === 0) && sgstRate > 0) {
+          sgstAmount = (itemSubtotal * sgstRate) / 100;
+        }
+
+        // If we have amounts but no rates, calculate the implied rates
+        if ((!cgstRate || cgstRate === 0) && cgstAmount > 0) {
+          cgstRate = (cgstAmount / itemSubtotal) * 100;
+        }
+        if ((!sgstRate || sgstRate === 0) && sgstAmount > 0) {
+          sgstRate = (sgstAmount / itemSubtotal) * 100;
+        }
+
         const itemTotal = itemSubtotal + cgstAmount + sgstAmount;
-        
+
         return {
           ...item,
           _price: price,
@@ -773,15 +576,15 @@ const CheckOutGuest = () => {
               </thead>
               <tbody>
                 ${itemsWithTaxes && itemsWithTaxes.length > 0 ? itemsWithTaxes.map((item, index) => (
-                  `<tr key="${index}">
+        `<tr key="${index}">
                     <td>${item.name || 'N/A'}</td>
                     <td>₹${item._price.toFixed(2)}</td>
                     <td>${item._quantity}</td>
-                    <td>${item._cgstRate > 0 ? `₹${item._cgstAmount.toFixed(2)} (${item._cgstRate}%)` : '-'}</td>
-                    <td>${item._sgstRate > 0 ? `₹${item._sgstAmount.toFixed(2)} (${item._sgstRate}%)` : '-'}</td>
+                    <td>${item._cgstRate > 0 ? `₹${item._cgstAmount.toFixed(2)}` : '-'}</td>
+                    <td>${item._sgstRate > 0 ? `₹${item._sgstAmount.toFixed(2)}` : '-'}</td>
                     <td>₹${item._itemTotal.toFixed(2)}</td>
                   </tr>`
-                )).join('') : `
+      )).join('') : `
                   <tr>
                     <td colspan="6" style="text-align: center;">No items found</td>
                   </tr>
@@ -894,20 +697,41 @@ const CheckOutGuest = () => {
       // Get orders (use paidOrders if available, otherwise use empty array)
       const orders = guest.paidOrders || [];
 
-      // Flatten all items from all orders and calculate taxes
+      // Update the itemsWithTaxes mapping to ensure tax data is properly calculated
       const itemsWithTaxes = orders.flatMap(order => {
         return (order.items || []).map(item => {
           const price = parseFloat(item.price || 0);
           const quantity = parseInt(item.quantity) || 1;
-          
-          // Get tax rates from the item data
-          const cgstRate = parseFloat(item.cgstPercent || 0);
-          const sgstRate = parseFloat(item.sgstPercent || 0);
-          const cgstAmount = parseFloat(item.cgstAmount || (price * cgstRate / 100 * quantity));
-          const sgstAmount = parseFloat(item.sgstAmount || (price * sgstRate / 100 * quantity));
           const itemSubtotal = price * quantity;
-          const itemTotal = parseFloat(item.total || (itemSubtotal + cgstAmount + sgstAmount));
-          
+
+          // Get tax rates - use the item's tax data if available, otherwise default to 0
+          let cgstRate = parseFloat(item.cgstPercent || 0);
+          let sgstRate = parseFloat(item.sgstPercent || 0);
+
+          // Calculate tax amounts - use pre-calculated amounts if available, otherwise calculate
+          let cgstAmount = parseFloat(item.cgstAmount || 0);
+          let sgstAmount = parseFloat(item.sgstAmount || 0);
+
+          // If tax amounts are 0 but we have rates, calculate them
+          if ((!cgstAmount || cgstAmount === 0) && cgstRate > 0) {
+            cgstAmount = (itemSubtotal * cgstRate) / 100;
+          }
+
+          if ((!sgstAmount || sgstAmount === 0) && sgstRate > 0) {
+            sgstAmount = (itemSubtotal * sgstRate) / 100;
+          }
+
+          // If we have amounts but no rates, calculate the implied rates
+          if ((!cgstRate || cgstRate === 0) && cgstAmount > 0) {
+            cgstRate = (cgstAmount / itemSubtotal) * 100;
+          }
+
+          if ((!sgstRate || sgstRate === 0) && sgstAmount > 0) {
+            sgstRate = (sgstAmount / itemSubtotal) * 100;
+          }
+
+          const itemTotal = itemSubtotal + cgstAmount + sgstAmount;
+
           return {
             ...item,
             _price: price,
@@ -983,52 +807,52 @@ const CheckOutGuest = () => {
             <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
               <thead>
                 <tr style="background-color: #228b78; color: white;">
-                  <th style="padding: 10px; text-align: left; border: 1px solid #1a6b5d;">Item</th>
-                  <th style="padding: 10px; text-align: right; border: 1px solid #1a6b5d;">Price</th>
-                  <th style="padding: 10px; text-align: center; border: 1px solid #1a6b5d;">Qty</th>
-                  <th style="padding: 10px; text-align: right; border: 1px solid #1a6b5d;">CGST</th>
-                  <th style="padding: 10px; text-align: right; border: 1px solid #1a6b5d;">SGST</th>
-                  <th style="padding: 10px; text-align: right; border: 1px solid #1a6b5d;">Total</th>
+                  <th style="padding: 8px; text-align: left; border: 1px solid #1a6b5d;">Item</th>
+                  <th style="padding: 8px; text-align: right; border: 1px solid #1a6b5d;">Price</th>
+                  <th style="padding: 8px; text-align: center; border: 1px solid #1a6b5d;">Qty</th>
+                  <th style="padding: 8px; text-align: right; border: 1px solid #1a6b5d;">CGST</th>
+                  <th style="padding: 8px; text-align: right; border: 1px solid #1a6b5d;">SGST</th>
+                  <th style="padding: 8px; text-align: right; border: 1px solid #1a6b5d;">Total</th>
                 </tr>
               </thead>
               <tbody>
                 ${itemsWithTaxes.length > 0 ? itemsWithTaxes.map((item, index) => (
-                  `<tr key="${index}">
-                    <td style="padding: 10px; border: 1px solid #e0e0e0;">${item.name || 'N/A'}</td>
-                    <td style="padding: 10px; text-align: right; border: 1px solid #e0e0e0;">₹${item._price.toFixed(2)}</td>
-                    <td style="padding: 10px; text-align: center; border: 1px solid #e0e0e0;">${item._quantity}</td>
-                    <td style="padding: 10px; text-align: right; border: 1px solid #e0e0e0;">
-                      ${item._cgstRate > 0 ? `₹${item._cgstAmount.toFixed(2)} (${item._cgstRate}%)` : '-'}
+        `<tr key="${index}">
+                    <td style="padding: 8px; border: 1px solid #e0e0e0;">${item.name || 'N/A'}</td>
+                    <td style="padding: 8px; text-align: right; border: 1px solid #e0e0e0;">₹${item._price.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e0e0e0;">${item._quantity}</td>
+                    <td style="padding: 8px; text-align: right; border: 1px solid #e0e0e0;">
+                      ${item._cgstRate > 0 ? `₹${item._cgstAmount.toFixed(2)}` : '-'}
                     </td>
-                    <td style="padding: 10px; text-align: right; border: 1px solid #e0e0e0;">
-                      ${item._sgstRate > 0 ? `₹${item._sgstAmount.toFixed(2)} (${item._sgstRate}%)` : '-'}
+                    <td style="padding: 8px; text-align: right; border: 1px solid #e0e0e0;">
+                      ${item._sgstRate > 0 ? `₹${item._sgstAmount.toFixed(2)}` : '-'}
                     </td>
-                    <td style="padding: 10px; text-align: right; border: 1px solid #e0e0e0;">₹${item._itemTotal.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right; border: 1px solid #e0e0e0;">₹${item._itemTotal.toFixed(2)}</td>
                   </tr>`
-                )).join('') : `
+      )).join('') : `
                   <tr>
-                    <td colspan="6" style="padding: 10px; text-align: center; border: 1px solid #e0e0e0;">No items found</td>
+                    <td colspan="6" style="padding: 8px; text-align: center; border: 1px solid #e0e0e0;">No items found</td>
                   </tr>
                 `}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="3" style="text-align: right; padding: 10px; font-weight: bold; border-top: 1px solid #ddd;">Subtotal:</td>
-                  <td colspan="2" style="text-align: right; padding: 10px; font-weight: bold; border-top: 1px solid #ddd;">₹${subtotal.toFixed(2)}</td>
-                  <td style="text-align: right; padding: 10px; font-weight: bold; border-top: 1px solid #ddd;">₹${subtotal.toFixed(2)}</td>
+                  <td colspan="3" style="text-align: right; padding: 8px; font-weight: bold; border-top: 1px solid #ddd;">Subtotal:</td>
+                  <td colspan="2" style="text-align: right; padding: 8px; font-weight: bold; border-top: 1px solid #ddd;">₹${subtotal.toFixed(2)}</td>
+                  <td style="text-align: right; padding: 8px; font-weight: bold; border-top: 1px solid #ddd;">₹${subtotal.toFixed(2)}</td>
                 </tr>
                 ${totalCGST > 0 ? `
                 <tr>
-                  <td colspan="3" style="text-align: right; padding: 5px 10px;">Total CGST:</td>
-                  <td colspan="2" style="text-align: right; padding: 5px 10px;">₹${totalCGST.toFixed(2)}</td>
-                  <td style="text-align: right; padding: 5px 10px;"></td>
+                  <td colspan="3" style="text-align: right; padding: 5px 8px;">Total CGST:</td>
+                  <td colspan="2" style="text-align: right; padding: 5px 8px;">₹${totalCGST.toFixed(2)}</td>
+         
                 </tr>
                 ` : ''}
                 ${totalSGST > 0 ? `
                 <tr>
                   <td colspan="3" style="text-align: right; padding: 5px 10px;">Total SGST:</td>
                   <td colspan="2" style="text-align: right; padding: 5px 10px;">₹${totalSGST.toFixed(2)}</td>
-                  <td style="text-align: right; padding: 5px 10px;"></td>
+        
                 </tr>
                 ` : ''}
                 <tr>
@@ -1044,7 +868,7 @@ const CheckOutGuest = () => {
                 </tr>
               </tfoot>
             </table>         <!-- Footer -->
-          <div style="background-color: #f9f9f9; padding: 15px; text-align: center; color: #666; font-size: 10px; border-top: 1px solid #eee;">
+          <div style="background-color: #f9f9f9; padding: 10px; text-align: center; color: #666; font-size: 10px; border-top: 1px solid #eee;">
             <p style="margin: 5px 0;">* This is a computer generated invoice, no signature required.</p>
             <p style="margin: 5px 0;">* Thank you for staying with us!</p>
           </div>
@@ -1108,27 +932,6 @@ const CheckOutGuest = () => {
   console.log(checkedOutGuests)
   return (
     <div className="space-y-6">
-      {invoiceData && (
-        <div className="flex justify-end">
-          <button
-            onClick={handleDownloadInvoice}
-            disabled={isGeneratingPdf}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors flex items-center gap-2"
-          >
-            {isGeneratingPdf ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              <>
-                <Printer className="h-4 w-4" />
-                <span>Download Invoice</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
       <InvoiceTemplate />
       <Card>
         <CardHeader>
