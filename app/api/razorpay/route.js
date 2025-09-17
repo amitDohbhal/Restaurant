@@ -14,13 +14,25 @@ if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
 // Initialize Razorpay client
 let razorpay;
 try {
+    console.log('Initializing Razorpay...');
     razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
+    
+    // Test the connection
+    await razorpay.orders.all({ count: 1 });
+    console.log('Razorpay initialized successfully');
 } catch (error) {
-    console.error('Failed to initialize Razorpay:', error.message);
-    throw new Error('Payment service initialization failed');
+    console.error('Failed to initialize Razorpay:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        key_id: process.env.RAZORPAY_KEY_ID ? 'present' : 'missing',
+        key_secret: process.env.RAZORPAY_KEY_SECRET ? 'present' : 'missing',
+        stack: error.stack
+    });
+    throw new Error(`Payment service initialization failed: ${error.message}`);
 }
 
 /**
@@ -53,10 +65,16 @@ export async function POST(request) {
         }
 
         // Create Razorpay order
-        try {           
+        try {
+            // Validate amount (minimum 100 paise = 1 INR for Razorpay)
+            const amountInPaise = Math.round(Number(amount));
+            if (isNaN(amountInPaise) || amountInPaise < 100) {
+                throw new Error(`Invalid amount: ${amountInPaise} paise (minimum 100 paise = 1 INR)`);
+            }
+
             const orderData = {
-                amount: Math.round(Number(amount)),
-                currency: currency.toUpperCase(),
+                amount: amountInPaise,
+                currency: (currency || 'INR').toUpperCase(),
                 receipt: receipt.toString(),
                 notes: {
                     ...notes,
@@ -65,13 +83,48 @@ export async function POST(request) {
                 payment_capture: 1 // Auto-capture payment
             };
             
-
+            console.log('Creating Razorpay order with data:', {
+                ...orderData,
+                key_id: '***' + (process.env.RAZORPAY_KEY_ID || '').slice(-4)
+            });
             
-            const razorpayOrder = await razorpay.orders.create(orderData);
-            
-     
+            let razorpayOrder;
+            try {
+                razorpayOrder = await razorpay.orders.create(orderData);
+                console.log('Razorpay order response:', {
+                    id: razorpayOrder?.id,
+                    amount: razorpayOrder?.amount,
+                    currency: razorpayOrder?.currency,
+                    status: razorpayOrder?.status
+                });
+            } catch (razorpayError) {
+                console.error('Razorpay API error:', {
+                    message: razorpayError.message,
+                    statusCode: razorpayError.statusCode,
+                    error: razorpayError.error,
+                    stack: razorpayError.stack
+                });
+                
+                let errorMessage = 'Failed to create payment order';
+                if (razorpayError.error?.description) {
+                    errorMessage = razorpayError.error.description;
+                } else if (razorpayError.message) {
+                    errorMessage = razorpayError.message;
+                }
+                
+                return NextResponse.json(
+                    { 
+                        success: false, 
+                        error: errorMessage,
+                        details: razorpayError.error || razorpayError.message,
+                        code: razorpayError.code || razorpayError.statusCode
+                    },
+                    { status: 400 }
+                );
+            }
 
             if (!razorpayOrder?.id) {
+                console.error('Invalid response from Razorpay:', razorpayOrder);
                 throw new Error('No order ID received from Razorpay');
             }
             return NextResponse.json({
@@ -145,9 +198,30 @@ export async function PUT(request) {
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
             .digest('hex');
 
+        console.log('Verifying payment signature:', {
+            orderId: razorpay_order_id,
+            paymentId: razorpay_payment_id,
+            receivedSignature: razorpay_signature,
+            generatedSignature,
+            keySecret: process.env.RAZORPAY_KEY_SECRET ? 'present' : 'missing',
+            signatureMatches: generatedSignature === razorpay_signature
+        });
+
         if (generatedSignature !== razorpay_signature) {
+            console.error('Payment signature verification failed:', {
+                expected: generatedSignature,
+                received: razorpay_signature,
+                message: 'Signatures do not match'
+            });
             return NextResponse.json(
-                { success: false, error: 'Invalid payment signature' },
+                { 
+                    success: false, 
+                    error: 'Invalid payment signature',
+                    details: {
+                        message: 'The payment signature could not be verified',
+                        code: 'SIGNATURE_VERIFICATION_FAILED'
+                    }
+                },
                 { status: 400 }
             );
         }

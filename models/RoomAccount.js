@@ -65,11 +65,36 @@ const roomAccountSchema = new mongoose.Schema({
       name: String,
       price: Number,
       quantity: Number,
+      cgstPercent: {
+        type: Number,
+        default: 0
+      },
+      sgstPercent: {
+        type: Number,
+        default: 0
+      },
+      cgstAmount: {
+        type: Number,
+        default: 0
+      },
+      sgstAmount: {
+        type: Number,
+        default: 0
+      },
+      itemTotal: Number,
       total: Number
     }],
+    subtotal: {
+      type: Number,
+      default: 0
+    },
+    taxAmount: {
+      type: Number,
+      default: 0
+    },
     totalAmount: {
       type: Number,
-      required: true
+      default: 0  // Make it optional with a default value
     },
     paymentMethod: String,
     paymentStatus: {
@@ -100,11 +125,36 @@ const roomAccountSchema = new mongoose.Schema({
       name: String,
       price: Number,
       quantity: Number,
+      cgstPercent: {
+        type: Number,
+        default: 0
+      },
+      sgstPercent: {
+        type: Number,
+        default: 0
+      },
+      cgstAmount: {
+        type: Number,
+        default: 0
+      },
+      sgstAmount: {
+        type: Number,
+        default: 0
+      },
+      itemTotal: Number,
       total: Number
     }],
+    subtotal: {
+      type: Number,
+      default: 0
+    },
+    taxAmount: {
+      type: Number,
+      default: 0
+    },
     totalAmount: {
       type: Number,
-      required: true
+      default: 0  // Make it optional with a default value
     },
     paymentMethod: String,
     paymentStatus: {

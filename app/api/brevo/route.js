@@ -11,7 +11,7 @@ export async function POST(request) {
                 "api-key": process.env.BREVO_API_KEY,
             },
             body: JSON.stringify({
-                sender: { email: "digitalservicesinrishikesh@gmail.com", name: "Adventure Axis" },
+                sender: { email: "digitalservicesinrishikesh@gmail.com", name: "Hotel Shivan Residence" },
                 to: [{ email: to }],
                 subject,
                 htmlContent,

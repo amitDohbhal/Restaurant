@@ -1,9 +1,5 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-
 // Helper function to prevent body scroll
 const usePreventBodyScroll = (isOpen) => {
   useEffect(() => {
@@ -27,6 +23,16 @@ import toast from 'react-hot-toast';
 import { Loader, Printer } from 'lucide-react';
 
 const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initialTotalAmount }) => {
+  const resetCheckoutState = () => {
+    setCurrentStep(1);
+    setGuestInfo({ name: '', phone: '', email: '' });
+    setSelectedGuest(null);
+    setOrderConfirmation(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('checkoutCurrentStep');
+      localStorage.removeItem('savedGuestInfo');
+    }
+  };
   usePreventBodyScroll(isOpen);
 
   const { data: session } = useSession();
@@ -38,11 +44,29 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
     }
     return 1;
   });
-  const [guestInfo, setGuestInfo] = useState({
-    name: '',
-    phone: '',
-    email: ''
+  // Load saved guest info from localStorage on initial render
+  const [guestInfo, setGuestInfo] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedGuestInfo = localStorage.getItem('savedGuestInfo');
+      return savedGuestInfo ? JSON.parse(savedGuestInfo) : {
+        name: '',
+        phone: '',
+        email: ''
+      };
+    }
+    return {
+      name: '',
+      phone: '',
+      email: ''
+    };
   });
+
+  // Save guest info to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('savedGuestInfo', JSON.stringify(guestInfo));
+    }
+  }, [guestInfo]);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState(null);
@@ -53,43 +77,14 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
   // Add this state with your other useState declarations
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isOnlineProcessingPayment, setIsOnlineProcessingPayment] = useState(false);
+  // Pre-fill email from session if available but stay on step 1
   useEffect(() => {
-    // Don't modify step if we're already on the thank you page (step 3)
-    if (currentStep === 3) return;
-
-    // Only run automatic check if we haven't manually entered step 1 yet
-    // and if the form hasn't been filled out
-    if (currentStep === 1 && !guestInfo.email && !guestInfo.phone && !guestInfo.name) {
-      const initializeGuestCheck = async () => {
-        if (session?.user?.email) {
-          const email = session.user.email;
-
-          // First try to find guest by email
-          const { found: foundByEmail, guest: emailGuest } = await searchGuestByEmail(email);
-
-          if (foundByEmail) {
-            // If found by email, proceed to step 2
-            setCurrentStep(2);
-            setSelectedGuest(emailGuest);
-            setGuestInfo({
-              name: emailGuest.name || '',
-              phone: emailGuest.phone || '',
-              email: emailGuest.email || email
-            });
-            return;
-          }
-
-          // If not found by email, pre-fill the form with session data but stay on step 1
-          setGuestInfo(prev => ({
-            ...prev,
-
-          }));
-        }
-      };
-
-      initializeGuestCheck();
+    if (session?.user?.email && !guestInfo.email) {
+      setGuestInfo(prev => ({
+        ...prev,
+      }));
     }
-  }, [session]); // Remove currentStep from dependencies to avoid re-running
+  }, [session]);
 
   // Persist step changes to localStorage
   useEffect(() => {
@@ -98,22 +93,38 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
     }
   }, [currentStep]);
 
-  // Clean up localStorage when modal is closed
+  // Handle modal close
+  const handleClose = () => {
+    resetCheckoutState();
+    onClose();
+  };
+
+  // Clean up when modal is closed or when order is completed
   useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && !isOpen) {
+    if (!isOpen) {
+      resetCheckoutState();
+    }
+  }, [isOpen]);
+
+  // Handle successful order completion
+  useEffect(() => {
+    if (currentStep === 3 && orderConfirmation) {
+      // Keep guest info in state until modal is closed or new order starts
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('savedGuestInfo');
         localStorage.removeItem('checkoutCurrentStep');
       }
-    };
-  }, [isOpen]);
+    }
+  }, [currentStep, orderConfirmation]);
 
   // Handle input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setGuestInfo(prev => ({
-      ...prev,
+    const updatedInfo = {
+      ...guestInfo,
       [name]: value
-    }));
+    };
+    setGuestInfo(updatedInfo);
   };
 
   // Search for existing guest by phone number
@@ -405,24 +416,57 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         throw new Error('User must be logged in to place an order');
       }
 
+      // Ensure we have a guest ID for room accounts
+      if (customerData.roomNumber && !customerData._id) {
+        throw new Error('Guest ID is required for room account payment');
+      }
+
       // Prepare order data
       const orderData = {
         // Include user ID at root level
         userId: userId,
-        items: cart.map(item => ({
-          id: item.id || item._id,
-          name: item.name,
-          price: parseFloat(item.price),
-          qty: parseInt(item.qty),
-          cgstAmount: parseFloat(item.cgstAmount) || 0,
-          cgstPercent: parseFloat(item.cgstPercent) || 0,
-          sgstAmount: parseFloat(item.sgstAmount) || 0,
-          sgstPercent: parseFloat(item.sgstPercent) || 0
-        })),
+        // Include guest ID for room accounts
+        ...(customerData._id && { guestId: customerData._id }),
+        items: cart.map(item => {
+          // Get the price and quantity
+          const price = parseFloat(item.price);
+          const qty = parseInt(item.qty);
+          
+          // Calculate tax amounts based on what's available
+          let cgstPercent, sgstPercent, cgstAmount, sgstAmount;
+          
+          // Get the tax rates and amounts as they are
+          cgstPercent = parseFloat(item.cgstPercent || 0);
+          sgstPercent = parseFloat(item.sgstPercent || 0);
+          cgstAmount = parseFloat(item.cgstAmount || 0);
+          sgstAmount = parseFloat(item.sgstAmount || 0);
+          
+          const itemSubtotal = price * qty;
+          const itemTax = (cgstAmount + sgstAmount) * qty;
+          const itemTotal = itemSubtotal + itemTax;
+
+          return {
+            id: item.id || item._id,
+            productId: item.id || item._id,
+            name: item.name,
+            price: price,
+            quantity: qty,
+            qty: qty, // Keep both for backward compatibility
+            // Store tax percentages and calculated amounts
+            cgstPercent: cgstPercent,           // Tax percentage (e.g., 18 for 18%)
+            sgstPercent: sgstPercent,           // Tax percentage (e.g., 18 for 18%)
+            cgstAmount: cgstAmount, // Calculated tax amount
+            sgstAmount: sgstAmount, // Calculated tax amount
+            itemTotal: itemTotal,
+            total: itemTotal
+          };
+        }),
         customer: {
           ...customerData,
           // Include user ID in customer object
-          userId: userId
+          userId: userId,
+          // Ensure guestId is included if available
+          ...(customerData._id && { guestId: customerData._id })
         },
         paymentMethod: 'pay_at_hotel',
         roomNumber: customerData.roomNumber,
@@ -430,9 +474,11 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         total: parseFloat(totalAmount).toFixed(2),
         subtotal: cart.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.qty)), 0).toFixed(2),
         tax: cart.reduce((sum, item) => {
-          const cgst = parseFloat(item.cgstAmount) || 0;
-          const sgst = parseFloat(item.sgstAmount) || 0;
-          return sum + ((cgst + sgst) * parseInt(item.qty));
+          // Get the tax amounts as they are
+          const cgstAmount = parseFloat(item.cgstAmount || 0);
+          const sgstAmount = parseFloat(item.sgstAmount || 0);
+
+          return sum + ((cgstAmount + sgstAmount) * parseInt(item.qty));
         }, 0).toFixed(2),
         status: 'pending',
         paymentStatus: 'pending',
@@ -468,14 +514,84 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           body: JSON.stringify({
             orderId: orderResponseData._id,
             orderNumber: orderResponseData.orderNumber,
-            items: orderData.items.map(item => ({
-              productId: item.productId,
-              name: item.name,
-              price: item.price,
-              quantity: item.qty,
-              total: item.price * item.qty
-            })),
-            totalAmount: orderData.total
+            items: orderData.items.map(item => {
+              // Get base values
+              const price = parseFloat(item.price);
+              const qty = parseInt(item.qty || item.quantity || 1);
+
+              // Simply parse the values as they are, no calculations
+              const cgstPercent = parseFloat(item.cgstPercent) || 0;
+              const sgstPercent = parseFloat(item.sgstPercent) || 0;
+              const cgstAmount = parseFloat(item.cgstAmount) || 0;
+              const sgstAmount = parseFloat(item.sgstAmount) || 0;
+
+              // Calculate item totals
+              const itemSubtotal = price * qty;
+              const itemTax = (cgstAmount + sgstAmount) * qty;
+              const itemTotal = itemSubtotal + itemTax;
+
+              return {
+                productId: item.id || item.productId,
+                name: item.name,
+                price: price,
+                quantity: qty,
+                // Save all tax values as they are
+                cgstPercent: cgstPercent,
+                sgstPercent: sgstPercent,
+                cgstAmount: cgstAmount,
+                sgstAmount: sgstAmount,
+                itemTotal: itemTotal,
+                total: itemTotal,  
+              };
+            }),
+            subtotal: orderData.items.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.qty)), 0),
+            taxAmount: orderData.items.reduce((sum, item) => {
+              // Calculate tax amount for each item
+              const price = parseFloat(item.price) || 0;
+              const qty = parseInt(item.qty) || 1;
+              
+              // If tax amounts are provided directly, use them
+              let cgstAmount = parseFloat(item.cgstAmount) || 0;
+              let sgstAmount = parseFloat(item.sgstAmount) || 0;
+              
+              // If tax percentages are provided, calculate amounts
+              if (!cgstAmount && item.cgstPercent) {
+                cgstAmount = (price * parseFloat(item.cgstPercent) / 100);
+              }
+              if (!sgstAmount && item.sgstPercent) {
+                sgstAmount = (price * parseFloat(item.sgstPercent) / 100);
+              }
+              
+              // Calculate total tax for this item (sum of all taxes * quantity)
+              return sum + ((cgstAmount + sgstAmount) * qty);
+            }, 0),
+            totalAmount: orderData.items.reduce((sum, item) => {
+              const price = parseFloat(item.price) || 0;
+              const qty = parseInt(item.qty) || 1;
+              
+              // Calculate tax amounts from percentages if needed
+              let cgstAmount = parseFloat(item.cgstAmount) || 0;
+              let sgstAmount = parseFloat(item.sgstAmount) || 0;
+              
+              // If tax amounts are not provided but percentages are, calculate them
+              if (!cgstAmount && item.cgstPercent) {
+                cgstAmount = (price * parseFloat(item.cgstPercent) / 100);
+              }
+              if (!sgstAmount && item.sgstPercent) {
+                sgstAmount = (price * parseFloat(item.sgstPercent) / 100);
+              }
+              
+              // Calculate total for this item (price + all taxes) * quantity
+              return sum + ((price + cgstAmount + sgstAmount) * qty);
+            }, 0),
+            // Include customer information for better tracking
+            customer: {
+              _id: customerData._id,
+              name: customerData.name,
+              phone: customerData.phone,
+              email: customerData.email,
+              roomNumber: customerData.roomNumber
+            }
           })
         });
       }
@@ -604,9 +720,9 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         total: parseFloat(totalAmount).toFixed(2),
         subtotal: cart.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.qty)), 0).toFixed(2),
         tax: cart.reduce((sum, item) => {
-          const cgst = parseFloat(item.cgstAmount) || 0;
-          const sgst = parseFloat(item.sgstAmount) || 0;
-          return sum + ((cgst + sgst) * parseInt(item.qty));
+          const cgstPercent = parseFloat(item.cgstAmount) || 0;
+          const sgstPercent = parseFloat(item.sgstAmount) || 0;
+          return sum + ((cgstPercent + sgstPercent) * parseInt(item.qty));
         }, 0).toFixed(2),
 
         // Order metadata
@@ -883,99 +999,102 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           <div className="space-y-1">
             {currentStep === 3 && orderConfirmation ? (
               <div className="text-center p-2 bg-green-50 rounded-lg h-[80vh] overflow-y-auto">
-                <div className="text-green-500 text-2xl mb-4">✓</div>
-                <h2 className="text-2xl font-bold mb-2">Dear Guest, {selectedGuest?.name || guestInfo?.name || 'Valued Customer'}!</h2>
-                <p className="text-gray-600 my-2">Thank You !Your food order has been {orderConfirmation.status === 'Paid' ? 'placed and paid successfully' : 'confirmed'}</p>
-                <p className="text-gray-600 my-2">We will notify you once your order is ready.</p>
-                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 text-left h-[30vh] md:h-[50vh] overflow-y-auto">
-                  <div className="flex flex-col md:flex-row md:justify-between items-start gap-2 md:items-center border-b pb-3 mb-3">
-                    <h3 className="font-semibold">Order #{orderConfirmation.orderNumber}</h3>
-                    <span className={`px-3 py-1 rounded-full text-sm ${orderConfirmation.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
-                      {orderConfirmation.status}
-                    </span>
-                  </div>
+                <div className="">
 
-                  <div className="space-y-2 mb-4 ">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Date:</span>
-                      <span>{new Date(orderConfirmation.timestamp).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Payment Method:</span>
-                      <span>{orderConfirmation.paymentMethod}</span>
-                    </div>
-                    {orderConfirmation.paymentId && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Payment ID:</span>
-                        <span className="text-sm">{orderConfirmation.paymentId}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <h4 className="font-medium mb-2 border-b pb-2">Order Summary</h4>
-                  <div className="space-y-3 mb-4">
-                    {orderConfirmation.items.map((item, index) => {
-                      return (
-                        <div key={index} className="border-b pb-2">
-                          <div className="flex justify-between">
-                            <span className="font-medium">{item.qty} × {item.name}</span>
-                            <span>₹{(item.price * item.qty).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="space-y-2 border-t pt-3">
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span>₹{orderConfirmation.items.reduce((sum, item) =>
-                        sum + (item.price * item.qty), 0).toFixed(2)}
+                  <div className="text-green-500 text-2xl mb-4">✓</div>
+                  <h2 className="text-2xl font-bold mb-2">Dear Guest, {selectedGuest?.name || guestInfo?.name || 'Valued Customer'}!</h2>
+                  <p className="text-gray-600 my-2">Thank You !Your food order has been {orderConfirmation.status === 'Paid' ? 'placed and paid successfully' : 'confirmed'}</p>
+                  <p className="text-gray-600 my-2">We will notify you once your order is ready.</p>
+                  <div className="bg-white p-4 rounded-lg shadow-sm mb-6 text-left overflow-y-auto">
+                    <div className="flex flex-col md:flex-row md:justify-between items-start gap-2 md:items-center border-b pb-3 mb-3">
+                      <h3 className="font-semibold">Order #{orderConfirmation.orderNumber}</h3>
+                      <span className={`px-3 py-1 rounded-full text-sm ${orderConfirmation.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                        {orderConfirmation.status}
                       </span>
                     </div>
-                    {(orderConfirmation.items.some(item => (item.cgstAmount && parseFloat(item.cgstAmount) > 0) || (item.cgstPercent && parseFloat(item.cgstPercent) > 0))) && (() => {
-                      const totalCGST = orderConfirmation.items.reduce((sum, item) => {
-                        if (item.cgstAmount) {
-                          return sum + (parseFloat(item.cgstAmount) * item.qty) || 0;
-                        } else if (item.cgstPercent && item.price) {
-                          return sum + ((item.price * parseFloat(item.cgstPercent) / 100) * item.qty) || 0;
-                        }
-                        return sum;
-                      }, 0);
 
-                      return (
-                        <div className="flex justify-between text-gray-600 text-sm">
-                          <span>Total CGST</span>
-                          <span>₹{totalCGST.toFixed(2)}</span>
-                        </div>
-                      );
-                    })()}
-                    {(orderConfirmation.items.some(item => (item.sgstAmount && parseFloat(item.sgstAmount) > 0) || (item.sgstPercent && parseFloat(item.sgstPercent) > 0))) && (() => {
-                      const totalSGST = orderConfirmation.items.reduce((sum, item) => {
-                        if (item.sgstAmount) {
-                          return sum + (parseFloat(item.sgstAmount) * item.qty) || 0;
-                        } else if (item.sgstPercent && item.price) {
-                          return sum + ((item.price * parseFloat(item.sgstPercent) / 100) * item.qty) || 0;
-                        }
-                        return sum;
-                      }, 0);
-                      return (
-                        <div className="flex justify-between text-gray-600 text-sm">
-                          <span>Total SGST</span>
-                          <span>₹{totalSGST.toFixed(2)}</span>
-                        </div>
-                      );
-                    })()}
-                    {orderConfirmation.promoDiscount > 0 && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Promo Discount:</span>
-                        <span>-₹{parseFloat(orderConfirmation.promoDiscount).toFixed(2)}</span>
+                    <div className="space-y-2 mb-4 ">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Date:</span>
+                        <span>{new Date(orderConfirmation.timestamp).toLocaleString()}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between font-semibold border-t pt-2 mt-2">
-                      <span>Total Amount:</span>
-                      <span>₹{parseFloat(orderConfirmation.total).toFixed(2)}</span>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Payment Method:</span>
+                        <span>{orderConfirmation.paymentMethod}</span>
+                      </div>
+                      {orderConfirmation.paymentId && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Payment ID:</span>
+                          <span className="text-sm">{orderConfirmation.paymentId}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <h4 className="font-medium mb-2 border-b pb-2">Order Summary</h4>
+                    <div className="space-y-3 mb-4">
+                      {orderConfirmation.items.map((item, index) => {
+                        return (
+                          <div key={index} className="border-b pb-2">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{item.qty} × {item.name}</span>
+                              <span>₹{(item.price * item.qty).toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="space-y-2 border-t pt-3">
+                      <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span>₹{orderConfirmation.items.reduce((sum, item) =>
+                          sum + (item.price * item.qty), 0).toFixed(2)}
+                        </span>
+                      </div>
+                      {(orderConfirmation.items.some(item => (item.cgstAmount && parseFloat(item.cgstAmount) > 0) || (item.cgstPercent && parseFloat(item.cgstPercent) > 0))) && (() => {
+                        const totalCGST = orderConfirmation.items.reduce((sum, item) => {
+                          if (item.cgstAmount) {
+                            return sum + (parseFloat(item.cgstAmount) * item.qty) || 0;
+                          } else if (item.cgstPercent && item.price) {
+                            return sum + ((item.price * parseFloat(item.cgstPercent) / 100) * item.qty) || 0;
+                          }
+                          return sum;
+                        }, 0);
+
+                        return (
+                          <div className="flex justify-between text-gray-600 text-sm">
+                            <span>Total CGST</span>
+                            <span>₹{totalCGST.toFixed(2)}</span>
+                          </div>
+                        );
+                      })()}
+                      {(orderConfirmation.items.some(item => (item.sgstAmount && parseFloat(item.sgstAmount) > 0) || (item.sgstPercent && parseFloat(item.sgstPercent) > 0))) && (() => {
+                        const totalSGST = orderConfirmation.items.reduce((sum, item) => {
+                          if (item.sgstAmount) {
+                            return sum + (parseFloat(item.sgstAmount) * item.qty) || 0;
+                          } else if (item.sgstPercent && item.price) {
+                            return sum + ((item.price * parseFloat(item.sgstPercent) / 100) * item.qty) || 0;
+                          }
+                          return sum;
+                        }, 0);
+                        return (
+                          <div className="flex justify-between text-gray-600 text-sm">
+                            <span>Total SGST</span>
+                            <span>₹{totalSGST.toFixed(2)}</span>
+                          </div>
+                        );
+                      })()}
+                      {orderConfirmation.promoDiscount > 0 && (
+                        <div className="flex justify-between text-green-600">
+                          <span>Promo Discount:</span>
+                          <span>-₹{parseFloat(orderConfirmation.promoDiscount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-semibold border-t pt-2 mt-2">
+                        <span>Total Amount:</span>
+                        <span>₹{parseFloat(orderConfirmation.total).toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1056,8 +1175,8 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                               </tr>
                             </thead>
                             <tbody>
-                              ${orderConfirmation.items.map(item => `
-                                <tr style="border-bottom: 1px solid #eee;">
+                              ${orderConfirmation.items.map((item, index) => `
+                                <tr key="item-${index}" style="border-bottom: 1px solid #eee;">
                                   <td style="padding: 10px;">${item.name}</td>
                                   <td style="padding: 10px; text-align: center;">${item.qty}</td>
                                   <td style="padding: 10px; text-align: center;">₹${item.price.toFixed(2)}</td>
@@ -1111,7 +1230,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                         localStorage.removeItem('cart');
                         localStorage.removeItem('checkoutCurrentStep');
                       }
-                      onClose();
+                      handleClose();
                       window.location.href = '/';
                     }}
                     className="bg-green-500 text-white px-10 py-2 rounded hover:bg-green-600 transition-colors"
@@ -1127,7 +1246,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                         localStorage.removeItem('cart');
                         localStorage.removeItem('checkoutCurrentStep');
                       }
-                      onClose();
+                      handleClose();
                       window.location.href = '/dashboard?section=orders';
                     }}
                     className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
@@ -1138,15 +1257,14 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   </button>
 
                 </div>
-
               </div>
             ) : (
               <>
                 <div className="border rounded p-4 h-[50vh] overflow-y-auto md:h-[50vh]">
                   <h3 className="font-bold mb-2">Order Summary</h3>
-                  {cart.map(item => (
+                  {cart.map((item, index) => (
                     <>
-                      <div key={item.id} className="flex justify-between py-2 md:border-b">
+                      <div key={index} className="flex justify-between py-2 md:border-b">
                         <div className='flex items-center gap-5'>
                           <p className="font-medium">{item.name}</p>
                           <p className="text-sm text-black">Qty: {item.qty}</p>
@@ -1264,8 +1382,8 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                     ← Back to Guest Info
                   </button>
                   <button
-                    onClick={onClose}
-                    className="text-gray-500 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded hover:text-white"
+                    onClick={handleClose}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded hover:text-white"
                   >
                     Cancel
                   </button>

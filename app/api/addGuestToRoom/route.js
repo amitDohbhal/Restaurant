@@ -25,6 +25,7 @@ export async function GET(request) {
         query = {
           $or: [
             { name: { $regex: searchTerm, $options: 'i' } },
+            { email: { $regex: searchTerm, $options: 'i' } },
             { roomNumber: searchTerm },
             { phone: { $regex: searchTerm } }
           ]
@@ -34,7 +35,7 @@ export async function GET(request) {
       console.log('Search query:', JSON.stringify(query, null, 2));
     }
     
-    const guests = await RoomAccount.find(query).sort({ checkIn: 1 });
+    const guests = await RoomAccount.find(query).sort({ checkIn: -1 });
     return NextResponse.json(guests);
   } catch (error) {
     console.error('Error fetching guests:', error);

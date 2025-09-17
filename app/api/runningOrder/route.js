@@ -29,14 +29,79 @@ export async function POST(request) {
       );
     }
 
-    // Calculate order totals
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    const tax = items.reduce((sum, item) => {
-      const cgst = parseFloat(item.cgstAmount) || 0;
-      const sgst = parseFloat(item.sgstAmount) || 0;
-      return sum + ((cgst + sgst) * item.qty);
+    // Process items - just parse the values as they are, no calculations
+    let processedItems = items.map(item => {
+      const price = parseFloat(item.price) || 0;
+      const qty = parseInt(item.qty) || 1;
+      
+      // Simply parse all tax values as they are
+      const cgstPercent = parseFloat(item.cgstPercent) || 0;
+      const sgstPercent = parseFloat(item.sgstPercent) || 0;
+      const cgstAmount = parseFloat(item.cgstAmount) || 0;
+      const sgstAmount = parseFloat(item.sgstAmount) || 0;
+      
+      const itemSubtotal = price * qty;
+      const itemTax = (cgstAmount + sgstAmount) * qty;
+      const itemTotal = itemSubtotal + itemTax;
+      
+      return {
+        ...item,
+        price,
+        quantity: qty,
+        cgstPercent,
+        sgstPercent,
+        cgstAmount,
+        sgstAmount,
+        total: itemTotal
+      };
+    });
+    
+    // Calculate order totals with proper type conversion
+    const subtotal = processedItems.reduce((sum, item) => {
+      return sum + (parseFloat(item.price) * parseInt(item.quantity));
     }, 0);
+    
+    // Calculate tax amount for each item, considering both amounts and percentages
+    processedItems = processedItems.map(item => {
+      const price = parseFloat(item.price) || 0;
+      const qty = parseInt(item.quantity) || 1;
+      
+      // Calculate tax amounts from percentages if needed
+      let cgstAmount = parseFloat(item.cgstAmount) || 0;
+      let sgstAmount = parseFloat(item.sgstAmount) || 0;
+      
+      // If tax amounts are not provided but percentages are, calculate them
+      if (!cgstAmount && item.cgstPercent) {
+        cgstAmount = (price * parseFloat(item.cgstPercent) / 100);
+      }
+      if (!sgstAmount && item.sgstPercent) {
+        sgstAmount = (price * parseFloat(item.sgstPercent) / 100);
+      }
+      
+      // Update the item with calculated tax amounts
+      return {
+        ...item,
+        cgstAmount,
+        sgstAmount,
+        // Update the total for this item
+        total: (price + cgstAmount + sgstAmount) * qty
+      };
+    });
+    
+    // Calculate total tax
+    const tax = processedItems.reduce((sum, item) => {
+      return sum + ((item.cgstAmount + item.sgstAmount) * parseInt(item.quantity));
+    }, 0);
+    
     const total = subtotal + tax;
+    
+    console.log('Order totals:', { 
+      subtotal, 
+      tax, 
+      total,
+      itemCount: processedItems.length,
+      firstItem: processedItems[0] // Log first item for debugging
+    });
 
     // For room-service or room-account payments, verify room number
     if ((orderType === 'room-service' || paymentMethod === 'room-account') && !roomNumber) {
@@ -47,7 +112,7 @@ export async function POST(request) {
     }
 
     // For room-account payments, verify guest is checked in to the room
-    if (paymentMethod === 'room-account') {
+    if (paymentMethod === 'room-account' || orderType === 'room-service') {
       if (!customer._id) {
         return NextResponse.json(
           { success: false, message: 'Guest ID is required for room account payment' },
@@ -55,13 +120,31 @@ export async function POST(request) {
         );
       }
       
-      const guest = await RoomAccount.findOne({ _id: customer._id, roomNumber, status: 'checked-in' });
+      // Find the guest and verify they are checked in
+      const guest = await RoomAccount.findOne({ 
+        $or: [
+          { _id: customer._id },
+          { guestId: customer._id }
+        ],
+        status: 'checked-in',
+        roomNumber: roomNumber || customer.roomNumber
+      });
+      
       if (!guest) {
         return NextResponse.json(
-          { success: false, message: 'Guest not found or not checked in to the specified room' },
-          { status: 404 }
+          { 
+            success: false, 
+            message: 'Guest not found or not checked in to the specified room. Please check in first.' 
+          },
+          { status: 400 }
         );
       }
+      
+      // Update customer data with guest information
+      customer._id = guest._id;
+      customer.guestId = guest.guestId || guest._id;
+      customer.roomNumber = guest.roomNumber;
+      customer.roomType = guest.roomType;
     }
 
     // Create order number
@@ -89,18 +172,29 @@ export async function POST(request) {
       orderNumber,
       // Include user ID
       userId: customer.userId,
-      items: items.map(item => ({
-        productId: item.id,
+      customer: {
+        _id: customer._id || null,
+        guestId: customer.guestId || customer._id || null,
+        name: customer.name || 'Guest',
+        phone: customer.phone || '',
+        email: customer.email || '',
+        roomNumber: roomNumber || null,
+        roomId: customer.roomId || null,
+        checkIn: customer.checkIn || null,
+        checkOut: customer.checkOut || null,
+        userId: customer.userId
+      },
+      items: processedItems.map(item => ({
+        productId: item.id || item._id,
         name: item.name,
         price: item.price,
-        quantity: item.qty,
-        cgst: item.cgstPercent || 0,
-        sgst: item.sgstPercent || 0,
-        cgstAmount: parseFloat(item.cgstAmount || 0) * item.qty,
-        sgstAmount: parseFloat(item.sgstAmount || 0) * item.qty,
-        total: (item.price * item.qty) + 
-               (parseFloat(item.cgstAmount || 0) * item.qty) + 
-               (parseFloat(item.sgstAmount || 0) * item.qty)
+        quantity: item.quantity,
+        cgstAmount: item.cgstAmount || 0,
+        sgstAmount: item.sgstAmount || 0,
+        cgstPercent: item.cgstPercent || 0,
+        sgstPercent: item.sgstPercent || 0,
+        total: item.total,
+        notes: item.notes
       })),
       // Customer information
       customer: {
@@ -177,10 +271,10 @@ export async function POST(request) {
             price: item.price,
             quantity: item.quantity,
             total: item.total,
-            ...(item.cgstAmount && { cgstAmount: item.cgstAmount }),
-            ...(item.sgstAmount && { sgstAmount: item.sgstAmount }),
-            ...(item.cgstPercent && { cgstPercent: item.cgstPercent }),
-            ...(item.sgstPercent && { sgstPercent: item.sgstPercent })
+            cgstAmount: item.cgstAmount || 0,
+            sgstAmount: item.sgstAmount || 0,
+            cgstPercent: item.cgstPercent || 0,
+            sgstPercent: item.sgstPercent || 0
           })),
           totalAmount: order.total,
           paymentMethod: paymentMethod,

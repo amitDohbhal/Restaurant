@@ -22,39 +22,88 @@ export async function POST(request, { params }) {
     console.log('Received order data:', JSON.stringify(orderData, null, 2));
     
     // Validate required fields
-    if (!orderData.orderId || !orderData.orderNumber || !orderData.items) {
+    if (!orderData.orderNumber || !orderData.items) {
       console.error('Missing required fields in order data');
       return NextResponse.json(
         { 
           success: false, 
-          message: 'Missing required order fields',
+          message: 'Missing required order fields (orderNumber and items are required)',
           receivedData: orderData
         },
         { status: 400 }
       );
     }
     
-    // Process items to ensure valid format
+    // Generate an orderId if not provided
+    if (!orderData.orderId) {
+      orderData.orderId = new mongoose.Types.ObjectId().toString();
+    }
+    
+    // Process items to ensure valid format and include all tax fields
     const processedItems = orderData.items.map(item => {
-      // Handle different possible ID fields
-      const productId = item._id
+      // Process items - just parse the values as they are, no calculations
+      const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity || item.qty || 1);
-      const price = parseFloat(item.price || 0);
-      const total = parseFloat(item.total || (price * quantity));
+      
+      // Get tax percentages (cgst and sgst fields contain the percentages)
+      const cgstPercent = parseFloat(item.cgstPercent) || 0;
+      const sgstPercent = parseFloat(item.sgstPercent) || 0;
+      const cgstAmount = parseFloat(item.cgstAmount) || 0;
+      const sgstAmount = parseFloat(item.sgstAmount) || 0;
+      
+      // Calculate item totals
+      const itemSubtotal = price * quantity;
+      const itemTax = (cgstAmount + sgstAmount) * quantity;
+      const itemTotal = itemSubtotal + itemTax;
       
       return {
         ...item,
-        productId: productId || null,
+        productId: item.productId || item._id || null,
         name: item.name || 'Unnamed Item',
         quantity: quantity,
         price: price,
-        total: total
+        // Store tax percentages and calculated amounts
+        cgstPercent: cgstPercent,           // Tax percentage (e.g., 18 for 18%)
+        sgstPercent: sgstPercent,           // Tax percentage (e.g., 18 for 18%)
+        cgstAmount: cgstAmount, // Calculated tax amount
+        sgstAmount: sgstAmount, // Calculated tax amount
+        itemTotal: itemTotal,
+        total: itemTotal
       };
     });
     
-    // Calculate total amount if not provided
-    const totalAmount = orderData.totalAmount || 
-      processedItems.reduce((sum, item) => sum + (item.total || 0), 0);
+    // Calculate order totals with proper tax handling
+    const subtotal = processedItems.reduce((sum, item) => {
+      return sum + (parseFloat(item.price) * parseInt(item.quantity));
+    }, 0);
+    
+    const taxAmount = processedItems.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0;
+      const qty = parseInt(item.quantity) || 1;
+      
+      // Calculate tax amounts from percentages if needed
+      let cgstAmount = parseFloat(item.cgstAmount) || 0;
+      let sgstAmount = parseFloat(item.sgstAmount) || 0;
+      
+      // If tax amounts are not provided but percentages are, calculate them
+      if (!cgstAmount && item.cgstPercent) {
+        cgstAmount = (price * parseFloat(item.cgstPercent) / 100);
+      }
+      if (!sgstAmount && item.sgstPercent) {
+        sgstAmount = (price * parseFloat(item.sgstPercent) / 100);
+      }
+      
+      return sum + ((cgstAmount + sgstAmount) * qty);
+    }, 0);
+    
+    const totalAmount = parseFloat(orderData.totalAmount) || (subtotal + taxAmount);
+    
+    console.log('Calculated totals:', { 
+      subtotal, 
+      taxAmount, 
+      totalAmount,
+      itemCount: processedItems.length 
+    });
     
     // Find the room account by room number
     const roomAccount = await RoomAccount.findOne({ roomNumber });
@@ -69,17 +118,15 @@ export async function POST(request, { params }) {
     try {
       // Create the unpaid order object
       const unpaidOrder = {
-        orderId: orderData.orderId.toString(),
+        orderId: orderData.orderId,
         orderNumber: orderData.orderNumber,
         items: processedItems,
+        subtotal: subtotal,
+        taxAmount: taxAmount,
         totalAmount: totalAmount,
-        customer: orderData.customer || {
-          name: 'Guest',
-          email: '',
-          phone: ''
-        },
-        status: 'pending',
-        orderDate: orderData.orderDate || new Date(),
+        paymentMethod: orderData.paymentMethod || 'pay_at_hotel',
+        paymentStatus: 'pending',
+        customer: orderData.customer || null,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -134,3 +181,4 @@ export async function POST(request, { params }) {
     );
   }
 }
+
