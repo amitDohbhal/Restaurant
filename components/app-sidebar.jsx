@@ -63,11 +63,6 @@ const data = {
     { divider: true },
     {
       name: "Create Room",
-      url: "/admin/manage_products_category",
-      icon: Boxes,
-    },
-    {
-      name: "Direct Room",
       url: "/admin/room_info",
       icon: Boxes,
     },
@@ -209,7 +204,7 @@ const data = {
       icon: Image,
     },
     {
-      name: "Manage Menu Section",
+      name: "Admin Dashboard",
       url: "/admin",
       icon: MenuIcon,
     },
@@ -261,25 +256,6 @@ const data = {
       name: "User Login Logs/Report",
       url: "/admin/user_login_logs",
       icon: Users,
-    },
-  ],
-}
-
-const dataManager = {
-  user: {
-    name: "Welcome, Manager",
-    email: "info@adventureaxis1.in",
-  },
-  projects: [
-    {
-      name: "Enquiry Chat Page",
-      url: "/admin/manager_enquiry_chat",
-      icon: MessageCircleMore,
-    },
-    {
-      name: "Send Promotional Emails",
-      url: "/admin/send_promotional_emails",
-      icon: Send,
     },
   ],
 }

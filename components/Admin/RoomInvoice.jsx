@@ -31,7 +31,7 @@ const DetailBox = ({ label, value }) => (
 const RoomInvoice = () => {
   const [form, setForm] = useState({
     roomNumber: '',
-    roomType: '',
+    roomType: '', // This will store the room type
     roomPrice: '',
     planType: '',
     checkIn: '',
@@ -86,7 +86,7 @@ const RoomInvoice = () => {
   };
   // console.log(invoices)
   useEffect(() => {
-    fetch('/api/product')
+    fetch('/api/roomInfo')
       .then(res => res.json())
       .then(data => setRoomInfoList(Array.isArray(data) ? data : []));
     fetchInvoices();
@@ -97,9 +97,18 @@ const RoomInvoice = () => {
 
   // When roomNumber changes, auto-select roomType
   useEffect(() => {
-    const selectedRoom = roomInfoList.find(r => String(r.RoomNo) === String(form.roomNumber));
-    if (selectedRoom) {
-      setForm(f => ({ ...f, roomType: selectedRoom.RoomType }));
+    if (form.roomNumber) {
+      const selectedRoom = roomInfoList.find(r => String(r.RoomNo) === String(form.roomNumber));
+      if (selectedRoom && selectedRoom.type) {
+        setForm(f => ({
+          ...f,
+          roomType: selectedRoom.type,
+          roomPrice: selectedRoom.price || f.roomPrice // Also update room price if available
+        }));
+      }
+    } else {
+      // Clear room type if no room is selected
+      setForm(f => ({ ...f, roomType: '' }));
     }
   }, [form.roomNumber, roomInfoList]);
   // --- Handlers for CRUD actions ---
@@ -365,11 +374,17 @@ const RoomInvoice = () => {
               name="roomNumber"
               value={form.roomNumber}
               onValueChange={value => {
-                const selectedRoom = roomInfoList.find(room => String(room.RoomNo) === value);
-                setForm(f => ({
-                  ...f,
+                // Find the room by matching RoomNo as string
+                const selectedRoom = roomInfoList.find(room => 
+                  String(room.RoomNo) === String(value)
+                );
+                
+                // Update form with selected room data
+                setForm(prev => ({
+                  ...prev,
                   roomNumber: value,
-                  roomType: selectedRoom ? selectedRoom.RoomType : ''
+                  roomType: selectedRoom ? selectedRoom.type : '',
+                  roomPrice: selectedRoom ? (selectedRoom.price || prev.roomPrice) : prev.roomPrice
                 }));
               }}
               className="w-full rounded border border-black px-3 py-1"
@@ -386,26 +401,9 @@ const RoomInvoice = () => {
           </div>
           <div className="flex-1 min-w-[200px]">
             <Label className="block text-sm font-semibold">Room Type</Label>
-            <Select
-              name="roomType"
-              value={form.roomType}
-              disabled={!!form.roomNumber}
-              className="w-full rounded border border-black px-3 py-1 bg-gray-900 !text-black"
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Room Type" />
-              </SelectTrigger>
-              <SelectContent>
-                {form.roomNumber && (
-                  (() => {
-                    const selectedRoom = roomInfoList.find(room => String(room.RoomNo) === form.roomNumber);
-                    return selectedRoom ? (
-                      <SelectItem value={selectedRoom.RoomType}>{selectedRoom.RoomType}</SelectItem>
-                    ) : null;
-                  })()
-                )}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center h-10 w-full rounded border border-black px-3 py-1">
+              {form.roomType || 'Select a room to see type'}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-4 mb-2 items-end">
@@ -774,7 +772,6 @@ const RoomInvoice = () => {
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Invoice Number</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Date</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">View</th>
-                <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Edit</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Delete</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Print Invoice</th>
               </tr>
@@ -792,9 +789,6 @@ const RoomInvoice = () => {
                     <td className="border px-4 py-2">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '-'}</td>
                     <td className="border px-4 py-2">
                       <button className="underline text-blue-600" onClick={() => handleView(inv)}>View</button>
-                    </td>
-                    <td className="border px-4 py-2">
-                      <button className="underline text-green-600" onClick={() => handleEdit(inv)}>Edit</button>
                     </td>
                     <td className="border px-4 py-2">
                       <button className="underline text-red-600" onClick={() => handleDelete(inv)}>Delete</button>

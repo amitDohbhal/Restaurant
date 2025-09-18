@@ -31,12 +31,13 @@ const CheckOutGuest = () => {
     downloadInvoice: false,
     sendEmail: false
   });
+  const [isPdfDownload, setIsPdfDownload] = useState(false);
+  
   const [hotelData, setHotelData] = useState(null);
   const hotelLogo = hotelData?.image?.url || '';
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [checkedOutGuests, setCheckedOutGuests] = useState([]);
   const [isLoadingCheckedOut, setIsLoadingCheckedOut] = useState(true);
-  const [isGeneratingPdf, setisGeneratingPdf] = useState(false)
   console.log(hotelLogo)
 
   const handleSearch = async () => {
@@ -383,7 +384,7 @@ const CheckOutGuest = () => {
       return;
     }
 
-    setLoadingStates(prev => ({ ...prev, sendEmail: true }));
+    setIsPdfDownload(true);
 
     try {
       // Get all items from all orders
@@ -533,34 +534,42 @@ const CheckOutGuest = () => {
               </div>
             </div>
             
-            <div style="max-width: 800px; margin: 0 auto; padding: 0 20px; ">
-              <div style="background-color: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 5px;padding:15px; margin-bottom: 20px; display: flex; align-items: center; justify-content:space-between; flex-direction: column">
-                <div>
-                  <p style="margin: 5px 0;"><strong>Invoice #:</strong> INV-${Date.now().toString().slice(-4)}</p>
-                  <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-                  <p style="margin: 5px 0;"><strong>Status:</strong> ${guest.paymentStatus || 'Paid'}</p>
-                </div>
-                <div style="text-align: right;">
-                  <p style="margin: 5px 0;"><strong>Contact:</strong> ${hotelData?.contactNumber1 || '+91 1234567890'}</p>
-                  <p style="margin: 5px 0;"><strong>Email:</strong> ${hotelData?.email1 || 'info@hotelshivan.com'}</p>
-                  <p style="margin: 5px 0;"><strong>GSTIN:</strong> ${hotelData?.gstNumber || '12ABCDE3456F7Z8'}</p>
-                </div>
+            <div style="max-width: 800px; margin: 0 auto; padding: 0 20px;">
+              <!-- Invoice Header -->
+              <div style="background-color: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="width: 50%; vertical-align: top; padding: 5px 10px;">
+                      <p style="margin: 8px 0;"><strong>Invoice #:</strong> INV-${Date.now().toString().slice(-4)}</p>
+                      <p style="margin: 8px 0;"><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+                      <p style="margin: 8px 0;"><strong>Status:</strong> ${guest.paymentStatus || 'Paid'}</p>
+                    </td>
+                    <td style="width: 50%; vertical-align: top; text-align: right; padding: 5px 10px;">
+                      <p style="margin: 8px 0;"><strong>Contact:</strong> ${hotelData?.contactNumber1 || '+91 1234567890'}</p>
+                      <p style="margin: 8px 0;"><strong>Email:</strong> ${hotelData?.email1 || 'info@hotelshivan.com'}</p>
+                      <p style="margin: 8px 0;"><strong>GSTIN:</strong> ${hotelData?.gstNumber || '12ABCDE3456F7Z8'}</p>
+                    </td>
+                  </tr>
+                </table>
               </div>
-            
-            <div style="background-color: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
-              <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #333;">Guest Information</h3>
-              <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
-                <div style="flex: 1; min-width: 200px;">
-                  <p style="margin: 8px 0;"><strong>Name:</strong> ${guest.name || 'N/A'}</p>
-                  <p style="margin: 8px 0;"><strong>Email:</strong> ${guest.email || 'N/A'}</p>
-                  <p style="margin: 8px 0;"><strong>Phone:</strong> ${guest.phone || 'N/A'}</p>
-                </div>
-                <div style="flex: 1; min-width: 200px;">
-                  <p style="margin: 8px 0;"><strong>Room:</strong> ${guest.roomNumber || 'N/A'} (${guest.roomType || 'N/A'})</p>
-                  <p style="margin: 8px 0;"><strong>Check-in:</strong> ${guest.checkIn ? new Date(guest.checkIn).toLocaleString() : 'N/A'}</p>
-                  <p style="margin: 8px 0;"><strong>Check-out:</strong> ${guest.checkOut ? new Date(guest.checkOut).toLocaleString() : 'N/A'}</p>
-                </div>
-              </div>
+              
+              <!-- Guest Information -->
+              <div style="background-color: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 600; color: #333; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px;">Guest Information</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="width: 50%; vertical-align: top; padding: 5px 10px;">
+                      <p style="margin: 8px 0;"><strong>Name:</strong> ${guest.name || 'N/A'}</p>
+                      <p style="margin: 8px 0;"><strong>Email:</strong> ${guest.email || 'N/A'}</p>
+                      <p style="margin: 8px 0;"><strong>Phone:</strong> ${guest.phone || 'N/A'}</p>
+                    </td>
+                    <td style="width: 50%; vertical-align: top; text-align: right; padding: 5px 10px;">
+                      <p style="margin: 8px 0;"><strong>Room:</strong> ${guest.roomNumber || 'N/A'} (${guest.roomType || 'N/A'})</p>
+                      <p style="margin: 8px 0;"><strong>Check-in:</strong> ${guest.checkIn ? new Date(guest.checkIn).toLocaleString() : 'N/A'}</p>
+                      <p style="margin: 8px 0;"><strong>Check-out:</strong> ${guest.checkOut ? new Date(guest.checkOut).toLocaleString() : 'N/A'}</p>
+                    </td>
+                  </tr>
+                </table>
             </div>
             
             <table>
@@ -651,7 +660,7 @@ const CheckOutGuest = () => {
       console.error('Error sending invoice email:', error);
       toast.error(error.message || 'Failed to send invoice email');
     } finally {
-      setLoadingStates(prev => ({ ...prev, downloadInvoice: false }));
+      setIsPdfDownload(false);
     }
   };
   // Hidden div for PDF generation  
@@ -772,8 +781,6 @@ const CheckOutGuest = () => {
                 <div style="flex-grow: 1; text-align: center;">
               <h1 style="margin: 0; font-size: 20px; font-weight: bold;">GUEST INVOICE</h1>
             </div>
-  
-          
           <!-- Invoice Info -->
           <div style="border: 1px solid #e0e0e0; border-radius: 5px; margin: 15px; padding: 12px; font-size: 12px;">
             <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
@@ -926,7 +933,7 @@ const CheckOutGuest = () => {
       console.error('Error generating PDF:', error);
       toast.error('Failed to generate invoice: ' + (error.message || 'Unknown error'));
     } finally {
-      setLoadingStates(prev => ({ ...prev, downloadInvoice: false }));
+      setLoadingStates(prev => ({ ...prev, sendEmail: false }));
     }
   };
   console.log(checkedOutGuests)
@@ -1297,7 +1304,7 @@ const CheckOutGuest = () => {
                             disabled={loadingStates.sendEmail}
                             className="inline-flex items-center px-3 py-2 border border-transparent text-md font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-75"
                           >
-                            {loadingStates.sendEmail ? (
+                            {isPdfDownload ? (
                               <Loader2 className="h-4 w-4 animate-spin mr-1" />
                             ) : (
                               <Mail className="h-4 w-4 mr-1" />

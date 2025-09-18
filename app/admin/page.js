@@ -1,276 +1,174 @@
 'use client'
 
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Pencil, Trash2 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useSession } from "next-auth/react"
-import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import toast from "react-hot-toast"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
-const Page = () => {
-    const { data: session } = useSession()
-    const { handleSubmit, register, setValue } = useForm()
-    const [menuItems, setMenuItems] = useState([])
-    const [editItem, setEditItem] = useState(null);
+export default function AdminDashboard() {
+  const { data: session } = useSession()
+  const router = useRouter()
 
-    useEffect(() => {
-        fetch("/api/getAllMenuItems")
-            .then(res => res.json())
-            .then(data => setMenuItems(data))
-    }, [])
-
-    const onSubmit = async (data) => {
-
-       
-        if (!data.title) {
-            toast.error("Menu Title is required", {
-                style: {
-                    borderRadius: "10px",
-                    border: "2px solid red",
-                }
-            })
-            return;
-        }
-
-        data.active = true
-        data.order = menuItems.length + 1
-
-        try {
-            const result = await fetch("/api/admin/website-manage/addMenu", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data),
-            })
-
-            if (!result.ok) {
-                toast.error("Failed To Add Menu", {
-                    style: {
-                        borderRadius: "10px",
-                        border: "2px solid red",
-                    },
-                })
-            } else {
-                setValue("title", "");
-                toast.success("Menu added successfully!", {
-                    style: {
-                        borderRadius: "10px",
-                        border: "2px solid green",
-                    },
-                })
-                window.location.reload()
-            }
-        } catch (error) {
-            toast.error("Something went wrong", {
-                style: {
-                    borderRadius: "10px",
-                    border: "2px solid red",
-                },
-            })
-        }
+  // Redirect if not admin
+  useEffect(() => {
+    if (session?.user?.role !== 'admin') {
+      router.push('/admin/login')
     }
+  }, [session, router])
 
-    const handleUpdate = async (data) => {
-        try {
-            const response = await fetch(`/api/admin/website-manage/addMenu`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: editItem._id, ...data }),
-            });
-
-            if (response.ok) {
-                toast.success("Menu updated successfully!", {
-                    style: {
-                        borderRadius: "10px",
-                        border: "2px solid green",
-                    },
-                });
-                setMenuItems(menuItems.map(item => item._id === editItem._id ? { ...item, ...data } : item));
-                setEditItem(null);
-                window.location.reload();
-            } else {
-                toast.error("Failed to update menu", {
-                    style: {
-                        borderRadius: "10px",
-                        border: "2px solid red",
-                    },
-                });
-            }
-        } catch (error) {
-            toast.error("Error updating menu item", {
-                style: {
-                    borderRadius: "10px",
-                    border: "2px solid red",
-                },
-            });
-        }
-    };
-
-    const toggleSwitch = async (id, currentStatus) => {
-        try {
-            const response = await fetch(`/api/admin/website-manage/addMenu`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id, active: !currentStatus }),
-            });
-
-            const result = await response.json();
-
-            if (result.message === "Menu updated successfully!") {
-                setMenuItems(menuItems.map(item =>
-                    item._id === id ? { ...item, active: !item.active } : item
-                ));
-            } else {
-                toast.error("Failed to update menu", {
-                    style: {
-                        borderRadius: "10px",
-                        border: "2px solid red",
-                    },
-                });
-            }
-        } catch (error) {
-            console.error("Error updating menu item:", error);
-        }
+  const quickLinks = [
+    // Room Management
+    { 
+      name: 'Room Management', 
+      path: '/admin/room_info',
+      category: 'Rooms & Guests',
+      icon: '🏨',
+      description: 'Manage room status and details'
+    },
+    { 
+      name: 'Guest Check-in', 
+      path: '/admin/add_guest_to_room',
+      category: 'Rooms & Guests',
+      icon: '👥',
+      description: 'Check-in new guests to rooms'
+    },
+    { 
+      name: 'CheckOut Guest', 
+      path: '/admin/check_out_guest',
+      category: 'Rooms & Guests',
+      icon: '🚪',
+      description: 'Process guest checkouts'
+    },
+    
+    // Invoices & Payments
+    { 
+      name: 'Create Room Invoice', 
+      path: '/admin/create_room_invoice',
+      category: 'Invoices & Payments',
+      icon: '🧾',
+      description: 'Generate new room invoices'
+    },
+    { 
+      name: 'Payment Report', 
+      path: '/admin/payment_report',
+      category: 'Invoices & Payments',
+      icon: '📊',
+      description: 'View payment reports and history'
+    },
+    { 
+      name: 'All Invoice Overview', 
+      path: '/admin/all_invoice_overview',
+      category: 'Invoices & Payments',
+      icon: '📑',
+      description: 'View all invoices'
+    },
+    
+    // Restaurant & Food
+    { 
+      name: 'Direct Food Order', 
+      path: '/admin/create_direct_food_order',
+      category: 'Restaurant',
+      icon: '🍽️',
+      description: 'Create food orders'
+    },
+    { 
+      name: 'Food Inventory', 
+      path: '/admin/create_food_inventory',
+      category: 'Restaurant',
+      icon: '📦',
+      description: 'Manage food inventory'
+    },
+    
+    // Stock Management
+    { 
+      name: 'Stock Products', 
+      path: '/admin/stock_product_overview',
+      category: 'Stock',
+      icon: '📦',
+      description: 'Manage stock products'
+    },
+    { 
+      name: 'Stock Inventory', 
+      path: '/admin/stock_final_overview',
+      category: 'Stock',
+      icon: '📊',
+      description: 'View stock inventory'
+    },
+    
+    // Content Management
+    { 
+      name: 'Manage Banners', 
+      path: '/admin/change_banner_image',
+      category: 'Content',
+      icon: '🖼️',
+      description: 'Update website banners'
+    },
+    { 
+      name: 'Basic Info', 
+      path: '/admin/upload_basic_info',
+      category: 'Content',
+      icon: 'ℹ️',
+      description: 'Update basic information'
+    },
+    
+    // Admin
+    { 
+      name: 'Create/Manage Admin', 
+      path: '/admin/create_user',
+      category: 'Admin',
+      icon: '👤',
+      description: 'Manage admin users'
+    },
+    { 
+      name: 'FAQ Management', 
+      path: '/admin/faq',
+      category: 'Admin',
+      icon: '❓',
+      description: 'Manage frequently asked questions'
     }
+  ]
 
-    const handleEdit = (item) => {
-        setEditItem(item);
-        setValue("title", item.title);
-        setValue("order", item.order);
-    };
-
-    const deleteMenuItem = async (id) => {
-        try {
-            const response = await fetch(`/api/admin/website-manage/addMenu`, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id }),
-            });
-
-            if (response.ok) {
-                setMenuItems(menuItems.filter(item => item._id !== id));
-                toast.success("Menu deleted successfully!", {
-                    style: {
-                        borderRadius: "10px",
-                        border: "2px solid green",
-                    },
-                });
-            } else {
-                toast.error("Failed to delete menu", {
-                    style: {
-                        borderRadius: "10px",
-                        border: "2px solid red",
-                    },
-                });
-            }
-        } catch (error) {
-            console.error("Error deleting menu item:", error);
-        }
+  // Group links by category
+  const linksByCategory = quickLinks.reduce((acc, link) => {
+    if (!acc[link.category]) {
+      acc[link.category] = [];
     }
+    acc[link.category].push(link);
+    return acc;
+  }, {});
 
-    if (session?.user?.isSubAdmin) {
-        return window.location.replace("/admin/send_promotional_emails")
-    }
+  return (
+    <div className="container mx-auto p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+        <p className="text-gray-600">Welcome to the Hotel Management System</p>
+      </div>
 
-    return (
-        <SidebarInset className=" font-barlow">
-            <header className="flex h-16 shrink-0 items-center gap-2">
-                <div className="flex items-center gap-2 px-4">
-                    <SidebarTrigger className="-ml-1" />
-                </div>
-            </header>
-            {session?.user?.isAdmin && <>
-                <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-                    <h1 className="text-3xl md:text-4xl px-12 font-semibold">Manage Menu Section</h1>
-                    <form onSubmit={handleSubmit(onSubmit)} className="flex items-end justify-center gap-4 my-20">
-                        <div className="flex flex-col justify-center gap-2">
-                            <Label htmlFor="menu">Menu</Label>
-                            <Input
-                                name="title"
-                                id="title"
-                                placeholder="Enter Menu Title"
-                                className="md:w-96 border-2 border-blue-600 focus:border-dashed focus:border-blue-500 focus:outline-none focus-visible:ring-0"
-                                {...register("title")}
-                            />
-                        </div>
-                        <Button className="bg-blue-600 hover:bg-blue-500" type="submit">
-                            Add
-                        </Button>
-                    </form>
+      {Object.entries(linksByCategory).map(([category, links]) => (
+        <div key={category} className="mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">{category}</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {links.map((link) => (
+              <Card 
+                key={link.path} 
+                className="cursor-pointer hover:bg-gray-50 transition-colors h-full flex flex-col"
+                onClick={() => router.push(link.path)}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{link.icon}</span>
+                    <CardTitle className="text-lg">{link.name}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0 flex-1">
+                  <p className="text-sm text-gray-600">{link.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
-                    <div className="bg-blue-100 p-4 rounded-lg shadow max-w-5xl mx-auto w-full text-center">
-                        <div className="min-w-[100px] md:min-w-0">
-                            <Table className="w-full min-w-max lg:min-w-0">
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="text-center !text-black w-1/3">Menu Title</TableHead>
-                                        <TableHead className="text-center !text-black w-1/3">Order</TableHead>
-                                        <TableHead className="w-1/3 !text-black text-center">Action</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {menuItems.map((item) => (
-                                        <TableRow key={item._id}>
-                                            <TableCell className="border font-semibold border-blue-600">{item.title}</TableCell>
-                                            <TableCell className="border font-semibold border-blue-600">{item.order}</TableCell>
-                                            <TableCell className="border font-semibold border-blue-600">
-                                                <div className="flex items-center justify-center gap-6">
-                                                    <Button size="icon" onClick={() => handleEdit(item)} variant="outline">
-                                                        <Pencil className="w-4 h-4" />
-                                                    </Button>
-                                                    <Button size="icon" onClick={() => deleteMenuItem(item._id)} variant="destructive">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
-                                                    <div className="flex items-center gap-2">
-                                                        <Switch
-                                                            id={`switch-${item._id}`}
-                                                            checked={item.active}
-                                                            onCheckedChange={() => toggleSwitch(item._id, item.active)}
-                                                            className={`rounded-full transition-colors ${item.active ? "!bg-green-500" : "!bg-red-500"}`}
-                                                        />
-                                                        <Label htmlFor={`switch-${item._id}`} className="text-black">
-                                                            {item.active ? "ON" : "OFF"}
-                                                        </Label>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                </div>
-                {editItem && (
-                    <Dialog open={!!editItem} onOpenChange={() => setEditItem(null)}>
-                        <DialogContent className="font-barlow">
-                            <DialogHeader>
-                                <DialogTitle>Edit Menu Item</DialogTitle>
-                            </DialogHeader>
-                            <form onSubmit={handleSubmit(handleUpdate)}>
-                                <div className="flex flex-col gap-2">
-                                    <Label>Title</Label>
-                                    <Input {...register("title")} />
-                                </div>
-                                <div className="flex flex-col gap-2 mt-4">
-                                    <Label>Order</Label>
-                                    <Input {...register("order")} min={0} max={menuItems.length + 1} type="number" />
-                                </div>
-                                <DialogFooter>
-                                    <Button className="bg-blue-600 hover:bg-blue-500 mt-4" type="submit">Save Changes</Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
-                )}
-            </>}
-        </SidebarInset>
-    )
 }
-
-export default Page;

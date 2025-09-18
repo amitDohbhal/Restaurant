@@ -7,26 +7,30 @@ export async function GET(request) {
   try {
     await connectDB();
     
-    // Handle search query
+    // Handle query parameters
     const { searchParams } = new URL(request.url);
     const searchTerm = searchParams.get('search');
+    const status = searchParams.get('status');
     
     let query = {};
 
+    // Add status filter if provided
+    if (status) {
+      query.status = status;
+    }
+
+    // Handle search term if provided
     if (searchTerm) {
-      // Existing search logic
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchTerm);
 
       if (isEmail) {
-        query = { email: { $regex: `^${searchTerm}$`, $options: 'i' } };
+        query.email = { $regex: `^${searchTerm}$`, $options: 'i' };
       } else {
-        query = {
-          $or: [
-            { name: { $regex: searchTerm, $options: 'i' } },
-            { roomNumber: { $regex: searchTerm, $options: 'i' } },
-            { phone: { $regex: searchTerm, $options: 'i' } }
-          ]
-        };
+        query.$or = [
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { roomNumber: { $regex: searchTerm, $options: 'i' } },
+          { phone: { $regex: searchTerm, $options: 'i' } }
+        ];
       }
     }
 

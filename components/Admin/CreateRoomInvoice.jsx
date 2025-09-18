@@ -1,5 +1,5 @@
 "use client"
-import { Minus, Plus, Printer } from 'lucide-react';
+import { Mail, Minus, Plus, Printer } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
@@ -45,6 +45,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
     const [invoices, setInvoices] = useState([]);
     const [loadingInvoices, setLoadingInvoices] = useState(false);
     const [printInvoice, setPrintInvoice] = useState(null);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
     // Fetch invoices
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
@@ -170,7 +171,12 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         }
         const selected = roomsList.find(r => r.roomNumber === room);
         if (selected) {
-            setGuest(selected.guestFirst || '');
+            const nameParts = [
+                selected.guestFirst?.trim(),
+                selected.guestMiddle?.trim(),
+                selected.guestLast?.trim()
+            ].filter(Boolean); // Remove any empty strings
+            setGuest(nameParts.join(' '));
         } else {
             setGuest('');
         }
@@ -547,7 +553,8 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             setSubmitting(false);
         }
     };
-    function handlePrint(inv) {
+
+    const handlePrint = async (inv) => {
         const printWindow = window.open('', '_blank');
 
         // Calculate amounts
@@ -578,7 +585,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         } else {
             sgstAmount = (roomPrice * sgstPercent / 100) || 0;
         }
-        const paidAmount = parseFloat(inv.paidAmount || 0).toFixed(2);    
+        const paidAmount = parseFloat(inv.paidAmount || 0).toFixed(2);
         // Format guest name
         const guestName = `${inv.guestFirst || ''} ${inv.guestMiddle || ''} ${inv.guestLast || ''}`.trim();
         // Format dates
@@ -749,10 +756,71 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         setPrintInvoice(null);
     }
 
-    return (
-        <div className="p-4 max-w-5xl mx-auto">
+    const handleSendInvoiceEmail = async (invoice) => {
+        if (!invoice?.guestEmail) {
+            toast.error('No email address available for this guest');
+            return;
+        }
 
-            <div className="border border-black p-5 rounded ">
+        setIsSendingEmail(true);
+
+        try {
+            // Prepare the invoice data for email
+            const invoiceData = {
+                guestName: `${invoice.guestFirst || ''} ${invoice.guestLast || ''}`.trim(),
+                guestEmail: invoice.guestEmail,
+                invoiceNumber: invoice.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+                invoiceDate: new Date(invoice.checkInDate).toLocaleDateString(),
+                checkInDate: new Date(invoice.checkInDate).toLocaleDateString(),
+                checkOutDate: invoice.checkOutDate ? new Date(invoice.checkOutDate).toLocaleDateString() : 'N/A',
+                roomNumber: invoice.roomNumber || 'N/A',
+                roomType: invoice.roomType || 'N/A',
+                roomPrice: invoice.roomPrice || 0,
+                totalAmount: invoice.totalAmount || 0,
+                paidAmount: invoice.paidAmount || 0,
+                paymentStatus: invoice.paymentStatus || 'pending',
+                items: invoice.items || []
+            };
+
+            // Send the email
+            const response = await fetch('/api/send-invoice-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    to: invoiceData.guestEmail,
+                    guestName: invoiceData.guestName,
+                    invoiceNumber: invoiceData.invoiceNumber,
+                    invoiceDate: invoiceData.invoiceDate,
+                    checkInDate: invoiceData.checkInDate,
+                    checkOutDate: invoiceData.checkOutDate,
+                    roomNumber: invoiceData.roomNumber,
+                    roomType: invoiceData.roomType,
+                    totalAmount: invoiceData.totalAmount,
+                    paidAmount: invoiceData.paidAmount,
+                    paymentStatus: invoiceData.paymentStatus,
+                    items: invoiceData.items
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to send email');
+            }
+
+            toast.success('Invoice sent to email successfully');
+        } catch (error) {
+            console.error('Error sending invoice email:', error);
+            toast.error('Failed to send invoice email: ' + (error.message || 'Unknown error'));
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
+    return (
+        <div className="">
+
+            <div className="border border-black p-5 rounded max-w-5xl mx-auto">
                 {/* Room & Guest Section */}
                 <div className="flex flex-wrap gap-5 items-center mb-4">
                     <div className="flex items-center gap-2">
@@ -977,8 +1045,8 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
                                 <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoice</th>
+                                <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Send Invoice Email</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -1015,21 +1083,35 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right border border-black">
                                             {formatCurrency(invoice.totalAmount)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium border border-black">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                ${invoice.paymentStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                                    invoice.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-gray-100 text-gray-800'}`}>
-                                                {invoice.paymentStatus?.charAt(0).toUpperCase() + invoice.paymentStatus?.slice(1) || 'N/A'}
-                                            </span>
-                                        </td>
-                                        <td className="p-2 whitespace-nowrap text-right text-sm font-medium border border-black">
+                                        <td className="p-2 whitespace-nowrap text-right text-sm font-medium border border-black ">
                                             <button
                                                 type="button"
-                                                className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 flex items-center justify-center rounded"
+                                                className="bg-blue-500 hover:bg-blue-600 text-white mx-auto px-2 py-1 flex items-center justify-center rounded"
                                                 onClick={() => handlePrint(invoice)}
                                             >
                                                 <Printer className="mr-2" /> Print
+                                            </button>
+                                        </td>
+                                        <td className="p-2 whitespace-nowrap text-right text-sm font-medium border border-black ">
+                                            <button
+                                                type="button"
+                                                className={`bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 mx-auto flex items-center justify-center rounded ${isSendingEmail ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                                onClick={() => handleSendInvoiceEmail(invoice)}
+                                                disabled={isSendingEmail}
+                                            >
+                                                {isSendingEmail ? (
+                                                    <>
+                                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                        Sending...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Mail className="mr-2 h-4 w-4" /> Send Email
+                                                    </>
+                                                )}
                                             </button>
                                         </td>
                                     </tr>

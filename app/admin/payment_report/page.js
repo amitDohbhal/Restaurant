@@ -67,7 +67,8 @@ const formatCurrency = (amount) => {
 };
 
 const Page = async ({ searchParams }) => {
-    const page = Number(searchParams?.page) || 1;
+   const pages= await searchParams.page;
+    const page = Number(pages) || 1;
     const itemsPerPage = 15;
 
     // Fetch all invoices

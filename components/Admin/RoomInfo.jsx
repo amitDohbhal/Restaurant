@@ -133,14 +133,6 @@ const RoomInfo = ({ id }) => {
             setDeleteTarget(null);
         }
     };
-
-
-
-    // Copy to clipboard helper
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text);
-        toast.success('URL copied!');
-    }
     // Toggle product active status for direct products
     const toggleSwitch = async (productId, currentActive, isDirect) => {
         try {
