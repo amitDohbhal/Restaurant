@@ -23,6 +23,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
     const router = useRouter();
     const [room, setRoom] = useState('');
     const [guest, setGuest] = useState('');
+    const [guestInfo, setGuestInfo] = useState(null);
     // Utility for unique ids
     function uuid() {
         return '_' + Math.random().toString(36).substr(2, 9);
@@ -64,7 +65,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
     const fetchRooms = async () => {
         setLoadingRooms(true);
         try {
-            const res = await fetch('/api/roomInvoice');
+            const res = await fetch('/api/roomInfo');
 
             if (!res.ok) {
                 const errorText = await res.text();
@@ -73,8 +74,17 @@ const CreateRoomInvoice = ({ onSuccess }) => {
 
             const data = await res.json();
 
-            if (data && data.success && data.invoices) {
-                setRoomsList(data.invoices);
+            if (Array.isArray(data)) {
+                // Map the API response to the expected format
+                const formattedRooms = data.map(room => ({
+                    _id: room._id,
+                    roomNumber: room.RoomNo || room.roomNumber || '',
+                    type: room.type || '',
+                    isBooked: room.isBooked || false,
+                    active: room.active !== false // Default to true if not specified
+                }));
+
+                setRoomsList(formattedRooms);
             } else {
                 toast.error('Failed to load room data: Invalid response format');
             }
@@ -131,6 +141,48 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                 // qtyType: 'full' // Default to full quantity type
             };
             setFoodRows(newRows);
+        }
+    };
+
+    // Handle room change and fetch guest information
+    const handleRoomChange = async (e) => {
+        const selectedRoomNumber = e.target.value;
+        setRoom(selectedRoomNumber);
+        setGuest(''); // Reset guest when room changes
+
+        if (selectedRoomNumber) {
+            try {
+                const response = await fetch(`/api/addGuestToRoom?roomNumber=${selectedRoomNumber}&status=checked-in`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to fetch guest information: ${response.status} ${response.statusText}`);
+                }
+
+
+                const guests = await response.json();
+
+                if (guests && guests.length > 0) {
+                    // Get the first guest in the room
+                    const currentGuest = guests[0];
+
+                    // Try different possible property names for guest name
+                    const guestName = currentGuest.name || currentGuest.guestName || 'Guest';
+
+                    setGuest(guestName);
+                    setGuestInfo(currentGuest);
+                } else {
+                    toast.error(`No guest found in room ${selectedRoomNumber}. Please check if a guest is checked in.`);
+                    setGuest('No guest found');
+                    setGuestInfo(null);
+                }
+            } catch (error) {
+                toast.error('Failed to load guest information');
+                setGuest('Error loading guest');
+                setGuestInfo(null);
+            }
+        } else {
+            setGuestInfo(null);
         }
     };
 
@@ -391,6 +443,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         }
     };
 
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
@@ -446,34 +499,77 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             });
 
         const { roomPrice, ...roomData } = selectedRoom; // Exclude roomPrice from selectedRoom
+        
+        // Get current date and time for invoice
+        const now = new Date();
+        const invoiceDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        // Get dates from room account or use current date as fallback
+        const checkInDate = guestInfo?.checkIn ? new Date(guestInfo.checkIn) : new Date(now);
+        const checkOutDate = guestInfo?.checkOut ? new Date(guestInfo.checkOut) : new Date(now);
+        
+        // Format dates as YYYY-MM-DD
+        const formatDate = (date) => date.toISOString().split('T')[0];
+        
+        // Calculate total days
+        const timeDiff = Math.abs(checkOutDate - checkInDate);
+        const totalDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) || 1;
+        
         const invoiceWithPayment = {
-            ...roomData,
-            paymentMethod: selectedPayment,
-            paymentMode: selectedPayment === 'cash' ? 'cash' : 'online',
-            paymentStatus: selectedPayment === 'online' ? 'pending' : 'completed',
+            // Room details from selected room
+            roomNumber: roomData.roomNumber || roomData.RoomNo || '',
+            roomType: roomData.roomType || roomData.type || 'Standard',
+            roomPrice: roomData.roomPrice || 0,
+            planType: roomData.planType || 'Room Only',
+            checkIn: formatDate(checkInDate),
+            checkOut: formatDate(checkOutDate),
+            totalDays: totalDays,
+            
+            // Guest details
+            guestFirst: guest.split(' ')[0] || 'Guest',
+            guestMiddle: guest.split(' ').length > 2 ? guest.split(' ')[1] : '',
+            guestLast: guest.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
+            email: guestInfo?.email || 'guest@example.com',
+            contact: guestInfo?.phone || '0000000000',
+            
+            // Payment details - handle room payment mode specifically
+            paymentMode: selectedPayment,
+            paymentStatus: selectedPayment === 'online' ? 'pending' : 
+                         selectedPayment === 'room' ? 'pending' : 'completed',
             paymentDetails: selectedPayment === 'online' ? null : {
-                status: 'completed',
-                method: selectedPayment === 'cash' ? 'cash' : 'online',
-                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` : `ONLINE-${Date.now()}`,
+                status: selectedPayment === 'room' ? 'pending' : 'completed',
+                method: selectedPayment,
+                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` : 
+                               selectedPayment === 'online' ? `ONLINE-${Date.now()}` : 
+                               `ROOM-${Date.now()}`,
                 amount: finalTotal,
                 date: new Date().toISOString()
             },
-            // Force payment status for non-online payments
-            ...(selectedPayment !== 'online' && {
-                paymentStatus: 'completed',
-                paymentMethod: selectedPayment,
-                paidAmount: finalTotal,
-                dueAmount: 0
-            }),
+            
+            // Invoice details
+            invoiceDate: invoiceDate,
+            invoiceNo: `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
+            
+            // Food items and totals
             foodItems,
-            guestFirst: guest,
-            discount: parseFloat(discount || 0),
-            extraCharges: parseFloat(extraCharges || 0),
             totalFoodAmount: totalAmount,
             gstOnFood: gstAmount,
+            cgstAmount: cgstAmount,
+            sgstAmount: sgstAmount,
             totalAmount: finalTotal,
-            paidAmount: 0, // Update this based on payment
-            dueAmount: finalTotal // Update this based on payment
+            paidAmount: selectedPayment === 'room' ? 0 : finalTotal,
+            dueAmount: selectedPayment === 'room' ? finalTotal : 0,
+            // Ensure all guest info is included
+            guestFirst: guest.split(' ')[0] || 'Guest',
+            guestLast: guest.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
+            
+            // Guest address information
+            city: guestInfo?.city || 'Unknown',
+            state: guestInfo?.state || 'Unknown',
+            pin: guestInfo?.pin || '000000',
+            address: guestInfo?.address || 'Not provided',
+            company: guestInfo?.company || '',
+            gstNo: guestInfo?.gstNo || ''
         };
 
         // Always create the invoice firt
@@ -489,18 +585,115 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             throw new Error(data.error || 'Failed to create invoice');
         }
 
+        // Prepare invoice data with payment details
+        const invoiceData = {
+            ...data.invoice,
+            _id: data.invoice._id,
+            finalTotal: data.invoice.finalTotal || data.invoice.totalAmount
+        };
+
+        // Helper function to update room account with invoice
+        const updateRoomAccountInvoice = async (paymentMode) => {
+            if (!room) return;
+            
+            try {
+                const roomAccountUpdate = {
+                    roomNumber: room,
+                    invoiceData: {
+                        // Basic invoice info
+                        invoiceId: invoiceData._id,
+                        invoiceNo: invoiceData.invoiceNo || `INV-${Date.now()}`,
+                        invoiceDate: new Date().toISOString(),
+                        
+                        // Payment details
+                        totalAmount: invoiceData.finalTotal || invoiceData.totalAmount || 0,
+                        dueAmount: paymentMode === 'room' ? (invoiceData.finalTotal || invoiceData.totalAmount || 0) : 0,
+                        paymentMode: paymentMode,
+                        paymentStatus: paymentMode === 'room' ? 'unpaid' : 'paid',
+                        ...(paymentMode !== 'room' && { paidAt: new Date().toISOString() }),
+                        
+                        // Tax details
+                        cgstAmount: invoiceData.cgstAmount || 0,
+                        sgstAmount: invoiceData.sgstAmount || 0,
+                        gstAmount: invoiceData.gstAmount || 0,
+                        taxTotal: (invoiceData.cgstAmount || 0) + (invoiceData.sgstAmount || 0),
+                        
+                        // Room and guest info
+                        roomNumber: roomData?.roomNumber || roomData?.RoomNo || room,
+                        roomType: roomData?.roomType || roomData?.type || '',
+                        guestName: guest,
+                        guestFirst: guest?.split(' ')[0] || 'Guest',
+                        guestLast: guest?.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
+                        
+                        // Food items with proper tax calculations
+                        foodItems: foodItems.map(item => ({
+                            name: item.foodName || item.name || '',
+                            qtyType: item.qtyType || 'full',
+                            quantity: item.quantity || item.qty || 1,
+                            price: item.price || 0,
+                            amount: (item.quantity || item.qty || 1) * (item.price || 0),
+                            cgstPercent: item.cgstPercent || 0,
+                            cgstAmount: item.cgstAmount || 0,
+                            sgstPercent: item.sgstPercent || 0,
+                            sgstAmount: item.sgstAmount || 0,
+                            taxTotal: (item.cgstAmount || 0) + (item.sgstAmount || 0),
+                            totalAmount: ((item.quantity || item.qty || 1) * (item.price || 0)) + (item.cgstAmount || 0) + (item.sgstAmount || 0)
+                        }))
+                    }
+                };
+
+                const updateResponse = await fetch('/api/room-account/update-invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(roomAccountUpdate)
+                });
+
+                if (!updateResponse.ok) {
+                    const errorData = await updateResponse.json();
+                    console.error('Failed to update room account:', errorData);
+                    // Don't fail the whole operation, just log the error
+                }
+
+                // Mark the invoice as paid for non-room payments
+                if (paymentMode !== 'room') {
+                    await fetch('/api/room-account/mark-paid', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            roomNumber: room,
+                            invoiceId: invoiceData._id,
+                            paymentMode: paymentMode
+                        })
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating room account:', error);
+                // Don't fail the whole operation, just log the error
+            }
+        };
+
+        // If room account is selected, update the room account with the invoice
+        if (room) {
+            if (selectedPayment === 'room') {
+                await updateRoomAccountInvoice('room');
+            }
+        }
+
+        // Process online payment if selected
         if (selectedPayment === 'online') {
-            // Now trigger payment and verification
             const invoiceData = {
                 ...data.invoice,
                 _id: data.invoice._id,
                 finalTotal: data.invoice.finalTotal || data.invoice.totalAmount
             };
-
             try {
                 // Process Razorpay payment and wait for it to complete
                 await processRazorpayPayment(invoiceData);
-
+                
+                // Update room account for online payment
+                if (room) {
+                    await updateRoomAccountInvoice('online');
+                }
             } catch (error) {
                 console.error('Payment processing error:', error);
                 // If payment fails, update invoice to failed
@@ -534,6 +727,12 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                     dueAmount: 0
                 })
             });
+            
+            // Update room account for cash payment
+            if (room && selectedPayment === 'cash') {
+                await updateRoomAccountInvoice('cash');
+            }
+            
             toast.success('Invoice Created Successfully!');
         }
 
@@ -828,7 +1027,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                         <select
                             className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none"
                             value={room}
-                            onChange={e => setRoom(e.target.value)}
+                            onChange={handleRoomChange}
                             disabled={loadingRooms}
                             required
                         >
@@ -846,7 +1045,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                             type="text"
                             className="rounded px-8 py-2 bg-white border border-black text-black font-bold outline-none"
                             placeholder="Guest Name Come Here"
-                            value={guest}
+                            value={guest || ''}
                             disabled
                         />
                     </div>
@@ -889,7 +1088,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                         ))}
                                     </select>
                                 </div>
-                                <div className="w-44">
+                                <div className="flex-1">
                                     <select
                                         className="w-full p-2 bg-white border border-black text-black font-bold outline-none"
                                         value={row.qtyType || ''}
@@ -1052,13 +1251,13 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                         <tbody className="divide-y divide-gray-200">
                             {loadingInvoices ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-8 text-gray-500">
+                                    <td colSpan="8" className="text-center py-8 text-gray-500">
                                         Loading invoices...
                                     </td>
                                 </tr>
                             ) : invoices.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-8 text-gray-500">
+                                    <td colSpan="8" className="text-center py-8 text-gray-500">
                                         No invoices found
                                     </td>
                                 </tr>

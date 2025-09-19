@@ -19,8 +19,14 @@ export async function GET(request) {
       query.status = status;
     }
 
-    // Handle search term if provided
-    if (searchTerm) {
+    // Handle room number filter if provided
+    const roomNumber = searchParams.get('roomNumber');
+    if (roomNumber) {
+      query.roomNumber = roomNumber.toString(); // Ensure it's a string to match the database
+    }
+    
+    // Handle search term if provided (only if roomNumber is not provided)
+    if (searchTerm && !roomNumber) {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchTerm);
 
       if (isEmail) {

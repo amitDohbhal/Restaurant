@@ -245,39 +245,90 @@ export async function PUT(request) {
         // Handle regular order payments
         const { orderId } = body;
         
-        if (!orderId) {
-            console.error('Order ID is required in the request body');
+        // Validate that either orderId or invoiceId is provided
+        if (!orderId && !invoiceId) {
+            console.error('Order ID or Invoice ID is required in the request body');
             return NextResponse.json(
-                { success: false, error: 'Order ID is required' },
+                { success: false, error: 'Order ID or Invoice ID is required' },
                 { status: 400 }
             );
         }
 
         try {
-            // Import the RunningOrder model
-            const RunningOrder = (await import('@/models/RunningOrder')).default;
-            
-            // Find the order first
-            console.log('Looking for order with ID:', orderId);
-            const order = await RunningOrder.findById(orderId);
-            
-            if (!order) {
-                console.error('Order not found with ID:', orderId);
-                return NextResponse.json(
-                    { success: false, error: 'Order not found' },
-                    { status: 404 }
-                );
-            }
+            if (invoiceId) {
+                // Handle room invoice payment
+                console.log('Processing room invoice payment for invoice ID:', invoiceId);
+                const CreateRoomInvoice = (await import('@/models/CreateRoomInvoice')).default;
+                
+                // Find the invoice
+                const invoice = await CreateRoomInvoice.findById(invoiceId);
+                
+                if (!invoice) {
+                    console.error('Invoice not found with ID:', invoiceId);
+                    return NextResponse.json(
+                        { success: false, error: 'Invoice not found' },
+                        { status: 404 }
+                    );
+                }
 
-            console.log('Found order:', JSON.stringify(order, null, 2));
-            
-            // Update order with payment details
-            const updateData = {
-                status: 'pending',
-                paymentStatus: 'paid',
-                razorpayOrderId: razorpay_order_id,
-                razorpayPaymentId: razorpay_payment_id,
-                razorpaySignature: razorpay_signature,
+                // Update invoice with payment details
+                const updateData = {
+                    paymentStatus: 'completed',
+                    paymentMode: 'online',
+                    paymentDetails: {
+                        status: 'completed',
+                        transactionId: razorpay_payment_id,
+                        orderId: razorpay_order_id,
+                        method: paymentDetails.method || 'online',
+                        bank: paymentDetails.bank || null,
+                        cardType: paymentDetails.card?.type || null,
+                        vpa: paymentDetails.vpa || null,
+                        wallet: paymentDetails.wallet || null,
+                        date: new Date()
+                    },
+                    paidAmount: paymentDetails.amount ? paymentDetails.amount / 100 : invoice.finalTotal || invoice.totalAmount,
+                    dueAmount: 0,
+                    updatedAt: new Date()
+                };
+
+                console.log('Updating invoice with payment details:', JSON.stringify(updateData, null, 2));
+                
+                const updatedInvoice = await CreateRoomInvoice.findByIdAndUpdate(
+                    invoiceId,
+                    updateData,
+                    { new: true }
+                );
+
+                return NextResponse.json({
+                    success: true,
+                    message: 'Payment verified and invoice updated successfully',
+                    invoice: updatedInvoice
+                });
+            } else {
+                // Handle regular order payment
+                console.log('Processing regular order payment for order ID:', orderId);
+                const RunningOrder = (await import('@/models/RunningOrder')).default;
+                
+                // Find the order
+                const order = await RunningOrder.findById(orderId);
+                
+                if (!order) {
+                    console.error('Order not found with ID:', orderId);
+                    return NextResponse.json(
+                        { success: false, error: 'Order not found' },
+                        { status: 404 }
+                    );
+                }
+
+                console.log('Found order:', JSON.stringify(order, null, 2));
+                
+                // Update order with payment details
+                const updateData = {
+                    status: 'pending',
+                    paymentStatus: 'paid',
+                    razorpayOrderId: razorpay_order_id,
+                    razorpayPaymentId: razorpay_payment_id,
+                    razorpaySignature: razorpay_signature,
                 payment: {
                     method: paymentDetails.method,
                     status: 'completed',
@@ -293,35 +344,35 @@ export async function PUT(request) {
                 updatedAt: new Date()
             };
 
-            console.log('Updating order with data:', JSON.stringify(updateData, null, 2));
-            
-            // Update the order
-            const updatedOrder = await RunningOrder.findByIdAndUpdate(
-                orderId,
-                { $set: updateData },
-                { new: true }
-            );
-            
-            if (!updatedOrder) {
-                throw new Error('Failed to update order after payment');
+                console.log('Updating order with data:', JSON.stringify(updateData, null, 2));
+                
+                // Update the order
+                const updatedOrder = await RunningOrder.findByIdAndUpdate(
+                    orderId,
+                    { $set: updateData },
+                    { new: true }
+                );
+                
+                if (!updatedOrder) {
+                    throw new Error('Failed to update order after payment');
+                }
+                
+                console.log('Order updated successfully:', updatedOrder._id);
+                
+                // Return success response with updated order data
+                return NextResponse.json({
+                    success: true,
+                    orderId: updatedOrder._id,
+                    orderNumber: updatedOrder.orderNumber,
+                    paymentId: razorpay_payment_id,
+                    paymentMethod: paymentDetails.method,
+                    paymentStatus: 'completed',
+                    amount: updatedOrder.total,
+                    bank: paymentDetails.bank || null,
+                    cardType: paymentDetails.card?.type || null,
+                    message: 'Payment verified and order confirmed successfully'
+                });
             }
-            
-            console.log('Order updated successfully:', updatedOrder._id);
-            
-            // Return success response with updated order data
-            return NextResponse.json({
-                success: true,
-                orderId: updatedOrder._id,
-                orderNumber: updatedOrder.orderNumber,
-                paymentId: razorpay_payment_id,
-                paymentMethod: paymentDetails.method,
-                paymentStatus: 'completed',
-                amount: updatedOrder.total,
-                bank: paymentDetails.bank || null,
-                cardType: paymentDetails.card?.type || null,
-                message: 'Payment verified and order confirmed successfully'
-            });
-            
         } catch (error) {
             console.error('Error updating order:', error);
             throw error; // This will be caught by the outer catch block

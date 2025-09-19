@@ -154,18 +154,151 @@ const roomAccountSchema = new mongoose.Schema({
     },
     totalAmount: {
       type: Number,
-      default: 0  // Make it optional with a default value
+      default: 0
     },
     paymentMethod: String,
     paymentStatus: {
       type: String,
       default: 'paid'
     },
+    transactionId: {
+      type: String,
+      default: null
+    },
     paidAt: {
       type: Date,
       default: Date.now
     },
     createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  unpaidRoomInvoices: [{
+    // Invoice identification
+    invoiceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RoomInvoice',
+      required: true
+    },
+    invoiceNo: {
+      type: String,
+      required: true
+    },
+    invoiceDate: {
+      type: Date,
+      required: true
+    },
+    paymentStatus: {
+      type: String,
+      default: 'unpaid',
+      enum: ['unpaid', 'paid']
+    },
+    paymentMode: {
+      type: String,
+      enum: ['cash', 'online', 'room', null],
+      default: null
+    },
+    paidAt: {
+      type: Date
+    },
+    
+    // Room and guest details
+    roomNumber: String,
+    roomType: String,
+    guestName: String,
+    
+    // Food items
+    foodItems: [{
+      name: String,
+      qtyType: String,
+      quantity: Number,
+      price: Number,
+      amount: Number,
+      cgstPercent: Number,
+      cgstAmount: Number,
+      sgstPercent: Number,
+      sgstAmount: Number,
+      taxTotal: Number,
+      totalAmount: Number
+    }],
+    // Timestamps
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  paidRoomInvoices: [{
+    // Invoice identification
+    invoiceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RoomInvoice',
+      required: true
+    },
+    invoiceNo: {
+      type: String,
+      required: true
+    },
+    invoiceDate: {
+      type: Date,
+      required: true
+    },
+    paymentStatus: {
+      type: String,
+      default: 'paid',
+      enum: ['paid']
+    },
+    paymentMode: {
+      type: String,
+      enum: ['cash', 'online', 'room'],
+      required: true
+    },
+    transactionId: {
+      type: String,
+      default: null
+    },
+    paidAt: {
+      type: Date,
+      default: Date.now
+    },
+    
+    // Room and guest details
+    roomNumber: String,
+    roomType: String,
+    guestName: String,
+    
+    // Payment details
+    totalAmount: Number,
+    dueAmount: {
+      type: Number,
+      default: 0
+    },
+    
+    // Food items
+    foodItems: [{
+      name: String,
+      qtyType: String,
+      quantity: Number,
+      price: Number,
+      amount: Number,
+      cgstPercent: Number,
+      cgstAmount: Number,
+      sgstPercent: Number,
+      sgstAmount: Number,
+      taxTotal: Number,
+      totalAmount: Number
+    }],
+    
+    // Timestamps
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
       type: Date,
       default: Date.now
     }

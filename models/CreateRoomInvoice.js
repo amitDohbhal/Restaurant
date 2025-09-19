@@ -30,7 +30,7 @@ const CreateRoomInvoiceSchema = new Schema({
   paymentMode: { 
     type: String, 
     required: true, 
-    enum: ['online', 'cash', 'room', 'print'],
+    enum: ['online', 'cash', 'room'],
     default: 'cash' 
   },
   paidAmount: { type: Number, default: 0 },
@@ -66,8 +66,6 @@ const CreateRoomInvoiceSchema = new Schema({
   cgstAmount: { type: Number, default: 0 },
   sgstAmount: { type: Number, default: 0 },
   gstAmount: { type: Number, default: 0 },
-  extraCharges: { type: Number, default: 0 },
-  discount: { type: Number, default: 0 },
   gstOnFood: { type: Number, default: 0 },
   totalAmount: { type: Number, required: true },
   paymentStatus: { 

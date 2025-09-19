@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { statesIndia } from '@/lib/IndiaStates';
 import toast from 'react-hot-toast';
 import SimpleModal from '../SimpleModal';
+import { Printer, Mail, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,10 @@ const RoomInvoice = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isPrintingInvoice, setIsPrintingInvoice] = useState(false);
+  const [hotelData, setHotelData] = useState(null);
+  const hotelLogo = hotelData?.image?.url || '';
   const fetchInvoices = async () => {
     try {
       const res = await fetch('/api/roomInvoice');
@@ -86,6 +91,19 @@ const RoomInvoice = () => {
   };
   // console.log(invoices)
   useEffect(() => {
+    const fetchHotelData = async () => {
+      try {
+        const response = await fetch('/api/addBasicInfo');
+        const data = await response.json();
+        if (data && data[0]) {
+          setHotelData(data[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching hotel data:', error);
+      }
+    };
+
+    fetchHotelData();
     fetch('/api/roomInfo')
       .then(res => res.json())
       .then(data => setRoomInfoList(Array.isArray(data) ? data : []));
@@ -111,18 +129,272 @@ const RoomInvoice = () => {
       setForm(f => ({ ...f, roomType: '' }));
     }
   }, [form.roomNumber, roomInfoList]);
+  // Handle sending invoice via email
+  const handleSendInvoiceEmail = async (invoice) => {
+    if (!invoice?.email) {
+      toast.error('No email address available for this invoice');
+      return;
+    }
+
+    setIsSendingEmail(true);
+
+    try {
+      // Generate the invoice HTML (similar to the print function but simplified for email)
+      const invoiceHtml = `
+       <html>
+  <head>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        margin: 0;
+        background-color: #f9f9f9;
+      }
+      .invoice-container {
+        max-width: 900px;
+        margin: auto;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      }
+      .header {
+        background-color: #228b78;
+        color: white;
+        padding: 20px;
+        border-radius: 6px 6px 0 0;
+        margin-bottom: 25px;
+      }
+      .logo-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .logo {
+        max-width: 120px;
+        max-height: 100px;
+        object-fit: contain;
+        background: white;
+        padding: 6px;
+        border-radius: 4px;
+      }
+      .hotel-name {
+        padding:10px 20px;
+        text-align: center;
+      }
+      .hotel-name h1 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 700;
+      }
+      .hotel-name p {
+        margin: 4px 0 0;
+        font-size: 14px;
+        opacity: 0.9;
+      }
+      .invoice-title {
+        background: #1e1e1e;
+        color: white;
+        padding: 10px 0;
+        text-align: center;
+        margin-top: 20px;
+        border-radius: 4px;
+      }
+      h3 {
+        margin-top: 30px;
+        font-size: 18px;
+        color: #333;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 6px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 14px;
+      }
+      th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background-color: #f5f5f5;
+        font-weight: 600;
+      }
+      tbody tr:nth-child(even) {
+        background: #fafafa;
+      }
+      tfoot td {
+        font-weight: bold;
+        font-size: 15px;
+      }
+
+      /* Special styling for details table */
+      .details-table td {
+        width: 50%;
+      }
+      .details-table p {
+        margin: 3px 0;
+        word-break: break-word;
+      }
+
+      /* Email styling */
+      .email {
+        color: #0073aa;
+        word-break: break-all;
+      }
+      .footer {
+        margin-top: 40px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+        font-size: 12px;
+        color: #777;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="invoice-container">
+      <!-- HEADER -->
+      <div class="header">
+        <div class="logo-container">
+          <div>
+            ${hotelLogo ? `<img src="${hotelLogo}" alt="Hotel Logo" class="logo"/>` : ""}
+          </div>
+          <div class="hotel-name">
+            <h1>${hotelData?.hotelName || 'Hotel Shivan Residence'}</h1>
+            <p>${hotelData?.tagline || 'Your Home Away From Home'}</p>
+          </div>
+          <div style="width: 120px;"></div>
+        </div>
+        <div class="invoice-title">
+          <h2>INVOICE #${invoice._id?.slice(-6).toUpperCase() || 'N/A'}</h2>
+          <p>Date: ${new Date(invoice.createdAt || Date.now()).toLocaleDateString()}</p>
+        </div>
+      </div>
+      <!-- BILL TO & HOTEL DETAILS -->
+      <h3>Details</h3>
+      <table class="details-table">
+        <tr>
+          <td>
+            <strong>Bill To:</strong>
+            <p>${invoice.guestFirst || ''} ${invoice.guestMiddle || ''} ${invoice.guestLast || ''}</p>
+            ${invoice.email ? `<p>Email: ${invoice.email}</p>` : ''}
+            ${invoice.contact ? `<p>Phone: ${invoice.contact}</p>` : ''}
+            ${invoice.address ? `<p>Address: ${invoice.address}</p>` : ''}
+            ${invoice.city || invoice.state || invoice.pin ? `<p>${[invoice.city, invoice.state, invoice.pin].filter(Boolean).join(', ')}</p>` : ''}
+          </td>
+          <td>
+            <strong>Hotel Details:</strong>
+            ${hotelData?.address1 ? `<p>${hotelData.address1}</p>` : ''}
+            ${hotelData?.contactNumber1 ? `<p>Phone: ${hotelData.contactNumber1}</p>` : ''}
+            ${hotelData?.email1 ? `<p>Email: <span class="email">${hotelData.email1}</span></p>` : ''}
+            ${hotelData?.gstNumber ? `<p>GST: ${hotelData.gstNumber}</p>` : ''}
+          </td>
+        </tr>
+      </table>
+
+      <!-- BOOKING -->
+      <h3>Booking Details</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Room No</th>
+            <th>Room Type</th>
+            <th>Plan</th>
+            <th>Check In</th>
+            <th>Check Out</th>
+            <th>Total Days</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${invoice.roomNumber || 'N/A'}</td>
+            <td>${invoice.roomType || 'N/A'}</td>
+            <td>${invoice.planType || 'N/A'}</td>
+            <td>${invoice.checkIn ? new Date(invoice.checkIn).toLocaleDateString() : 'N/A'}</td>
+            <td>${invoice.checkOut ? new Date(invoice.checkOut).toLocaleDateString() : 'N/A'}</td>
+            <td>${invoice.totalDays || '1'}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- PAYMENT -->
+      <h3>Payment Summary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Amount (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Room Charges (${invoice.roomType || 'N/A'})</td>
+            <td>${parseFloat(invoice.roomPrice || 0).toFixed(2)}</td>
+          </tr>
+          ${invoice.cgst ? `
+          <tr>
+            <td>CGST (${invoice.cgstPercent || 0}%)</td>
+            <td>${parseFloat(invoice.cgst || 0).toFixed(2)}</td>
+          </tr>` : ''}
+          ${invoice.sgst ? `
+          <tr>
+            <td>SGST (${invoice.sgstPercent || 0}%)</td>
+            <td>${parseFloat(invoice.sgst || 0).toFixed(2)}</td>
+          </tr>` : ''}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>Total Amount</td>
+            <td>₹${(parseFloat(invoice.roomPrice || 0) + parseFloat(invoice.cgst || 0) + parseFloat(invoice.sgst || 0)).toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <!-- FOOTER -->
+      <div class="footer">
+        <p>Thank you for choosing Hotel Shivan Residence. We look forward to serving you again!</p>
+        <p>This is a computer-generated invoice. No signature is required.</p>
+      </div>
+    </div>
+  </body>
+</html>
+
+      `;
+
+      // Send the email via the Brevo API
+      const response = await fetch('/api/brevo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: invoice.email,
+          subject: `Your Invoice #${invoice._id?.slice(-6).toUpperCase() || 'N/A'}`,
+          htmlContent: invoiceHtml,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send email');
+      }
+
+      toast.success('Invoice sent successfully!');
+    } catch (error) {
+      console.error('Error sending invoice email:', error);
+      toast.error(error.message || 'Failed to send invoice email');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   // --- Handlers for CRUD actions ---
   function handleView(inv) {
     setViewInvoice(inv);
     setViewModalOpen(true);
   }
-
-  function handleEdit(inv) {
-    setForm({ ...form, ...inv });
-    setIsEditing(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
   function handleDelete(inv) {
     setDeleteTarget(inv);
     setDeleteDialogOpen(true);
@@ -365,8 +637,8 @@ const RoomInvoice = () => {
     setPrintInvoice(null);
   }
   return (
-    <div className="w-[50vw] mx-auto bg-white border border-black rounded p-4 mt-4">
-      <div >
+    <div className="bg-white p-6 mt-4">
+      <div className='w-[60vw] mx-auto border border-black p-4' >
         <div className="flex flex-wrap gap-4 mb-2">
           <div className="flex-1 min-w-[200px]">
             <Label className="block text-sm font-semibold">Room Number</Label>
@@ -375,10 +647,10 @@ const RoomInvoice = () => {
               value={form.roomNumber}
               onValueChange={value => {
                 // Find the room by matching RoomNo as string
-                const selectedRoom = roomInfoList.find(room => 
+                const selectedRoom = roomInfoList.find(room =>
                   String(room.RoomNo) === String(value)
                 );
-                
+
                 // Update form with selected room data
                 setForm(prev => ({
                   ...prev,
@@ -774,6 +1046,7 @@ const RoomInvoice = () => {
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">View</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Delete</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Print Invoice</th>
+                <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Send Invoice To Email</th>
               </tr>
             </thead>
             <tbody>
@@ -788,13 +1061,26 @@ const RoomInvoice = () => {
                     <td className="border px-4 py-2">{inv.invoiceNo || inv._id || '-'}</td>
                     <td className="border px-4 py-2">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '-'}</td>
                     <td className="border px-4 py-2">
-                      <button className="underline text-blue-600" onClick={() => handleView(inv)}>View</button>
+                      <button className="inline-flex items-center px-3 py-2 border border-transparent text-md font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-75" onClick={() => handleView(inv)}>View</button>
                     </td>
                     <td className="border px-4 py-2">
-                      <button className="underline text-red-600" onClick={() => handleDelete(inv)}>Delete</button>
+                      <button className="inline-flex items-center px-3 py-2 border border-transparent text-md font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-75" onClick={() => handleDelete(inv)}>Delete</button>
                     </td>
                     <td className="border px-4 py-2">
-                      <button className="underline text-black" onClick={() => handlePrint(inv)}>Print</button>
+                      <button className="inline-flex items-center px-3 py-2 border border-transparent text-md font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-75" onClick={() => handlePrint(inv)}>
+                        <Printer className="h-4 w-4 mr-1" />
+                        Print
+                      </button>
+                    </td>
+                    <td className="border py-2">
+                      <button className="inline-flex items-center px-3 py-2 border border-transparent text-md font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-75" onClick={() => handleSendInvoiceEmail(inv)}>
+                        {isSendingEmail ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <Mail className="h-4 w-4 mr-1" />
+                        )}
+                        Send Invoice To Email
+                      </button>
                     </td>
                   </tr>
                 ))
