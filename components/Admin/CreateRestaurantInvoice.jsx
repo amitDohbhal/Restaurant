@@ -1,5 +1,5 @@
 "use client"
-import { Minus, Plus, Printer, X } from 'lucide-react';
+import { Minus, Plus, Printer, X, Loader, Mail } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
@@ -72,7 +72,10 @@ const CreateRestaurantInvoice = () => {
     const [finalTotal, setFinalTotal] = useState(0);
     const [invoices, setInvoices] = useState([]);
     const [loadingInvoices, setLoadingInvoices] = useState(false);
-    const [printInvoice, setPrintInvoice] = useState(null);
+    const [guestInfo, setGuestInfo] = useState(null);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [hotelData, setHotelData] = useState(null);
+    const hotelLogo = hotelData?.image?.url || '';
     // Fetch invoices
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
@@ -91,7 +94,7 @@ const CreateRestaurantInvoice = () => {
     const fetchRooms = async () => {
         setLoadingRooms(true);
         try {
-            const res = await fetch('/api/roomInvoice');
+            const res = await fetch('/api/roomInfo');
 
             if (!res.ok) {
                 const errorText = await res.text();
@@ -100,8 +103,16 @@ const CreateRestaurantInvoice = () => {
 
             const data = await res.json();
 
-            if (data && data.success && data.invoices) {
-                setRoomsList(data.invoices);
+            if (Array.isArray(data)) {
+                // Map the API response to the expected format
+                const formattedRooms = data.map(room => ({
+                    _id: room._id,
+                    roomNumber: room.RoomNo || room.roomNumber || '',
+                    type: room.type || '',
+                    isBooked: room.isBooked || false,
+                    active: room.active !== false // Default to true if not specified
+                }));
+                setRoomsList(formattedRooms);
             } else {
                 toast.error('Failed to load room data: Invalid response format');
             }
@@ -141,7 +152,17 @@ const CreateRestaurantInvoice = () => {
             setIsLoadingTables(false);
         }
     };
-
+    const fetchHotelData = async () => {
+        try {
+            const response = await fetch('/api/addBasicInfo');
+            const data = await response.json();
+            if (data && data[0]) {
+                setHotelData(data[0]);
+            }
+        } catch (error) {
+            console.error('Error fetching hotel data:', error);
+        }
+    };
     // Add new table
     const handleAddNewTable = async (e) => {
         e.preventDefault();
@@ -176,6 +197,7 @@ const CreateRestaurantInvoice = () => {
     };
 
     useEffect(() => {
+        fetchHotelData();
         fetchRooms();
         fetchFoodInventory();
         fetchInvoices();
@@ -211,7 +233,47 @@ const CreateRestaurantInvoice = () => {
             setFoodRows(newRows);
         }
     };
+    // Handle room change and fetch guest information
+    const handleRoomChange = async (e) => {
+        const selectedRoomNumber = e.target.value;
+        setRoom(selectedRoomNumber);
+        setGuest(''); // Reset guest when room changes
 
+        if (selectedRoomNumber) {
+            try {
+                const response = await fetch(`/api/addGuestToRoom?roomNumber=${selectedRoomNumber}&status=checked-in`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to fetch guest information: ${response.status} ${response.statusText}`);
+                }
+
+
+                const guests = await response.json();
+
+                if (guests && guests.length > 0) {
+                    // Get the first guest in the room
+                    const currentGuest = guests[0];
+
+                    // Try different possible property names for guest name
+                    const guestName = currentGuest.name || currentGuest.guestName || 'Guest';
+
+                    setGuest(guestName);
+                    setGuestInfo(currentGuest);
+                } else {
+                    toast.error(`No guest found in room ${selectedRoomNumber}. Please check if a guest is checked in.`);
+                    setGuest('No guest found');
+                    setGuestInfo(null);
+                }
+            } catch (error) {
+                toast.error('Failed to load guest information');
+                setGuest('Error loading guest');
+                setGuestInfo(null);
+            }
+        } else {
+            setGuestInfo(null);
+        }
+    };
     // Load Razorpay script
     const loadRazorpay = () => {
         return new Promise((resolve, reject) => {
@@ -329,76 +391,55 @@ const CreateRestaurantInvoice = () => {
                 // Add a small delay to ensure Razorpay is fully loaded
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
-            // Ensure finalTotal is used instead of totalAmount and convert to paise
-            const amount = Math.round((invoiceData.finalTotal || invoiceData.totalAmount) * 100); // amount in paise, integer
 
+            // Convert amount to paise (Razorpay uses the smallest currency unit)
+            const amount = Math.round((invoiceData.finalTotal || invoiceData.totalAmount) * 100);
 
             if (isNaN(amount) || amount <= 0) {
                 throw new Error('Invalid amount for payment. Amount must be greater than 0.');
             }
+
             // Generate a unique receipt ID
-            const receipt = `ROOM-INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            const receipt = `RESTAURANT-INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
             // Create order on your server
             const orderResponse = await fetch('/api/razorpay', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    amount: amount, // Must be integer paise
+                    amount: amount,
                     currency: 'INR',
                     receipt: receipt,
                     notes: {
-                        type: 'room_invoice',
+                        type: 'restaurant',
                         invoice_id: invoiceData._id,
                         guest_name: invoiceData.guestFirst || 'Guest',
-                        room_number: invoiceData.roomNumber || 'N/A',
-                        customerName: invoiceData.guestFirst || 'Guest',
-                        roomNumber: invoiceData.roomNumber || 'N/A'
-                    },
-                    customer: {
-                        name: invoiceData.guestFirst || 'Guest',
-                        email: invoiceData.email || '',
-                        phone: invoiceData.contact || ''
-                    },
-                    products: invoiceData.foodItems?.map(item => ({
-                        name: item.foodName,
-                        quantity: item.qty,
-                        amount: item.amount
-                    })) || []
+                        room_number: invoiceData.roomNumber || 'N/A'
+                    }
                 })
             });
 
             const orderData = await orderResponse.json();
+            console.log('Order creation response:', orderData);
 
             if (!orderResponse.ok || !orderData.success) {
                 const errorMsg = orderData.error || 'Failed to create payment order';
                 throw new Error(errorMsg);
             }
 
-            // Prepare Razorpay options
+            // Initialize Razorpay payment
             const options = {
                 key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-                amount: orderData.amount || amount,
+                amount: orderData.order.amount || amount,
                 currency: 'INR',
                 name: 'Hotel Shivan Residence',
-                description: 'Room Invoice Payment',
-                order_id: orderData.id,
-                modal: {
-                    ondismiss: function () {
-                        toast.error('Payment was dismissed');
-                    }
-                },
-                // Add prefill if available
-                prefill: {
-                    name: invoiceData.guestFirst || 'Guest',
-                    contact: invoiceData.contact || '',
-                    email: invoiceData.email || ''
-                },
-                theme: {
-                    color: '#3399cc'
-                },
+                description: 'Restaurant Invoice Payment',
+                order_id: orderData.order.id,
                 handler: async function (response) {
                     try {
-                        // 1. Verify payment on your server
+                        console.log('Razorpay payment response:', response);
+
+                        // Verify payment on your server
                         const verifyResponse = await fetch('/api/razorpay', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
@@ -410,57 +451,73 @@ const CreateRestaurantInvoice = () => {
                                 invoiceId: invoiceData._id
                             })
                         });
-                        const verificationData = await verifyResponse.json();
-                        if (!verifyResponse.ok || !verificationData.success) {
-                            throw new Error(verificationData.error || 'Payment verification failed');
+
+                        const verifyData = await verifyResponse.json();
+                        console.log('Verification response:', verifyData);
+
+                        if (!verifyResponse.ok) {
+                            throw new Error(verifyData.error || 'Payment verification failed');
                         }
 
-                        // 2. Update the existing invoice with payment details
-                        const updateData = {
-                            id: invoiceData._id, // Include ID in the request body
-                            paymentStatus: 'completed',
-                            paymentDetails: {
-                                status: 'completed',
-                                method: 'online',
-                                transactionId: response.razorpay_payment_id,
-                                orderId: response.razorpay_order_id,
-                                amount: invoiceData.finalTotal || invoiceData.totalAmount,
-                                date: new Date().toISOString()
-                            },
-                            paidAmount: invoiceData.finalTotal || invoiceData.totalAmount,
-                            dueAmount: 0
-                        };
-
-                        const updateResponse = await fetch('/api/CreateRestaurantInvoice', {
+                        // Update the invoice statuzs
+                        const updateResponse = await fetch(`/api/CreateRestaurantInvoice`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(updateData)
+                            body: JSON.stringify({
+                                id:invoiceData._id,
+                                paymentStatus: 'completed',
+                                paymentMode: 'online',
+                                paidAmount: invoiceData.finalTotal || invoiceData.totalAmount,
+                                dueAmount: 0,
+                                razorpayPaymentId: response.razorpay_payment_id,
+                                razorpayOrderId: response.razorpay_order_id,
+                                razorpaySignature: response.razorpay_signature,
+                                paymentDate: new Date()
+                            })
                         });
 
                         if (!updateResponse.ok) {
                             const errorData = await updateResponse.json();
-                            throw new Error(errorData.error || 'Failed to update invoice with payment details');
+                            throw new Error(errorData.error?.description || 'Failed to update invoice with payment details');
                         }
 
                         toast.success('Payment successful & invoice updated!');
-                        await fetchInvoices();
+                        window.location.reload();
+
                     } catch (error) {
+                        console.error('Payment verification error:', error);
                         toast.error('Payment verification failed: ' + error.message);
                     }
                 },
-
+                modal: {
+                    ondismiss: function () {
+                        toast.error('Payment was cancelled or window was closed');
+                    }
+                },
+                prefill: {
+                    name: invoiceData.guestFirst || 'Guest',
+                    contact: invoiceData.contact || '',
+                    email: invoiceData.email || ''
+                },
+                theme: {
+                    color: '#3399cc'
+                }
             };
 
+            // Initialize Razorpay
             const rzp = new window.Razorpay(options);
             rzp.open();
 
+            // Handle payment errors
+            rzp.on('payment.failed', function (response) {
+                console.error('Payment failed:', response.error);
+                toast.error(`Payment failed: ${response.error.description || 'Unknown error'}`);
+            });
+
         } catch (error) {
-            // Only show error if not already shown by a more specific handler
-            if (!toast.isActive('payment-error')) {
-                toast.error(error.message || 'Failed to process your request', {
-                    id: 'payment-error'
-                });
-            }
+            console.error('Payment processing error:', error);
+            toast.error('Payment processing failed: ' + error.message);
+            throw error;
         }
     };
 
@@ -523,36 +580,69 @@ const CreateRestaurantInvoice = () => {
                 };
             });
 
-        const { roomPrice, tableNo: roomTableNo, ...roomData } = selectedRoom; // Exclude roomPrice and tableNo from selectedRoom
+        const { roomPrice, tableNo: roomTableNo, ...roomData } = selectedRoom;
+        // Get current date and time for invoice
+        const now = new Date();
+        const invoiceDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+        // Get dates from room account or use current date as fallback
+        const checkInDate = guestInfo?.checkIn ? new Date(guestInfo.checkIn) : new Date(now);
+        const checkOutDate = guestInfo?.checkOut ? new Date(guestInfo.checkOut) : new Date(now);
+
+        // Format dates as YYYY-MM-DD
+        const formatDate = (date) => date.toISOString().split('T')[0];
+
+        // Calculate total days
+        const timeDiff = Math.abs(checkOutDate - checkInDate);
+        const totalDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) || 1;
+
         const invoiceWithPayment = {
-            ...roomData,
-            paymentMethod: selectedPayment,
-            paymentMode: selectedPayment === 'cash' ? 'cash' : 'online',
-            paymentStatus: selectedPayment === 'online' ? 'pending' : 'completed',
+            // Room details from selected room
+            roomNumber: roomData.roomNumber || roomData.RoomNo || '',
+            roomType: roomData.roomType || roomData.type || 'Standard',
+            roomPrice: roomData.roomPrice || 0,
+            planType: roomData.planType || 'Room Only',
+            checkIn: formatDate(checkInDate),
+            checkOut: formatDate(checkOutDate),
+            totalDays: totalDays,
+            tableNo: table,
+            // Guest details
+            guestFirst: guest.split(' ')[0] || 'Guest',
+            guestMiddle: guest.split(' ').length > 2 ? guest.split(' ')[1] : '',
+            guestLast: guest.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
+            email: guestInfo?.email || 'guest@example.com',
+            contact: guestInfo?.phone || '0000000000',
+
+            // Payment details - handle room payment mode specifically
+            paymentMode: selectedPayment,
+            paymentStatus: selectedPayment === 'online' ? 'pending' :
+                selectedPayment === 'room' ? 'pending' : 'completed',
             paymentDetails: selectedPayment === 'online' ? null : {
-                status: 'completed',
-                method: selectedPayment === 'cash' ? 'cash' : 'online',
-                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` : `ONLINE-${Date.now()}`,
+                status: selectedPayment === 'room' ? 'pending' : 'completed',
+                method: selectedPayment,
+                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` :
+                    selectedPayment === 'online' ? `ONLINE-${Date.now()}` :
+                        `ROOM-${Date.now()}`,
                 amount: finalTotal,
                 date: new Date().toISOString()
             },
-            // Force payment status for non-online payments
-            ...(selectedPayment !== 'online' && {
-                paymentStatus: 'completed',
-                paymentMethod: selectedPayment,
-                paidAmount: finalTotal,
-                dueAmount: 0
-            }),
+
+            // Invoice details
+            invoiceDate: invoiceDate,
+            invoiceNo: `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
+
+            // Food items and totals
             foodItems,
-            guestFirst: guest,
-            discount: parseFloat(discount || 0),
-            extraCharges: parseFloat(extraCharges || 0),
             totalFoodAmount: totalAmount,
             gstOnFood: gstAmount,
+            cgstAmount: cgstAmount,
+            sgstAmount: sgstAmount,
             totalAmount: finalTotal,
-            tableNo: table,
-            paidAmount: 0, // Update this based on payment
-            dueAmount: finalTotal // Update this based on payment
+            paidAmount: selectedPayment === 'room' ? 0 : finalTotal,
+            dueAmount: selectedPayment === 'room' ? finalTotal : 0,
+            // Ensure all guest info is included
+            guestFirst: guest.split(' ')[0] || 'Guest',
+            guestLast: guest.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
         };
 
         // Always create the invoice firt
@@ -567,6 +657,100 @@ const CreateRestaurantInvoice = () => {
         if (!response.ok) {
             throw new Error(data.error || 'Failed to create invoice');
         }
+        // Prepare invoice data with payment details
+        const invoiceData = {
+            ...data.invoice,
+            _id: data.invoice._id,
+            finalTotal: data.invoice.finalTotal || data.invoice.totalAmount
+        };
+
+        // Helper function to update room account with invoice
+        const updateRoomAccountInvoice = async (paymentMode) => {
+            if (!room) return;
+
+            try {
+                const roomAccountUpdate = {
+                    roomNumber: room,
+                    invoiceData: {
+                        // Basic invoice info
+                        invoiceId: invoiceData._id,
+                        invoiceNo: invoiceData.invoiceNo || `INV-${Date.now()}`,
+                        invoiceDate: new Date().toISOString(),
+
+                        // Payment details
+                        totalAmount: invoiceData.finalTotal || invoiceData.totalAmount || 0,
+                        dueAmount: paymentMode === 'room' ? (invoiceData.finalTotal || invoiceData.totalAmount || 0) : 0,
+                        paymentMode: paymentMode,
+                        paymentStatus: paymentMode === 'room' ? 'unpaid' : 'paid',
+                        ...(paymentMode !== 'room' && { paidAt: new Date().toISOString() }),
+
+                        // Tax details
+                        cgstAmount: invoiceData.cgstAmount || 0,
+                        sgstAmount: invoiceData.sgstAmount || 0,
+                        gstAmount: invoiceData.gstAmount || 0,
+                        taxTotal: (invoiceData.cgstAmount || 0) + (invoiceData.sgstAmount || 0),
+
+                        // Room and guest info
+                        roomNumber: roomData?.roomNumber || roomData?.RoomNo || room,
+                        roomType: roomData?.roomType || roomData?.type || '',
+                        tableNo: table,
+                        guestName: guest,
+                        guestFirst: guest?.split(' ')[0] || 'Guest',
+                        guestLast: guest?.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
+
+                        // Food items with proper tax calculations
+                        foodItems: foodItems.map(item => ({
+                            name: item.foodName || item.name || '',
+                            qtyType: item.qtyType || 'full',
+                            quantity: item.quantity || item.qty || 1,
+                            price: item.price || 0,
+                            amount: (item.quantity || item.qty || 1) * (item.price || 0),
+                            cgstPercent: item.cgstPercent || 0,
+                            cgstAmount: item.cgstAmount || 0,
+                            sgstPercent: item.sgstPercent || 0,
+                            sgstAmount: item.sgstAmount || 0,
+                            taxTotal: (item.cgstAmount || 0) + (item.sgstAmount || 0),
+                            totalAmount: ((item.quantity || item.qty || 1) * (item.price || 0)) + (item.cgstAmount || 0) + (item.sgstAmount || 0)
+                        }))
+                    }
+                };
+
+                const updateResponse = await fetch('/api/room-account/update-invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(roomAccountUpdate)
+                });
+
+                if (!updateResponse.ok) {
+                    const errorData = await updateResponse.json();
+                    console.error('Failed to update room account:', errorData);
+                    // Don't fail the whole operation, just log the error
+                }
+
+                // Mark the invoice as paid for non-room payments
+                if (paymentMode !== 'room') {
+                    await fetch('/api/room-account/mark-paid', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            roomNumber: room,
+                            invoiceId: invoiceData._id,
+                            paymentMode: paymentMode
+                        })
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating room account:', error);
+                // Don't fail the whole operation, just log the error
+            }
+        };
+
+        // If room account is selected, update the room account with the invoice
+        if (room) {
+            if (selectedPayment === 'room') {
+                await updateRoomAccountInvoice('room');
+            }
+        }
 
         if (selectedPayment === 'online') {
             // Now trigger payment and verification
@@ -577,9 +761,18 @@ const CreateRestaurantInvoice = () => {
             };
 
             try {
-                // Process Razorpay payment and wait for it to complete
-                await processRazorpayPayment(invoiceData);
+                if (room && selectedPayment === 'room') {
+                    // For room account payments, don't process Razorpay
+                    await updateRoomAccountInvoice('room');
+                } else {
+                    // For online payments, process Razorpay
+                    await processRazorpayPayment(invoiceData);
 
+                    // Update room account for online payment
+                    if (room) {
+                        await updateRoomAccountInvoice('online');
+                    }
+                }
             } catch (error) {
                 console.error('Payment processing error:', error);
                 // If payment fails, update invoice to failed
@@ -606,13 +799,19 @@ const CreateRestaurantInvoice = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: data.invoice._id, // Include ID in the request body
-                    paymentStatus: 'completed',
-                    paymentMode: selectedPayment === 'cash' ? 'cash' : 'online',
+                    paymentStatus: selectedPayment === 'room' ? 'pending' : 'completed',
+                    paymentMode: selectedPayment === 'cash' ? 'cash' : (selectedPayment === 'room' ? 'room' : 'online'),
                     paymentError: null,
                     paidAmount: finalTotal,
                     dueAmount: 0
                 })
             });
+
+            // Update room account for cash payment
+            if (room && selectedPayment === 'cash') {
+                await updateRoomAccountInvoice('cash');
+            }
+
             toast.success('Invoice Created Successfully!');
         }
 
@@ -637,8 +836,13 @@ const CreateRestaurantInvoice = () => {
         setIsDialogOpen(true);
     };
 
-    function handlePrint(inv) {
+    const handlePrint = (inv) => {
+        // Create a new window for printing
         const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+            return;
+        }
 
         // Calculate amounts
         const roomPrice = parseFloat(inv.roomPrice || 0);
@@ -668,9 +872,9 @@ const CreateRestaurantInvoice = () => {
         } else {
             sgstAmount = (roomPrice * sgstPercent / 100) || 0;
         }
-        const paidAmount = parseFloat(inv.paidAmount || 0).toFixed(2);
         // Format guest name
         const guestName = `${inv.guestFirst || ''} ${inv.guestMiddle || ''} ${inv.guestLast || ''}`.trim();
+
         // Format dates
         const formatDate = (dateString) => {
             if (!dateString) return 'N/A';
@@ -686,171 +890,432 @@ const CreateRestaurantInvoice = () => {
                 maximumFractionDigits: 2
             });
         };
-
         const invoiceHtml = `
         <!DOCTYPE html>
         <html>
         <head>
-          <meta charset="UTF-8">
-          <title>Restaurant Invoice</title>
-          <style>
-            @media print {
-              body { -webkit-print-color-adjust: exact; }
-              .no-print { display: none !important; }
-              @page { margin: 0; size: auto; }
-            }
-          </style>
+            <meta charset="UTF-8">
+            <title>Invoice #${inv.invoiceNo || ''}</title>
+            <style>
+                @media print {
+                    @page { 
+                        size: 80mm auto;
+                        margin: 0;
+                    }
+                    body { 
+                        margin: 0;
+                        padding: 5mm;
+                        font-family: monospace;
+                        font-size: 12px;
+                        color: #000;
+                    }
+                    .invoice-container {
+                        width: 100%;
+                        max-width: 72mm;
+                        margin: 0 auto;
+                    }
+                    .center { text-align: center; }
+                    .right { text-align: right; }
+                    .line { border-top: 1px dashed #000; margin: 5px 0; }
+                    .title { 
+                        font-size: 14px; 
+                        font-weight: bold; 
+                        margin-bottom: 5px;
+                        text-align: center;
+                    }
+                    table { 
+                        width: 100%; 
+                        border-collapse: collapse;
+                        margin: 5px 0;
+                    }
+                    th, td {
+                        padding: 2px 0;
+                        font-size: 11px;
+                    }
+                    th { 
+                        border-bottom: 1px solid #000;
+                        text-align: left;
+                    }
+                    .footer {
+                        margin-top: 10px;
+                        font-size: 10px;
+                        text-align: center;
+                    }
+                    .text-right {
+                        text-align: right;
+                    }
+                    .text-center {
+                        text-align: center;
+                    }
+                }
+            </style>
         </head>
-        <body style="font-family: Arial, sans-serif; margin:0; padding:10px; background:#f8f8f8;">
-          <div style="max-width: 600px; margin: 0 auto;">
-            <button onclick="window.print()" class="no-print" style="position:fixed; top:20px; right:20px; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; z-index:1000;">
-              Print Invoice
-            </button>
-            
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff; border:1px solid #000; border-collapse:collapse; margin-bottom:20px;">
-              <!-- Header -->
-              <tr>
-                <td colspan="6" style="background:#444; color:#fff; font-size:18px; font-weight:bold; padding:10px;">
-                  Restaurant Table Invoice
-                </td>
-              </tr>
-    
-              <!-- Company Name -->
-              <tr>
-                <td colspan="6" style="background:#5a8c80; color:#fff; text-align:center; font-size:20px; font-weight:bold; padding:8px;">
-                  Hotel Shivan Residence
-                </td>
-              </tr>
-    
-              <!-- Company Info -->
-              <tr>
-                <td colspan="6" style="padding:10px; font-size:14px; border-bottom:1px solid #000;">
-                  <table width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;">
+        <body onload="window.print();window.close()">
+            <div class="invoice-container">
+                <!-- Hotel Info -->
+                <div class="text-center">
+                    <div class="title">${hotelData?.hotelName || 'Hotel Shivan Residence'}</div>
+                    <div><b>GSTIN:</b> ${hotelData?.gstNumber || 'XXXXXXXXXXXXXXX'}</div>
+                    <div>${hotelData?.address1 || ''}</div>
+                    <div>${hotelData?.contactNumber1 || ''}</div>
+                </div>
+                <div class="line"></div>
+        
+                <!-- Guest + Invoice Info -->
+                <div>
+                    <div><b>Bill To:</b> ${guestName}</div>
+                    <div><b>Room:</b> ${inv.roomNumber || 'N/A'}</div>
+                    <div><b>Invoice:</b> ${inv.invoiceNo || 'N/A'}</div>
+                    <div><b>Date:</b> ${formatDate(inv.invoiceDate || inv.createdAt) || 'N/A'}</div>
+                </div>
+                <div class="line"></div>
+        
+                <!-- Items -->
+                <table>
                     <tr>
-                      <td style="width:50%; vertical-align:top; text-align:left;">
-                        Invoice #: ${inv.invoiceNo || 'N/A'}<br>
-                        Date: ${formatDate(inv.createdAt) || 'N/A'}
-                      </td>
-                      <td style="width:50%; vertical-align:top; text-align:right;">
-                        Contact: ${inv.contact || 'N/A'}<br>
-                        Email: ${inv.email || 'N/A'}<br>
-                        Address: ${inv.address ? inv.address.substring(0, 50) + (inv.address.length > 50 ? '...' : '') : 'N/A'}
-                      </td>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th class="right">Rate</th>
+                        <th class="right">Amount</th>
                     </tr>
-                  </table>
-                </td>
-              </tr>
-    
-              <!-- Guest Info -->
-              <tr style="background:#f2f2f2; border-bottom:1px solid #ddd;">
-                <td colspan="6" style="padding:8px 12px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                      <strong>Room:</strong> ${inv.roomNumber || 'N/A'} (${inv.roomType || 'N/A'})
-                    </div>
-                    <div>
-                      <strong>Plan:</strong> ${inv.planType || 'N/A'}
-                    </div>
-                  </div>
-                  
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                    <div>
-                      <strong>Check-in:</strong> ${formatDate(inv.checkIn) || 'N/A'}
-                    </div>
-                    <div>
-                      <strong>Check-out:</strong> ${formatDate(inv.checkOut) || 'N/A'}
-                    </div>
-                  </div>
-                </td>
-              </tr>
-              <tr style="background:#f2f2f2; font-weight:bold; text-align:left;">
-                <td colspan="4" style="padding:8px 12px; border-bottom:1px solid #000;">Guest: ${guestName || 'N/A'}</td>
-                <td colspan="4" style="padding:8px 12px; border-bottom:1px solid #000;">Table Number: ${inv.tableNo || 'N/A'}</td>
-              </tr>              
-              <!-- Food Items -->
-              ${inv.foodItems && inv.foodItems.length > 0 ? `
-              <tr style="background:#666; color:#fff; font-weight:bold; text-align:center;">
-                <td style="padding:6px; border:1px solid #000;">S.no</td>
-                <td style="padding:6px; border:1px solid #000;" colspan="2">Item</td>
-                <td style="padding:6px; border:1px solid #000;">Qty</td>
-                <td style="padding:6px; border:1px solid #000;">Rate</td>
-                <td style="padding:6px; border:1px solid #000;">Amount</td>
-              </tr>
-              ${inv.foodItems.map((item, index) => `
-                <tr>
-                  <td style="padding:8px; border:1px solid #000; text-align:center;">${index + 1}</td>
-                  <td style="padding:8px; border:1px solid #000;" colspan="2">
-                  <div style="font-size:16px;">${item.foodItem?.categoryName || ''} (${item.qtyType || ''})</div>
-                  <div style="font-size:14px;">${item.foodItem?.foodName || 'N/A'}</div>
-                  </td>
-                  <td style="padding:8px; border:1px solid #000; text-align:center;">${item.qty || 0}</td>
-                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency(item.price || 0)}</td>
-                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency((item.price || 0) * (item.qty || 0))}</td>
-                </tr>
-              `).join('')}
-              ` : ''}
-              <!-- Totals -->
+                    ${(inv.foodItems || []).map(item => `
                         <tr>
-  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
-    CGST ${inv.cgstAmount != null && inv.cgstAmount !== '' && !isNaN(inv.cgstAmount) && parseFloat(inv.cgstAmount) > 0
-                ? `(₹ ${cgstAmount})`
-                : `(${cgstPercent.toFixed(2)} %)`
-            }
-  </td>
-  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
-    ${formatCurrency(cgstAmount)}
-  </td>
-</tr>
-
-<tr>
-  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
-    SGST ${inv.sgstAmount != null && inv.sgstAmount !== '' && !isNaN(inv.sgstAmount) && parseFloat(inv.sgstAmount) > 0
-                ? `(₹ ${sgstAmount})`
-                : `(${sgstPercent.toFixed(2)} %)`
-            }
-  </td>
-  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
-    ${formatCurrency(sgstAmount)}
-  </td>
-</tr>
-<tr>
-                <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000; background:#e0e0e0;">Total Amount</td>
-                <td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold; background:#5a8c80; color:white;">${formatCurrency(paidAmount)}</td>
-              </tr>
-              <!-- Footer Notes -->
-              <tr>
-                <td colspan="6" style="font-size:11px; padding:8px; border-top:1px solid #000; background:#f9f9f9;">
-                  <b>Note:</b> This is a computer-generated invoice. No signature is required.<br>
-                  <b>Disclaimer:</b> In case of any printing error or discrepancy, we sincerely apologize for the inconvenience.<br>
-                  Please verify all details before leaving the premises.<br>
-                  Thanks for your cooperation in advance.<br>
-                  <b>T&C Apply</b>
-                </td>
-              </tr>
-            </table>
-          </div>
+                            <td>${item.foodName || item.foodItem?.foodName || 'N/A'}</td>
+                            <td class="text-center">${item.qty || 0}</td>
+                            <td class="right">${formatCurrency(item.price || 0)}</td>
+                            <td class="right">${formatCurrency(item.amount || 0)}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+                <div class="line"></div>
+        
+                <!-- Totals -->
+                <table>
+                    ${inv.discount > 0 ? `
+                        <tr>
+                            <td colspan="3">Discount</td>
+                            <td class="right">-${formatCurrency(inv.discount)}</td>
+                        </tr>
+                    ` : ''}
+                    ${inv.extraCharges > 0 ? `
+                        <tr>
+                            <td colspan="3">Extra Charges</td>
+                            <td class="right">${formatCurrency(inv.extraCharges)}</td>
+                        </tr>
+                    ` : ''}
+                    ${cgstAmount > 0 ? `
+                        <tr>
+                            <td colspan="3">CGST</td>
+                            <td class="right">${formatCurrency(cgstAmount)}</td>
+                        </tr>
+                    ` : ''}
+                    ${sgstAmount > 0 ? `
+                        <tr>
+                            <td colspan="3">SGST</td>
+                            <td class="right">${formatCurrency(sgstAmount)}</td>
+                        </tr>
+                    ` : ''}
+                    <tr>
+                        <td colspan="3"><b>Total Amount</b></td>
+                        <td class="right"><b>${formatCurrency(inv.totalAmount || 0)}</b></td>
+                    </tr>
+                </table>
+                <div class="line"></div>
+        
+                <!-- Payment Info -->
+                <div>
+                    <div><b>Payment Mode:</b> ${(inv.paymentMode || '').toUpperCase()}</div>
+                    <div><b>Status:</b> ${(inv.paymentStatus || '').toUpperCase()}</div>
+                </div>
+        
+                <!-- Footer -->
+                <div class="footer">
+                    Thank you for your visit!<br>
+                    This is a computer-generated invoice.<br>
+                    ${new Date().toLocaleString()}
+                </div>
+            </div>
         </body>
-        </html>
-      `;
+        </html>`;
 
-        // Write the invoice to the new window
+        // Write the invoice to the new window and trigger print
         printWindow.document.open();
         printWindow.document.write(invoiceHtml);
         printWindow.document.close();
-        setPrintInvoice(null);
-    }
-    return (
-        <div className="p-4 max-w-5xl mx-auto">
+    };
+    const handleSendInvoiceEmail = async (invoice) => {
+        if (!invoice?.email) {
+            toast.error('No email address available for this guest');
+            return;
+        }
 
-            <div className="border border-black p-5 rounded ">
+        setIsSendingEmail(true);
+
+        try {
+            // Format dates
+            const formatDateForEmail = (dateString) => {
+                if (!dateString) return 'N/A';
+                const options = { day: '2-digit', month: 'short', year: 'numeric' };
+                return new Date(dateString).toLocaleDateString('en-US', options);
+            };
+
+            // Format currency
+            const formatCurrency = (amount) => {
+                if (amount === undefined || amount === null) return '₹0.00';
+                return new Intl.NumberFormat('en-IN', {
+                    style: 'currency',
+                    currency: 'INR',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }).format(amount);
+            };
+
+            // Prepare the email content
+            const emailContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Invoice #${invoice.invoiceNo || ''}</title>
+                    <style>
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            margin: 0; 
+                            background-color: #f9f9f9; 
+                        }
+                        .invoice-container {
+                            max-width: 900px;
+                            margin: auto;
+                            background: #fff;
+                            border-radius: 8px;
+                            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                        }
+                        .header {
+                            background-color: #228b78;
+                            color: white;
+                            padding: 20px;
+                            border-radius: 6px 6px 0 0;
+                            margin-bottom: 25px;
+                        }
+                        .logo-container {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        }
+                        .logo {
+                            max-width: 120px;
+                            max-height: 100px;
+                            object-fit: contain;
+                            background: white;
+                            padding: 6px;
+                            border-radius: 4px;
+                        }
+                        .hotel-name {
+                            padding: 10px 20px;
+                            text-align: center;
+                        }
+                        .hotel-name h1 {
+                            margin: 0;
+                            font-size: 26px;
+                            font-weight: 700;
+                        }
+                        .hotel-name p {
+                            margin: 4px 0 0;
+                            font-size: 14px;
+                            opacity: 0.9;
+                        }
+                        .invoice-title {
+                            background: #1e1e1e;
+                            color: white;
+                            padding: 10px 0;
+                            text-align: center;
+                            margin-top: 20px;
+                            border-radius: 4px;
+                        }
+                        h3 {
+                            margin-top: 30px;
+                            font-size: 18px;
+                            color: #333;
+                            border-bottom: 2px solid #eee;
+                            padding-bottom: 6px;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin: 10px 0;
+                            font-size: 14px;
+                        }
+                        th, td {
+                            border: 1px solid #ddd;
+                            padding: 10px;
+                            text-align: left;
+                        }
+                        th {
+                            background-color: #f5f5f5;
+                            font-weight: 600;
+                        }
+                        tbody tr:nth-child(even) {
+                            background: #fafafa;
+                        }
+                        tfoot td {
+                            font-weight: bold;
+                            font-size: 15px;
+                        }
+                        .details-table td {
+                            width: 50%;
+                        }
+                        .details-table p {
+                            margin: 3px 0;
+                            word-break: break-word;
+                        }
+                        .email {
+                            color: #0073aa;
+                            word-break: break-all;
+                        }
+                        .footer {
+                            margin-top: 10px;
+                            border-top: 1px solid #eee;
+                            font-size: 12px;
+                            color: #777;
+                            text-align: center;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="invoice-container">
+                        <div class="header">
+                            <div class="logo-container">
+                                <div>
+                                    ${hotelLogo ? `<img src="${hotelLogo}" alt="Hotel Logo" class="logo"/>` : ""}
+                                </div>
+                                <div class="hotel-name">
+                                    <h1>${hotelData?.hotelName || 'Hotel Shivan Residence'}</h1>
+                                    <p>${hotelData?.tagline || 'Your Home Away From Home'}</p>
+                                </div>
+                                <div style="width: 120px;"></div>
+                            </div>
+                            <div class="invoice-title">
+                                <h2>RESTAURANT INVOICE</h2>
+                                <h2>INVOICE #${invoice.invoiceNo || invoice._id?.slice(-6).toUpperCase() || 'N/A'}</h2>
+                                <p>Date: ${new Date(invoice.invoiceDate || Date.now()).toLocaleDateString()}</p>
+                            </div>
+                        </div>
+                    <h3>Details</h3>
+                    <table class="details-table">
+                        <tr>
+                <td>
+      <strong>Bill To:</strong><br/>
+      ${invoice.guestFirst || ''} ${invoice.guestMiddle || ''} ${invoice.guestLast || ''}<br/>
+      ${invoice.email ? `Email: <span class="email">${invoice.email}</span><br/>` : ''}
+      ${invoice.contact ? `Phone: ${invoice.contact}<br/>` : ''}
+      ${invoice.roomNumber ? `Room No: ${invoice.roomNumber}<br/>` : ''}
+      ${invoice.tableNo ? `Table No: ${invoice.tableNo}<br/>` : ''}
+    </td>
+                            <td style="text-align: right;">
+                                <p><strong>Invoice #:</strong> ${invoice.invoiceNo || ''}</p>
+                                <p><strong>Date:</strong> ${formatDateForEmail(invoice.invoiceDate)}</p>
+                                <p><strong>Payment Status:</strong> ${invoice.paymentStatus?.toUpperCase() || 'PENDING'}</p>
+                                <p><strong>Payment Mode:</strong> ${invoice.paymentMode?.toLowerCase() === 'room' ? 'SEND TO ROOM ACCOUNT' : invoice.paymentMode?.toUpperCase() || 'N/A'}</p>
+                            </td>
+                        </tr>
+                    </table>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Rate</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        ${(invoice.foodItems || []).map((item, i) =>
+                `<tr>
+                              <td>${i + 1}</td>
+                              <td>${item.foodName || item.name || ''}${item.qtyType ? ` (${item.qtyType})` : ''}</td>
+                              <td>${item.quantity || item.qty || 0}</td>
+                              <td>${formatCurrency(item.price || 0)}</td>
+                              <td>${formatCurrency(item.amount || 0)}</td>
+                            </tr>`
+            ).join('')}                      
+                            ${invoice.cgstAmount > 0 ? `
+                                <tr>
+                                    <td colspan="4" class="text-right">CGST </td>
+                                    <td>${formatCurrency(invoice.cgstAmount || 0)}</td>
+                                </tr>
+                            ` : ''}
+                            ${invoice.sgstAmount > 0 ? `
+                                <tr>
+                                    <td colspan="4" class="text-right">SGST </td>
+                                    <td>${formatCurrency(invoice.sgstAmount || 0)}</td>
+                                </tr>
+                            ` : ''}
+                            ${invoice.discount > 0 ? `
+                                <tr>
+                                    <td colspan="4" class="text-right">Discount</td>
+                                    <td>-${formatCurrency(invoice.discount || 0)}</td>
+                                </tr>
+                            ` : ''}
+                            ${invoice.extraCharges > 0 ? `
+                                <tr>
+                                    <td colspan="4" class="text-right">Extra Charges</td>
+                                    <td>${formatCurrency(invoice.extraCharges || 0)}</td>
+                                </tr>
+                            ` : ''}
+                            <tr>
+                                <td colspan="4" class="text-right">Total</td>
+                                <td>${formatCurrency(invoice.totalAmount || 0)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="footer">
+                        <p>Thank you for your business!</p>
+                        <p>This is a computer-generated invoice. No signature required.</p>
+                    </div>
+                </body>
+                </html>
+                `;
+
+            // Send the email using Brevo
+            const response = await fetch('/api/brevo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    to: invoice.email,
+                    subject: `Invoice #${invoice.invoiceNo || ''}`,
+                    htmlContent: emailContent,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || 'Failed to send email');
+            }
+
+            toast.success('Invoice has been sent to the guest\'s email');
+        } catch (error) {
+            console.error('Error sending invoice email:', error);
+            toast.error('Failed to send invoice email: ' + (error.message || 'Unknown error'));
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+    return (
+        <div className="p-4 ">
+
+            <div className="border border-black p-5 rounded max-w-5xl mx-auto">
                 {/* Room & Guest Section */}
                 <div className="flex gap-5 items-center justify-center mb-4">
                     <div className="flex flex-col items-center gap-2">
                         <label className="font-bold">Select Room Number</label>
                         <select
-                            className="rounded p-2 bg-white border border-black text-black font-bold outline-none w-64"
+                            className="rounded py-2 px-3 bg-white border border-black text-black font-bold outline-none w-64"
                             value={room}
-                            onChange={e => setRoom(e.target.value)}
+                            onChange={handleRoomChange}
                             disabled={loadingRooms}
                             required
                         >
@@ -868,7 +1333,7 @@ const CreateRestaurantInvoice = () => {
                             type="text"
                             className="rounded p-2 bg-white border border-black text-black font-bold outline-none"
                             placeholder="Guest Name Come Here"
-                            value={guest}
+                            value={guest || ''}
                             disabled
                         />
                     </div>
@@ -1004,7 +1469,7 @@ const CreateRestaurantInvoice = () => {
                                     <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Total Qty</th>
                                     <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Amount</th>
                                     <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Total</th>
-                                    {/* <th className="bg-gray-300 text-black font-bold py-2 px-4 border">Edit</th> */}
+
                                 </tr>
                             </thead>
                             <tbody>
@@ -1070,6 +1535,7 @@ const CreateRestaurantInvoice = () => {
                                     <td colSpan={4} className="border text-black font-bold text-right pr-4">Final Total</td>
                                     <td className="border text-black font-bold text-center">₹{finalTotal.toFixed(2)}</td>
                                 </tr>
+
                             </tbody>
                         </table>
                     </div>
@@ -1102,18 +1568,19 @@ const CreateRestaurantInvoice = () => {
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoice</th>
+                                <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Send Invoice Email</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {loadingInvoices ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-8 text-gray-500">
+                                    <td colSpan="12" className="text-center py-8 text-gray-500">
                                         Loading invoices...
                                     </td>
                                 </tr>
                             ) : invoices.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-8 text-gray-500">
+                                    <td colSpan="12" className="text-center py-8 text-gray-500">
                                         No invoices found
                                     </td>
                                 </tr>
@@ -1156,6 +1623,25 @@ const CreateRestaurantInvoice = () => {
                                                 onClick={() => handlePrint(invoice)}
                                             >
                                                 <Printer className="mr-2" /> Print
+                                            </button>
+                                        </td>
+                                        <td className="p-2 whitespace-nowrap text-right text-sm font-medium border border-black ">
+                                            <button
+                                                type="button"
+                                                className={`bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 mx-auto flex items-center justify-center rounded ${isSendingEmail ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                                onClick={() => handleSendInvoiceEmail(invoice)}
+                                                disabled={isSendingEmail}
+                                            >
+                                                {isSendingEmail ? (
+                                                    <>
+                                                        <Loader />
+                                                        Sending...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Mail className="mr-2 h-4 w-4" /> Send Email
+                                                    </>
+                                                )}
                                             </button>
                                         </td>
                                     </tr>
@@ -1210,14 +1696,6 @@ const CreateRestaurantInvoice = () => {
                     </form>
                 </DialogContent>
             </Dialog>
-            {printInvoice && (
-                <div style={{ display: 'none' }}>
-                    <div id="print-section">
-                        <h2>Invoice #{printInvoice.invoiceNo || printInvoice._id}</h2>
-                        <pre>{JSON.stringify(printInvoice, null, 2)}</pre>
-                    </div>
-                </div>
-            )}
         </div>
 
 

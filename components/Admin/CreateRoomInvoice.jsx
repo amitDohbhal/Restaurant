@@ -1,5 +1,5 @@
 "use client"
-import { Mail, Minus, Plus, Printer } from 'lucide-react';
+import { Loader, Mail, Minus, Plus, Printer } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
@@ -29,7 +29,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         return '_' + Math.random().toString(36).substr(2, 9);
     }
     const [isRazorpayLoaded, setIsRazorpayLoaded] = useState(false);
-    const [foodRows, setFoodRows] = useState([{ ...initialFoodRow, id: uuid() }]);
+    const [foodRows, setFoodRows] = useState([{ ...initialFoodRow, id: `food-row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }]);
     const [selectedPayment, setSelectedPayment] = useState('');
     const [roomsList, setRoomsList] = useState([]);
     const [loadingRooms, setLoadingRooms] = useState(false);
@@ -47,6 +47,25 @@ const CreateRoomInvoice = ({ onSuccess }) => {
     const [loadingInvoices, setLoadingInvoices] = useState(false);
     const [printInvoice, setPrintInvoice] = useState(null);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [hotelData, setHotelData] = useState(null);
+    const hotelLogo = hotelData?.image?.url || '';
+    // Fetch hotel data
+    useEffect(() => {
+        const fetchHotelData = async () => {
+            try {
+                const response = await fetch('/api/addBasicInfo');
+                const data = await response.json();
+                if (data && data[0]) {
+                    setHotelData(data[0]);
+                }
+            } catch (error) {
+                console.error('Error fetching hotel data:', error);
+            }
+        };
+
+        fetchHotelData();
+    }, []);
+
     // Fetch invoices
     const fetchInvoices = async () => {
         setLoadingInvoices(true);
@@ -83,7 +102,6 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                     isBooked: room.isBooked || false,
                     active: room.active !== false // Default to true if not specified
                 }));
-
                 setRoomsList(formattedRooms);
             } else {
                 toast.error('Failed to load room data: Invalid response format');
@@ -499,22 +517,22 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             });
 
         const { roomPrice, ...roomData } = selectedRoom; // Exclude roomPrice from selectedRoom
-        
+
         // Get current date and time for invoice
         const now = new Date();
         const invoiceDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
-        
+
         // Get dates from room account or use current date as fallback
         const checkInDate = guestInfo?.checkIn ? new Date(guestInfo.checkIn) : new Date(now);
         const checkOutDate = guestInfo?.checkOut ? new Date(guestInfo.checkOut) : new Date(now);
-        
+
         // Format dates as YYYY-MM-DD
         const formatDate = (date) => date.toISOString().split('T')[0];
-        
+
         // Calculate total days
         const timeDiff = Math.abs(checkOutDate - checkInDate);
         const totalDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) || 1;
-        
+
         const invoiceWithPayment = {
             // Room details from selected room
             roomNumber: roomData.roomNumber || roomData.RoomNo || '',
@@ -524,32 +542,32 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             checkIn: formatDate(checkInDate),
             checkOut: formatDate(checkOutDate),
             totalDays: totalDays,
-            
+
             // Guest details
             guestFirst: guest.split(' ')[0] || 'Guest',
             guestMiddle: guest.split(' ').length > 2 ? guest.split(' ')[1] : '',
             guestLast: guest.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
             email: guestInfo?.email || 'guest@example.com',
             contact: guestInfo?.phone || '0000000000',
-            
+
             // Payment details - handle room payment mode specifically
             paymentMode: selectedPayment,
-            paymentStatus: selectedPayment === 'online' ? 'pending' : 
-                         selectedPayment === 'room' ? 'pending' : 'completed',
+            paymentStatus: selectedPayment === 'online' ? 'pending' :
+                selectedPayment === 'room' ? 'pending' : 'completed',
             paymentDetails: selectedPayment === 'online' ? null : {
                 status: selectedPayment === 'room' ? 'pending' : 'completed',
                 method: selectedPayment,
-                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` : 
-                               selectedPayment === 'online' ? `ONLINE-${Date.now()}` : 
-                               `ROOM-${Date.now()}`,
+                transactionId: selectedPayment === 'cash' ? `CASH-${Date.now()}` :
+                    selectedPayment === 'online' ? `ONLINE-${Date.now()}` :
+                        `ROOM-${Date.now()}`,
                 amount: finalTotal,
                 date: new Date().toISOString()
             },
-            
+
             // Invoice details
             invoiceDate: invoiceDate,
             invoiceNo: `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
-            
+
             // Food items and totals
             foodItems,
             totalFoodAmount: totalAmount,
@@ -562,14 +580,6 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             // Ensure all guest info is included
             guestFirst: guest.split(' ')[0] || 'Guest',
             guestLast: guest.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
-            
-            // Guest address information
-            city: guestInfo?.city || 'Unknown',
-            state: guestInfo?.state || 'Unknown',
-            pin: guestInfo?.pin || '000000',
-            address: guestInfo?.address || 'Not provided',
-            company: guestInfo?.company || '',
-            gstNo: guestInfo?.gstNo || ''
         };
 
         // Always create the invoice firt
@@ -595,7 +605,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         // Helper function to update room account with invoice
         const updateRoomAccountInvoice = async (paymentMode) => {
             if (!room) return;
-            
+
             try {
                 const roomAccountUpdate = {
                     roomNumber: room,
@@ -604,27 +614,27 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                         invoiceId: invoiceData._id,
                         invoiceNo: invoiceData.invoiceNo || `INV-${Date.now()}`,
                         invoiceDate: new Date().toISOString(),
-                        
+
                         // Payment details
                         totalAmount: invoiceData.finalTotal || invoiceData.totalAmount || 0,
                         dueAmount: paymentMode === 'room' ? (invoiceData.finalTotal || invoiceData.totalAmount || 0) : 0,
                         paymentMode: paymentMode,
                         paymentStatus: paymentMode === 'room' ? 'unpaid' : 'paid',
                         ...(paymentMode !== 'room' && { paidAt: new Date().toISOString() }),
-                        
+
                         // Tax details
                         cgstAmount: invoiceData.cgstAmount || 0,
                         sgstAmount: invoiceData.sgstAmount || 0,
                         gstAmount: invoiceData.gstAmount || 0,
                         taxTotal: (invoiceData.cgstAmount || 0) + (invoiceData.sgstAmount || 0),
-                        
+
                         // Room and guest info
                         roomNumber: roomData?.roomNumber || roomData?.RoomNo || room,
                         roomType: roomData?.roomType || roomData?.type || '',
                         guestName: guest,
                         guestFirst: guest?.split(' ')[0] || 'Guest',
                         guestLast: guest?.split(' ').length > 1 ? guest.split(' ').slice(-1)[0] : '',
-                        
+
                         // Food items with proper tax calculations
                         foodItems: foodItems.map(item => ({
                             name: item.foodName || item.name || '',
@@ -688,11 +698,17 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             };
             try {
                 // Process Razorpay payment and wait for it to complete
-                await processRazorpayPayment(invoiceData);
-                
-                // Update room account for online payment
-                if (room) {
-                    await updateRoomAccountInvoice('online');
+                if (room && selectedPayment === 'room') {
+                    // For room account payments, don't process Razorpay
+                    await updateRoomAccountInvoice('room');
+                } else {
+                    // For online payments, process Razorpay
+                    await processRazorpayPayment(invoiceData);
+
+                    // Update room account for online payment
+                    if (room) {
+                        await updateRoomAccountInvoice('online');
+                    }
                 }
             } catch (error) {
                 console.error('Payment processing error:', error);
@@ -720,19 +736,19 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: data.invoice._id, // Include ID in the request body
-                    paymentStatus: 'completed',
-                    paymentMode: selectedPayment === 'cash' ? 'cash' : 'online',
+                    paymentStatus: selectedPayment === 'room' ? 'pending' : 'completed',
+                    paymentMode: selectedPayment === 'cash' ? 'cash' : (selectedPayment === 'room' ? 'room' : 'online'),
                     paymentError: null,
                     paidAmount: finalTotal,
                     dueAmount: 0
                 })
             });
-            
+
             // Update room account for cash payment
             if (room && selectedPayment === 'cash') {
                 await updateRoomAccountInvoice('cash');
             }
-            
+
             toast.success('Invoice Created Successfully!');
         }
 
@@ -753,8 +769,13 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         }
     };
 
-    const handlePrint = async (inv) => {
+    const handlePrint = (inv) => {
+        // Create a new window for printing
         const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+            return;
+        }
 
         // Calculate amounts
         const roomPrice = parseFloat(inv.roomPrice || 0);
@@ -784,9 +805,12 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         } else {
             sgstAmount = (roomPrice * sgstPercent / 100) || 0;
         }
+
         const paidAmount = parseFloat(inv.paidAmount || 0).toFixed(2);
+
         // Format guest name
         const guestName = `${inv.guestFirst || ''} ${inv.guestMiddle || ''} ${inv.guestLast || ''}`.trim();
+
         // Format dates
         const formatDate = (dateString) => {
             if (!dateString) return 'N/A';
@@ -803,160 +827,157 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             });
         };
 
+
         const invoiceHtml = `
         <!DOCTYPE html>
         <html>
         <head>
-          <meta charset="UTF-8">
-          <title>Room Invoice</title>
-          <style>
-            @media print {
-              body { -webkit-print-color-adjust: exact; }
-              .no-print { display: none !important; }
-              @page { margin: 0; size: auto; }
-            }
-          </style>
+            <meta charset="UTF-8">
+            <title>Invoice #${inv.invoiceNo || ''}</title>
+            <style>
+                @media print {
+                    @page { 
+                        size: 80mm auto;
+                        margin: 0;
+                    }
+                    body { 
+                        margin: 0;
+                        padding: 5mm;
+                        font-family: monospace;
+                        font-size: 12px;
+                        color: #000;
+                    }
+                    .invoice-container {
+                        width: 100%;
+                        max-width: 72mm;
+                        margin: 0 auto;
+                    }
+                    .center { text-align: center; }
+                    .right { text-align: right; }
+                    .line { border-top: 1px dashed #000; margin: 5px 0; }
+                    .title { 
+                        font-size: 14px; 
+                        font-weight: bold; 
+                        margin-bottom: 5px;
+                        text-align: center;
+                    }
+                    table { 
+                        width: 100%; 
+                        border-collapse: collapse;
+                        margin: 5px 0;
+                    }
+                    th, td {
+                        padding: 2px 0;
+                        font-size: 11px;
+                    }
+                    th { 
+                        border-bottom: 1px solid #000;
+                        text-align: left;
+                    }
+                    .footer {
+                        margin-top: 10px;
+                        font-size: 10px;
+                        text-align: center;
+                    }
+                    .text-right {
+                        text-align: right;
+                    }
+                    .text-center {
+                        text-align: center;
+                    }
+                }
+            </style>
         </head>
-        <body style="font-family: Arial, sans-serif; margin:0; padding:10px; background:#f8f8f8;">
-          <div style="max-width: 600px; margin: 0 auto;">
-            <button onclick="window.print()" class="no-print" style="position:fixed; top:20px; right:20px; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; z-index:1000;">
-              Print Invoice
-            </button>
-            
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff; border:1px solid #000; border-collapse:collapse; margin-bottom:20px;">
-              <!-- Header -->
-              <tr>
-                <td colspan="6" style="background:#444; color:#fff; font-size:18px; font-weight:bold; padding:10px;">
-                  Room Food Invoice
-                </td>
-              </tr>
-    
-              <!-- Company Name -->
-              <tr>
-                <td colspan="6" style="background:#5a8c80; color:#fff; text-align:center; font-size:20px; font-weight:bold; padding:8px;">
-                  Hotel Shivan Residence
-                </td>
-              </tr>
-    
-              <!-- Company Info -->
-              <tr>
-                <td colspan="6" style="padding:10px; font-size:14px; border-bottom:1px solid #000;">
-                  <table width="100%" cellpadding="6" cellspacing="0" style="font-size:14px;">
+        <body onload="window.print();window.close()">
+            <div class="invoice-container">
+                <!-- Hotel Info -->
+                <div class="text-center">
+                    <div class="title">${hotelData?.hotelName || 'Hotel Shivan Residence'}</div>
+                    <div><b>GSTIN:</b> ${hotelData?.gstNumber || 'XXXXXXXXXXXXXXX'}</div>
+                    <div>${hotelData?.address1 || ''}</div>
+                    <div>${hotelData?.contactNumber1 || ''}</div>
+                </div>
+                <div class="line"></div>
+        
+                <!-- Guest + Invoice Info -->
+                <div>
+                    <div><b>Bill To:</b> ${guestName}</div>
+                    <div><b>Room:</b> ${inv.roomNumber || 'N/A'}</div>
+                    <div><b>Invoice:</b> ${inv.invoiceNo || 'N/A'}</div>
+                    <div><b>Date:</b> ${formatDate(inv.invoiceDate || inv.createdAt) || 'N/A'}</div>
+                </div>
+                <div class="line"></div>
+        
+                <!-- Items -->
+                <table>
                     <tr>
-                      <td style="width:50%; vertical-align:top; text-align:left;">
-                        Invoice #: ${inv.invoiceNo || 'N/A'}<br>
-                        Date: ${formatDate(inv.createdAt) || 'N/A'}
-                      </td>
-                      <td style="width:50%; vertical-align:top; text-align:right;">
-                        Contact: ${inv.contact || 'N/A'}<br>
-                        Email: ${inv.email || 'N/A'}<br>
-                        Address: ${inv.address ? inv.address.substring(0, 50) + (inv.address.length > 50 ? '...' : '') : 'N/A'}
-                      </td>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th class="right">Rate</th>
+                        <th class="right">Amount</th>
                     </tr>
-                  </table>
-                </td>
-              </tr>
-    
-              <!-- Guest Info -->
-              <tr style="background:#f2f2f2; border-bottom:1px solid #ddd;">
-                <td colspan="6" style="padding:8px 12px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                      <strong>Room:</strong> ${inv.roomNumber || 'N/A'} (${inv.roomType || 'N/A'})
-                    </div>
-                    <div>
-                      <strong>Plan:</strong> ${inv.planType || 'N/A'}
-                    </div>
-                  </div>
-                  
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                    <div>
-                      <strong>Check-in:</strong> ${formatDate(inv.checkIn) || 'N/A'}
-                    </div>
-                    <div>
-                      <strong>Check-out:</strong> ${formatDate(inv.checkOut) || 'N/A'}
-                    </div>
-                  </div>
-                </td>
-              </tr>
-              <tr style="background:#f2f2f2; font-weight:bold; text-align:left;">
-                <td colspan="6" style="padding:8px 12px; border-bottom:1px solid #000;">Guest: ${guestName || 'N/A'}</td>
-              </tr>              
-              <!-- Food Items -->
-              ${inv.foodItems && inv.foodItems.length > 0 ? `
-              <tr style="background:#666; color:#fff; font-weight:bold; text-align:center;">
-                <td style="padding:6px; border:1px solid #000;">S.no</td>
-                <td style="padding:6px; border:1px solid #000;" colspan="2">Item</td>
-                <td style="padding:6px; border:1px solid #000;">Qty</td>
-                <td style="padding:6px; border:1px solid #000;">Rate</td>
-                <td style="padding:6px; border:1px solid #000;">Amount</td>
-              </tr>
-              ${inv.foodItems.map((item, index) => `
-                <tr>
-                  <td style="padding:8px; border:1px solid #000; text-align:center;">${index + 1}</td>
-                  <td style="padding:8px; border:1px solid #000;" colspan="2">
-                  <div style="font-size:20px;">${item.foodItem?.categoryName || ''} (${item.qtyType || ''})</div>
-                  <div style="font-size:15px;">${item.foodItem?.foodName || 'N/A'}</div>
-                  </td>
-                  <td style="padding:8px; border:1px solid #000; text-align:center;">${item.qty || 0}</td>
-                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency(item.price || 0)}</td>
-                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency((item.price || 0) * (item.qty || 0))}</td>
-                </tr>
-              `).join('')}
-              ` : ''}
-              <!-- Totals -->
+                    ${(inv.foodItems || []).map(item => `
                         <tr>
-  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
-    CGST ${inv.cgstAmount != null && inv.cgstAmount !== '' && !isNaN(inv.cgstAmount) && parseFloat(inv.cgstAmount) > 0
-                ? `(₹ ${cgstAmount})`
-                : `(${cgstPercent.toFixed(2)} %)`
-            }
-  </td>
-  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
-    ${formatCurrency(cgstAmount)}
-  </td>
-</tr>
-
-<tr>
-  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
-    SGST ${inv.sgstAmount != null && inv.sgstAmount !== '' && !isNaN(inv.sgstAmount) && parseFloat(inv.sgstAmount) > 0
-                ? `(₹ ${sgstAmount})`
-                : `(${sgstPercent.toFixed(2)} %)`
-            }
-  </td>
-  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
-    ${formatCurrency(sgstAmount)}
-  </td>
-</tr>
-<tr>
-                <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000; background:#e0e0e0;">Total Amount</td>
-                <td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold; background:#5a8c80; color:white;">${formatCurrency(paidAmount)}</td>
-              </tr>
-              <!-- Footer Notes -->
-              <tr>
-                <td colspan="6" style="font-size:11px; padding:8px; border-top:1px solid #000; background:#f9f9f9;">
-                  <b>Note:</b> This is a computer-generated invoice. No signature is required.<br>
-                  <b>Disclaimer:</b> In case of any printing error or discrepancy, we sincerely apologize for the inconvenience.<br>
-                  Please verify all details before leaving the premises.<br>
-                  Thanks for your cooperation in advance.<br>
-                  <b>T&C Apply</b>
-                </td>
-              </tr>
-            </table>
-          </div>
+                            <td>${item.foodName || item.foodItem?.foodName || 'N/A'}</td>
+                            <td class="text-center">${item.qty || 0}</td>
+                            <td class="right">${formatCurrency(item.price || 0)}</td>
+                            <td class="right">${formatCurrency(item.amount || 0)}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+                <div class="line"></div>
+        
+                <!-- Totals -->
+                <table>
+                    ${inv.discount > 0 ? `
+                        <tr>
+                            <td colspan="3">Discount</td>
+                            <td class="right">-${formatCurrency(inv.discount)}</td>
+                        </tr>
+                    ` : ''}
+                    ${cgstAmount > 0 ? `
+                        <tr>
+                            <td colspan="3">CGST</td>
+                            <td class="right">${formatCurrency(cgstAmount)}</td>
+                        </tr>
+                    ` : ''}
+                    ${sgstAmount > 0 ? `
+                        <tr>
+                            <td colspan="3">SGST</td>
+                            <td class="right">${formatCurrency(sgstAmount)}</td>
+                        </tr>
+                    ` : ''}
+                    <tr>
+                        <td colspan="3"><b>Total Amount</b></td>
+                        <td class="right"><b>${formatCurrency(inv.totalAmount || 0)}</b></td>
+                    </tr>
+                </table>
+                <div class="line"></div>
+        
+                <!-- Payment Info -->
+                <div>
+                    <div><b>Payment Mode:</b> ${(inv.paymentMode || '').toUpperCase()}</div>
+                    <div><b>Status:</b> ${(inv.paymentStatus || '').toUpperCase()}</div>
+                </div>
+        
+                <!-- Footer -->
+                <div class="footer">
+                    Thank you for your visit!<br>
+                    This is a computer-generated invoice.<br>
+                    ${new Date().toLocaleString()}
+                </div>
+            </div>
         </body>
-        </html>
-      `;
+        </html>`;
 
-        // Write the invoice to the new window
+        // Write the invoice to the new window and trigger print
         printWindow.document.open();
         printWindow.document.write(invoiceHtml);
         printWindow.document.close();
-        setPrintInvoice(null);
-    }
+    };
 
     const handleSendInvoiceEmail = async (invoice) => {
-        if (!invoice?.guestEmail) {
+        if (!invoice?.email) {
             toast.error('No email address available for this guest');
             return;
         }
@@ -964,50 +985,250 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         setIsSendingEmail(true);
 
         try {
-            // Prepare the invoice data for email
-            const invoiceData = {
-                guestName: `${invoice.guestFirst || ''} ${invoice.guestLast || ''}`.trim(),
-                guestEmail: invoice.guestEmail,
-                invoiceNumber: invoice.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-                invoiceDate: new Date(invoice.checkInDate).toLocaleDateString(),
-                checkInDate: new Date(invoice.checkInDate).toLocaleDateString(),
-                checkOutDate: invoice.checkOutDate ? new Date(invoice.checkOutDate).toLocaleDateString() : 'N/A',
-                roomNumber: invoice.roomNumber || 'N/A',
-                roomType: invoice.roomType || 'N/A',
-                roomPrice: invoice.roomPrice || 0,
-                totalAmount: invoice.totalAmount || 0,
-                paidAmount: invoice.paidAmount || 0,
-                paymentStatus: invoice.paymentStatus || 'pending',
-                items: invoice.items || []
+            // Format dates
+            const formatDateForEmail = (dateString) => {
+                if (!dateString) return 'N/A';
+                const options = { day: '2-digit', month: 'short', year: 'numeric' };
+                return new Date(dateString).toLocaleDateString('en-US', options);
             };
 
-            // Send the email
-            const response = await fetch('/api/send-invoice-email', {
+            // Format currency
+            const formatCurrency = (amount) => {
+                if (amount === undefined || amount === null) return '₹0.00';
+                return new Intl.NumberFormat('en-IN', {
+                    style: 'currency',
+                    currency: 'INR',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }).format(amount);
+            };
+
+            // Prepare the email content
+            const emailContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>ROOM Invoice #${invoice.invoiceNo || ''}</title>
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        margin: 0; 
+                        background-color: #f9f9f9; 
+                    }
+                    .invoice-container {
+                        max-width: 900px;
+                        margin: auto;
+                        background: #fff;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                    }
+                    .header {
+                        background-color: #228b78;
+                        color: white;
+                        padding: 20px;
+                        border-radius: 6px 6px 0 0;
+                        margin-bottom: 25px;
+                    }
+                    .logo-container {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }
+                    .logo {
+                        max-width: 120px;
+                        max-height: 100px;
+                        object-fit: contain;
+                        background: white;
+                        padding: 6px;
+                        border-radius: 4px;
+                    }
+                    .hotel-name {
+                        padding: 10px 20px;
+                        text-align: center;
+                    }
+                    .hotel-name h1 {
+                        margin: 0;
+                        font-size: 26px;
+                        font-weight: 700;
+                    }
+                    .hotel-name p {
+                        margin: 4px 0 0;
+                        font-size: 14px;
+                        opacity: 0.9;
+                    }
+                    .invoice-title {
+                        background: #1e1e1e;
+                        color: white;
+                        padding: 10px 0;
+                        text-align: center;
+                        margin-top: 20px;
+                        border-radius: 4px;
+                    }
+                    h3 {
+                        margin-top: 30px;
+                        font-size: 18px;
+                        color: #333;
+                        border-bottom: 2px solid #eee;
+                        padding-bottom: 6px;
+                    }
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 10px 0;
+                        font-size: 14px;
+                    }
+                    th, td {
+                        border: 1px solid #ddd;
+                        padding: 10px;
+                        text-align: left;
+                    }
+                    th {
+                        background-color: #f5f5f5;
+                        font-weight: 600;
+                    }
+                    tbody tr:nth-child(even) {
+                        background: #fafafa;
+                    }
+                    tfoot td {
+                        font-weight: bold;
+                        font-size: 15px;
+                    }
+                    .details-table td {
+                        width: 50%;
+                    }
+                    .details-table p {
+                        margin: 3px 0;
+                        word-break: break-word;
+                    }
+                    .email {
+                        color: #0073aa;
+                        word-break: break-all;
+                    }
+                    .footer {
+                        margin-top: 10px;
+                        border-top: 1px solid #eee;
+                        font-size: 12px;
+                        color: #777;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="invoice-container">
+                    <div class="header">
+                        <div class="logo-container">
+                            <div>
+                                ${hotelLogo ? `<img src="${hotelLogo}" alt="Hotel Logo" class="logo"/>` : ""}
+                            </div>
+                            <div class="hotel-name">
+                                <h1>${hotelData?.hotelName || 'Hotel Shivan Residence'}</h1>
+                                <p>${hotelData?.tagline || 'Your Home Away From Home'}</p>
+                            </div>
+                            <div style="width: 120px;"></div>
+                        </div>
+                        <div class="invoice-title">
+                        <h2>ROOM INVOICE</h2>
+                            <h2>INVOICE #${invoice.invoiceNo || invoice._id?.slice(-6).toUpperCase() || 'N/A'}</h2>
+                            <p>Date: ${new Date(invoice.invoiceDate || Date.now()).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                <h3>Details</h3>
+                <table class="details-table">
+                    <tr>
+            <td>
+  <strong>Bill To:</strong><br/>
+  ${invoice.guestFirst || ''} ${invoice.guestMiddle || ''} ${invoice.guestLast || ''}<br/>
+  ${invoice.email ? `Email: <span class="email">${invoice.email}</span><br/>` : ''}
+  ${invoice.contact ? `Phone: ${invoice.contact}<br/>` : ''}
+  ${invoice.roomNumber ? `Room: ${invoice.roomNumber}<br/>` : ''}
+</td>
+                        <td style="text-align: right;">
+                            <p><strong>Invoice #:</strong> ${invoice.invoiceNo || ''}</p>
+                            <p><strong>Date:</strong> ${formatDateForEmail(invoice.invoiceDate)}</p>
+                            <p><strong>Payment Status:</strong> ${invoice.paymentStatus?.toUpperCase() || 'PENDING'}</p>
+                            <p><strong>Payment Mode:</strong> ${invoice.paymentMode?.toLowerCase() === 'room' ? 'SEND TO ROOM ACCOUNT' : invoice.paymentMode?.toUpperCase() || 'N/A'}</p>
+                        </td>
+                    </tr>
+                </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    ${(invoice.foodItems || []).map((item, i) =>
+                `<tr>
+                          <td>${i + 1}</td>
+                          <td>${item.foodName || item.name || ''}${item.qtyType ? ` (${item.qtyType})` : ''}</td>
+                          <td>${item.quantity || item.qty || 0}</td>
+                          <td>${formatCurrency(item.price || 0)}</td>
+                          <td>${formatCurrency(item.amount || 0)}</td>
+                        </tr>`
+            ).join('')}                      
+                        ${invoice.cgstAmount > 0 ? `
+                            <tr>
+                                <td colspan="4" class="text-right">CGST </td>
+                                <td>${formatCurrency(invoice.cgstAmount || 0)}</td>
+                            </tr>
+                        ` : ''}
+                        ${invoice.sgstAmount > 0 ? `
+                            <tr>
+                                <td colspan="4" class="text-right">SGST </td>
+                                <td>${formatCurrency(invoice.sgstAmount || 0)}</td>
+                            </tr>
+                        ` : ''}
+                        ${invoice.discount > 0 ? `
+                            <tr>
+                                <td colspan="4" class="text-right">Discount</td>
+                                <td>-${formatCurrency(invoice.discount || 0)}</td>
+                            </tr>
+                        ` : ''}
+                        ${invoice.extraCharges > 0 ? `
+                            <tr>
+                                <td colspan="4" class="text-right">Extra Charges</td>
+                                <td>${formatCurrency(invoice.extraCharges || 0)}</td>
+                            </tr>
+                        ` : ''}
+                        <tr>
+                            <td colspan="4" class="text-right">Total</td>
+                            <td>${formatCurrency(invoice.totalAmount || 0)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="footer">
+                    <p>Thank you for your business!</p>
+                    <p>This is a computer-generated invoice. No signature required.</p>
+                </div>
+            </body>
+            </html>
+            `;
+
+            // Send the email using Brevo
+            const response = await fetch('/api/brevo', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    to: invoiceData.guestEmail,
-                    guestName: invoiceData.guestName,
-                    invoiceNumber: invoiceData.invoiceNumber,
-                    invoiceDate: invoiceData.invoiceDate,
-                    checkInDate: invoiceData.checkInDate,
-                    checkOutDate: invoiceData.checkOutDate,
-                    roomNumber: invoiceData.roomNumber,
-                    roomType: invoiceData.roomType,
-                    totalAmount: invoiceData.totalAmount,
-                    paidAmount: invoiceData.paidAmount,
-                    paymentStatus: invoiceData.paymentStatus,
-                    items: invoiceData.items
+                    to: invoice.email,
+                    subject: `Invoice #${invoice.invoiceNo || ''}`,
+                    htmlContent: emailContent,
                 }),
             });
 
+            const result = await response.json();
+
             if (!response.ok) {
-                throw new Error('Failed to send email');
+                throw new Error(result.message || 'Failed to send email');
             }
 
-            toast.success('Invoice sent to email successfully');
+            toast.success('Invoice has been sent to the guest\'s email');
         } catch (error) {
             console.error('Error sending invoice email:', error);
             toast.error('Failed to send invoice email: ' + (error.message || 'Unknown error'));
@@ -1018,7 +1239,6 @@ const CreateRoomInvoice = ({ onSuccess }) => {
 
     return (
         <div className="">
-
             <div className="border border-black p-5 rounded max-w-5xl mx-auto">
                 {/* Room & Guest Section */}
                 <div className="flex flex-wrap gap-5 items-center mb-4">
@@ -1057,7 +1277,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                         const categories = Array.from(new Set(foodInventoryData.map(item => item.categoryName)));
 
                         return (
-                            <div key={`food-row-${row.foodItem?._id || idx}-${row.qtyType || ''}`} className="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 last:border-b-0 last:pb-0">
+                            <div key={`food-row-${row.id || idx}`} className="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 last:border-b-0 last:pb-0">
                                 <select
                                     className="rounded w-64 p-2 bg-white border border-black text-black font-bold outline-none"
                                     value={row.categoryName}
@@ -1243,7 +1463,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Room</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Guest</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Payment</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
                                 <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoice</th>
                                 <th className="px-2 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Send Invoice Email</th>
                             </tr>
@@ -1277,7 +1497,16 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                             {invoice.guestFirst} {invoice.guestLast}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
-                                            {paymentOptions.find(opt => opt.value === invoice.paymentMode)?.label || invoice.paymentMode}
+                                            {invoice.paymentMode === 'room' ? (
+                                                <div className="flex flex-col">
+                                                    <span>Room Account</span>
+                                                    <span className="text-xs text-yellow-600">
+                                                        {invoice.paymentStatus === 'pending' ? '(Pending)' : ''}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                paymentOptions.find(opt => opt.value === invoice.paymentMode)?.label || invoice.paymentMode
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right border border-black">
                                             {formatCurrency(invoice.totalAmount)}
@@ -1300,10 +1529,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                             >
                                                 {isSendingEmail ? (
                                                     <>
-                                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                        </svg>
+                                      <Loader/>
                                                         Sending...
                                                     </>
                                                 ) : (
@@ -1319,14 +1545,6 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                     </table>
                 </div>
             </div>
-            {printInvoice && (
-                <div style={{ display: 'none' }}>
-                    <div id="print-section">
-                        <h2>Invoice #{printInvoice.invoiceNo || printInvoice._id}</h2>
-                        <pre>{JSON.stringify(printInvoice, null, 2)}</pre>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

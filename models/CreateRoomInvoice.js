@@ -17,15 +17,7 @@ const CreateRoomInvoiceSchema = new Schema({
   guestLast: { type: String },
   email: { type: String, required: true },
   contact: { type: String, required: true },
-  
-  // Address
-  city: { type: String },
-  pin: { type: String },
-  state: { type: String },
-  address: { type: String },
-  company: { type: String },
-  gstNo: { type: String },
-  
+    
   // Payment Details
   paymentMode: { 
     type: String, 

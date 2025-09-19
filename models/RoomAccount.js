@@ -207,6 +207,7 @@ const roomAccountSchema = new mongoose.Schema({
     roomNumber: String,
     roomType: String,
     guestName: String,
+    tableNo:String,
     
     // Food items
     foodItems: [{
@@ -270,6 +271,7 @@ const roomAccountSchema = new mongoose.Schema({
     roomNumber: String,
     roomType: String,
     guestName: String,
+    tableNo:String,
     
     // Payment details
     totalAmount: Number,

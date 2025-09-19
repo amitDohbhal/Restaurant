@@ -44,6 +44,7 @@ export async function POST(request) {
       // Room and guest info
       roomNumber: invoiceData.roomNumber || roomNumber,
       roomType: invoiceData.roomType || '',
+      tableNo:invoiceData.tableNo ||'',
       guestName: invoiceData.guestName || `${invoiceData.guestFirst || ''} ${invoiceData.guestLast || ''}`.trim(),
       
       // Food items

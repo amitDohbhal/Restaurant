@@ -25,7 +25,7 @@ function handleError(error, defaultMessage = 'An error occurred') {
 export async function GET() {
   await connectDB();
   try {
-    const invoices = await CreateRestaurantInvoice.find({ paymentStatus: 'completed' })
+    const invoices = await CreateRestaurantInvoice.find({})
       .populate('foodItems.foodItem')
       .sort({ createdAt: -1 });
     return NextResponse.json({ success: true, invoices });

@@ -25,7 +25,7 @@ function handleError(error, defaultMessage = 'An error occurred') {
 export async function GET() {
   await connectDB();
   try {
-    const invoices = await CreateRoomInvoice.find({ paymentStatus: 'completed' })
+    const invoices = await CreateRoomInvoice.find({})
       .populate('foodItems.foodItem')
       .sort({ createdAt: -1 });
     return NextResponse.json({ success: true, invoices });
@@ -90,12 +90,6 @@ export async function POST(req) {
       guestLast: body.guestLast || (body.guest?.split(' ').length > 1 ? body.guest.split(' ').slice(-1)[0] : ''),
       email: body.email || body.guestEmail || 'guest@example.com',
       contact: body.contact || body.guestContact || '0000000000',
-      city: body.city || 'Unknown',
-      state: body.state || 'Unknown',
-      pin: body.pin || '000000',
-      address: body.address || 'Not provided',
-      company: body.company || '',
-      gstNo: body.gstNo || ''
     };
 
     // Handle room payment mode specifically
