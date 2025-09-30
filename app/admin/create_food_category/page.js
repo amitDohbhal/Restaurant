@@ -10,7 +10,7 @@ const page = () => {
                 </div>
             </header>
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-                <h1 className="text-4xl px-12 font-semibold">View Room Invoice Logs</h1>
+                <h1 className="text-4xl px-12 font-semibold">Create Food Category</h1>
                 <FoodCategory />
             </div>
         </SidebarInset>

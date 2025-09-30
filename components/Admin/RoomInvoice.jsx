@@ -955,7 +955,7 @@ const RoomInvoice = () => {
                     })
                   });
                   orderData = await orderRes.json();
-                  if (!orderRes.ok || !orderData.id) {
+                  if (!orderRes.ok || !orderData.success || !orderData.order) {
                     toast.error(orderData.error || 'Failed to create payment order.');
                     return;
                   }
@@ -970,7 +970,7 @@ const RoomInvoice = () => {
                   currency: 'INR',
                   name: 'Hotel Shivan Residence',
                   description: `Room Invoice Payment`,
-                  order_id: orderData.id,
+                  order_id: orderData.order.id,
                   handler: async function (response) {
                     // Save invoice with Razorpay details
                     try {
@@ -984,9 +984,6 @@ const RoomInvoice = () => {
                           sgstPercent: form.sgstPercent || null,
                           sgstAmount: form.sgstAmount || null,
                           paymentMode: 'online',
-                          razorpayPaymentId: response.razorpay_payment_id,
-                          razorpayOrderId: response.razorpay_order_id,
-                          razorpaySignature: response.razorpay_signature,
                           paymentStatus: 'completed',
                           paymentResponse: response,
                           paidAmount: totalAmount,

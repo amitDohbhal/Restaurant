@@ -31,9 +31,6 @@ const RoomInvoiceSchema = new Schema({
   dueAmount: { type: Number },
   invoiceDate: { type: String },
   invoiceNo: { type: String, required: true, unique: true },
-  razorpayPaymentId: { type: String },
-  razorpayOrderId: { type: String },
-  razorpaySignature: { type: String },
   paymentStatus: { type: String }, // e.g. 'success', 'failed', 'pending'
   paymentResponse: { type: Object }, // Raw response from Razorpay (optional)
 }, { timestamps: true });

@@ -9,26 +9,27 @@ export async function POST(request) {
 
   try {
     await connectDB();
-    const { guestId, orderIds, paymentMethod = 'cash' } = await request.json();
+    const { guestId, orderIds = [], roomInvoiceIds = [], paymentMethod = 'cash' } = await request.json();
 
     // Debug log
     console.log('Payment request received:', { 
       guestId, 
-      orderIds, 
+      orderIds,
+      roomInvoiceIds,
       orderIdsType: orderIds?.map(id => ({
         value: id,
         type: typeof id
       }))
     });
 
-    if (!guestId || !orderIds?.length) {
+    if (!guestId || (orderIds.length === 0 && roomInvoiceIds.length === 0)) {
       return NextResponse.json(
-        { success: false, message: 'Guest ID and order IDs are required' },
+        { success: false, message: 'Guest ID and at least one order ID or room invoice ID is required' },
         { status: 400 }
       );
     }
 
-    // Find the guest with unpaid orders
+    // Find the guest
     const guest = await RoomAccount.findById(guestId).session(session);
     
     if (!guest) {
@@ -38,67 +39,81 @@ export async function POST(request) {
       );
     }
 
-    // Debug log
-    console.log('Found guest unpaid orders:', {
-      guestId: guest._id,
-      unpaidOrders: guest.unpaidOrders?.map(order => ({
-        orderId: order.orderId,
-        orderIdType: typeof order.orderId,
-        order
-      }))
-    });
-
-    // Convert all IDs to strings for consistent comparison
-    const orderIdStrings = orderIds.map(id => id.toString());
-    
-    // Find orders that match the provided IDs
-    const ordersToProcess = guest.unpaidOrders?.filter(order => 
-      orderIdStrings.includes(order.orderId?.toString())
-    ) || [];
-
-    console.log('Matching orders found:', {
-      requestedOrderIds: orderIdStrings,
-      foundOrderIds: ordersToProcess.map(o => o.orderId),
-      matchCount: ordersToProcess.length
-    });
-
-    if (ordersToProcess.length === 0) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: 'No matching unpaid orders found',
-          debug: {
-            requestedOrderIds: orderIdStrings,
-            availableOrderIds: guest.unpaidOrders?.map(o => o.orderId) || []
-          }
-        },
-        { status: 400 }
-      );
-    }
-    
-    // Update payment status and move to paid orders
     const paidAt = new Date();
-    const paidOrders = ordersToProcess.map(order => ({
-      ...order.toObject(),
-      paymentMethod,
-      paymentStatus: 'paid',
-      paidAt
-    }));
-
-    // Create update operations
     const updateOperations = {
-      $pull: { 
-        unpaidOrders: { 
-          orderId: { $in: orderIdStrings } 
-        } 
-      },
-      $push: { 
-        paidOrders: { $each: paidOrders } 
-      },
-      $set: { 
-        updatedAt: paidAt 
-      }
+      $set: { updatedAt: paidAt },
+      $push: {},
+      $pull: {}
     };
+
+    let processedOrders = [];
+    let processedInvoices = [];
+
+    // Process orders if any
+    if (orderIds.length > 0) {
+      const orderIdStrings = orderIds.map(id => id.toString());
+      const ordersToProcess = guest.unpaidOrders?.filter(order => 
+        orderIdStrings.includes(order.orderId?.toString())
+      ) || [];
+
+      if (ordersToProcess.length === 0) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            message: 'No matching unpaid orders found',
+            debug: {
+              requestedOrderIds: orderIdStrings,
+              availableOrderIds: guest.unpaidOrders?.map(o => o.orderId) || []
+            }
+          },
+          { status: 400 }
+        );
+      }
+
+      const paidOrders = ordersToProcess.map(order => ({
+        ...order.toObject(),
+        paymentMethod,
+        paymentStatus: 'paid',
+        paidAt
+      }));
+
+      updateOperations.$pull.unpaidOrders = { orderId: { $in: orderIdStrings } };
+      updateOperations.$push.paidOrders = { $each: paidOrders };
+      processedOrders = ordersToProcess.map(o => o.orderId);
+    }
+
+    // Process room invoices if any
+    if (roomInvoiceIds.length > 0) {
+      const invoiceIdStrings = roomInvoiceIds.map(id => id.toString());
+      const invoicesToProcess = guest.unpaidRoomInvoices?.filter(invoice => 
+        invoiceIdStrings.includes(invoice._id?.toString())
+      ) || [];
+
+      if (invoicesToProcess.length === 0) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            message: 'No matching unpaid room invoices found',
+            debug: {
+              requestedInvoiceIds: invoiceIdStrings,
+              availableInvoiceIds: guest.unpaidRoomInvoices?.map(i => i._id?.toString()) || []
+            }
+          },
+          { status: 400 }
+        );
+      }
+
+      const paidInvoices = invoicesToProcess.map(invoice => ({
+        ...invoice.toObject(),
+        paymentMethod,
+        paymentStatus: 'paid',
+        paidAt
+      }));
+
+      updateOperations.$pull.unpaidRoomInvoices = { _id: { $in: invoiceIdStrings } };
+      updateOperations.$push.paidRoomInvoices = { $each: paidInvoices };
+      processedInvoices = invoicesToProcess.map(i => i._id);
+    }
 
     console.log('Update operations:', JSON.stringify(updateOperations, null, 2));
 
@@ -121,7 +136,8 @@ export async function POST(request) {
       success: true,
       message: 'Payment processed successfully',
       data: {
-        processedOrders: ordersToProcess.map(o => o.orderId),
+        processedOrders,
+        processedInvoices,
         paymentMethod,
         paidAt
       }

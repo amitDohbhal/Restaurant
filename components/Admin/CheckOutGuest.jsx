@@ -32,13 +32,13 @@ const CheckOutGuest = () => {
     sendEmail: false
   });
   const [isPdfDownload, setIsPdfDownload] = useState(false);
-  
+
   const [hotelData, setHotelData] = useState(null);
   const hotelLogo = hotelData?.image?.url || '';
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [checkedOutGuests, setCheckedOutGuests] = useState([]);
   const [isLoadingCheckedOut, setIsLoadingCheckedOut] = useState(true);
-  console.log(hotelLogo)
+  // console.log(hotelLogo)
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
@@ -49,7 +49,7 @@ const CheckOutGuest = () => {
       if (!response.ok) throw new Error('Failed to search guests');
 
       const guests = await response.json();
-      console.log(response)
+      console.log(searchResults)
       // Filter for checked-in guests only
       const checkedInGuests = guests.filter(guest => guest.status === 'checked-in');
       setSearchResults(checkedInGuests);
@@ -179,11 +179,28 @@ const CheckOutGuest = () => {
         });
       }
 
-      // Create a payment order on the server
-      const amount = calculateTotal(selectedGuest.unpaidOrders) * 100; // Convert to paise
+      // Get all unpaid order and room invoice IDs
+      const orderIdsToProcess = selectedGuest.unpaidOrders?.map(order => order.orderId) || [];
+      const roomInvoiceIdsToProcess = selectedGuest.unpaidRoomInvoices?.map(invoice => invoice._id?.toString()) || [];
+      
+      // Calculate total amount from both orders and room invoices
+      const ordersTotal = calculateTotal(selectedGuest.unpaidOrders || []);
+      const roomInvoicesTotal = selectedGuest.unpaidRoomInvoices?.reduce((sum, invoice) => {
+        const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) => 
+          itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+        return sum + invoiceTotal;
+      }, 0) || 0;
+      
+      const amount = Math.round((ordersTotal + roomInvoicesTotal) * 100); // Convert to paise and round to avoid decimal issues
+      
       // Generate a shorter receipt ID (max 40 chars for Razorpay)
       const receipt = `INV-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
       console.log('Generated receipt ID:', receipt, 'Length:', receipt.length);
+      console.log('Processing payment for:', {
+        orderIds: orderIdsToProcess,
+        roomInvoiceIds: roomInvoiceIdsToProcess,
+        amount: (amount / 100).toFixed(2)
+      });
 
       const orderResponse = await fetch('/api/razorpay', {
         method: 'POST',
@@ -196,7 +213,8 @@ const CheckOutGuest = () => {
           receipt,
           notes: {
             guestId: selectedGuest._id,
-            orderIds: orderIds
+            orderIds: orderIdsToProcess,
+            roomInvoiceIds: roomInvoiceIdsToProcess
           }
         })
       });
@@ -246,7 +264,7 @@ const CheckOutGuest = () => {
 
             if (!verifyResponse.ok) throw new Error('Payment verification failed');
 
-            // Update the room account with the payment
+            // Update the room account with the payment for both orders and room invoices
             const processPaymentResponse = await fetch('/api/processPayment', {
               method: 'POST',
               headers: {
@@ -255,7 +273,8 @@ const CheckOutGuest = () => {
               body: JSON.stringify({
                 guestId: selectedGuest._id,
                 paymentMethod: 'online',
-                orderIds: orderIds.map(id => id.toString()) // Ensure orderIds are strings
+                orderIds: orderIdsToProcess,
+                roomInvoiceIds: roomInvoiceIdsToProcess
               })
             });
 
@@ -693,8 +712,8 @@ const CheckOutGuest = () => {
   }, []);
 
   const handleDownloadCheckedOutInvoice = async (guest) => {
-    console.log(guest)
     try {
+      // Set loading state for this specific guest
       setLoadingStates(prev => ({ ...prev, downloadInvoice: true }));
 
       // Format dates
@@ -933,7 +952,8 @@ const CheckOutGuest = () => {
       console.error('Error generating PDF:', error);
       toast.error('Failed to generate invoice: ' + (error.message || 'Unknown error'));
     } finally {
-      setLoadingStates(prev => ({ ...prev, sendEmail: false }));
+      // Always reset loading state when operation is complete
+      setLoadingStates(prev => ({ ...prev, downloadInvoice: false }));
     }
   };
   console.log(checkedOutGuests)
@@ -1035,38 +1055,108 @@ const CheckOutGuest = () => {
       )}
       {selectedGuest && (
         <div className="bg-white rounded-lg shadow p-6 space-y-6">
-          {selectedGuest?.unpaidOrders?.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="font-medium">Unpaid Orders</h4>
-              <div className="border rounded-md">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {selectedGuest.unpaidOrders.map((order) => (
-                      <tr key={order._id}>
-                        <td className="px-4 py-2 text-sm">{order.orderNumber}</td>
-                        <td className="px-4 py-2 text-sm text-muted-foreground">
-                          {format(parseISO(order.createdAt), 'MMM d, yyyy HH:mm')}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right">
-                          ₹{order.totalAmount?.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-right font-medium">Total Due:</td>
-                      <td className="px-4 py-2 text-right font-medium">
-                        ₹{calculateTotal(selectedGuest.unpaidOrders).toLocaleString('en-IN')}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+          {(selectedGuest?.unpaidOrders?.length > 0 || selectedGuest?.unpaidRoomInvoices?.length > 0) && (
+            <div className="space-y-4">
+              {/* Unpaid Orders */}
+              {selectedGuest?.unpaidOrders?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Unpaid Orders</h4>
+                  <div className="border rounded-md">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {selectedGuest.unpaidOrders.map((order) => (
+                          <tr key={order._id}>
+                            <td className="px-4 py-2 text-sm">{order.orderNumber}</td>
+                            <td className="px-4 py-2 text-sm text-muted-foreground">
+                              {format(parseISO(order.createdAt), 'MMM d, yyyy HH:mm')}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right">
+                              ₹{order.totalAmount?.toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Unpaid Room Invoices */}
+              {selectedGuest?.unpaidRoomInvoices?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Unpaid Room Invoices</h4>
+                  <div className="border rounded-md">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {selectedGuest.unpaidRoomInvoices.map((invoice) => {
+                          const totalAmount = invoice.foodItems?.reduce((sum, item) => sum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+
+                          return (
+                            <tr key={invoice.invoiceId || invoice._id}>
+                              <td className="px-4 py-2 text-sm">{invoice.invoiceNo}</td>
+                              <td className="px-4 py-2 text-sm text-muted-foreground">
+                                {format(parseISO(invoice.invoiceDate), 'MMM d, yyyy HH:mm')}
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                {invoice.paymentMode === 'room' ? 'Room Charge' : 'Restaurant'}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right">
+                                ₹{totalAmount.toLocaleString('en-IN')}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Total Due */}
+              <div className="border-t pt-2">
+                <div className="flex justify-end">
+                  <div className="text-right">
+                    <div className="text-sm text-muted-foreground">
+                      Orders: ₹{calculateTotal(selectedGuest.unpaidOrders || []).toLocaleString('en-IN')}
+                    </div>
+                    {selectedGuest?.unpaidRoomInvoices?.length > 0 && (
+                      <div className="text-sm text-muted-foreground">
+                        Room Invoices: ₹{(
+                          selectedGuest.unpaidRoomInvoices.reduce((sum, invoice) => {
+                            const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) =>
+                              itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+                            return sum + invoiceTotal;
+                          }, 0)
+                        ).toLocaleString('en-IN')}
+                      </div>
+                    )}
+                    <div className="text-lg font-semibold mt-1">
+                      Total Due: ₹{(
+                        calculateTotal(selectedGuest.unpaidOrders || []) +
+                        (selectedGuest.unpaidRoomInvoices?.reduce((sum, invoice) => {
+                          const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) =>
+                            itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+                          return sum + invoiceTotal;
+                        }, 0) || 0)
+                      ).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Payment Method Selection */}
@@ -1104,45 +1194,122 @@ const CheckOutGuest = () => {
               </Button>
             </div>
           )}
-          {selectedGuest?.paidOrders?.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="font-medium">Paid Orders</h4>
-              <div className="border rounded-md">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {selectedGuest.paidOrders.map((order) => (
-                      <tr key={order._id}>
-                        <td className="px-4 py-2 text-sm">{order.orderNumber}</td>
-                        <td className="px-4 py-2 text-sm text-muted-foreground">
-                          {format(parseISO(order.createdAt), 'MMM d, yyyy HH:mm')}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right">
-                          ₹{order.totalAmount?.toLocaleString('en-IN')}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Paid
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-right font-medium">Total Paid:</td>
-                      <td className="px-4 py-2 text-right font-medium">
-                        ₹{calculateTotal(selectedGuest.paidOrders).toLocaleString('en-IN')}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
+          {(selectedGuest?.paidOrders?.length > 0 || selectedGuest?.paidRoomInvoices?.length > 0) && (
+            <div className="space-y-4">
+              {/* Paid Orders */}
+              {selectedGuest?.paidOrders?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Paid Orders</h4>
+                  <div className="border rounded-md">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {selectedGuest.paidOrders.map((order) => (
+                          <tr key={order._id}>
+                            <td className="px-4 py-2 text-sm">{order.orderNumber}</td>
+                            <td className="px-4 py-2 text-sm text-muted-foreground">
+                              {format(parseISO(order.createdAt), 'MMM d, yyyy HH:mm')}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right">
+                              ₹{order.totalAmount?.toLocaleString('en-IN')}
+                            </td>
+                            <td className="px-4 py-2">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Paid
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Paid Room Invoices */}
+              {selectedGuest?.paidRoomInvoices?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Paid Room Invoices</h4>
+                  <div className="border rounded-md">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {selectedGuest.paidRoomInvoices.map((invoice) => {
+                          const totalAmount = invoice.foodItems?.reduce((sum, item) => sum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+
+                          return (
+                            <tr key={invoice.invoiceId || invoice._id}>
+                              <td className="px-4 py-2 text-sm">{invoice.invoiceNo}</td>
+                              <td className="px-4 py-2 text-sm text-muted-foreground">
+                                {format(parseISO(invoice.invoiceDate || invoice.createdAt), 'MMM d, yyyy HH:mm')}
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                {invoice.paymentMode === 'room' ? 'Room Charge' : 'Restaurant'}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right">
+                                ₹{totalAmount.toLocaleString('en-IN')}
+                              </td>
+                              <td className="px-4 py-2">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  {invoice.paymentStatus || 'Paid'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Total Summary */}
+              <div className="border-t pt-2">
+                <div className="flex justify-end">
+                  <div className="text-right space-y-1">
+                    {selectedGuest?.paidOrders?.length > 0 && (
+                      <div className="text-sm text-muted-foreground">
+                        Orders Total: ₹{calculateTotal(selectedGuest.paidOrders || []).toLocaleString('en-IN')}
+                      </div>
+                    )}
+                    {selectedGuest?.paidRoomInvoices?.length > 0 && (
+                      <div className="text-sm text-muted-foreground">
+                        Room Invoices: ₹{(
+                          selectedGuest.paidRoomInvoices.reduce((sum, invoice) => {
+                            const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) =>
+                              itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+                            return sum + invoiceTotal;
+                          }, 0)
+                        ).toLocaleString('en-IN')}
+                      </div>
+                    )}
+                    <div className="text-lg font-semibold mt-1">
+                      Grand Total: ₹{(
+                        calculateTotal(selectedGuest.paidOrders || []) +
+                        (selectedGuest.paidRoomInvoices?.reduce((sum, invoice) => {
+                          const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) =>
+                            itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+                          return sum + invoiceTotal;
+                        }, 0) || 0)
+                      ).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1287,7 +1454,7 @@ const CheckOutGuest = () => {
                             )}
                             Invoice
                           </button>
-                          {guest.invoiceId && (
+                          {/* {guest.invoiceId && (
                             <a
                               href={`/api/invoices/${guest.invoiceId}`}
                               target="_blank"
@@ -1296,7 +1463,7 @@ const CheckOutGuest = () => {
                             >
                               View Invoice
                             </a>
-                          )}
+                          )} */}
                         </div>
                         <div className="flex flex-col space-y-2">
                           <button

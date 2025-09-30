@@ -3,17 +3,6 @@ import { Minus, Plus, Printer, X } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-    DialogClose
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '../ui/textarea';
 
 const initialFoodRow = {
@@ -26,17 +15,7 @@ const initialFoodRow = {
 };
 
 const ManagementFoodOrder = () => {
-    const router = useRouter();
-    const [room, setRoom] = useState('');
     const [guest, setGuest] = useState('');
-    const [table, setTable] = useState('');
-    const [tablesList, setTablesList] = useState([]);
-    const [newTable, setNewTable] = useState({
-        tableNumber: '',
-    });
-    const [isLoadingTables, setIsLoadingTables] = useState(false);
-    const [isAddingTable, setIsAddingTable] = useState(false);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     // Utility for unique ids
     function uuid() {
@@ -56,7 +35,7 @@ const ManagementFoodOrder = () => {
     const [invoices, setInvoices] = useState([]);
     const [reason, setReason] = useState('');
     const [loadingInvoices, setLoadingInvoices] = useState(false);
-    const [printInvoice, setPrintInvoice] = useState(null);
+    const [hotelData, setHotelData] = useState(null);
     // console.log(invoices)
     // Fetch invoices
     const fetchInvoices = async () => {
@@ -87,9 +66,21 @@ const ManagementFoodOrder = () => {
             setLoadingFoodInventory(false);
         }
     };
+    const fetchHotelData = async () => {
+        try {
+            const response = await fetch('/api/addBasicInfo');
+            const data = await response.json();
+            if (data && data[0]) {
+                setHotelData(data[0]);
+            }
+        } catch (error) {
+            console.error('Error fetching hotel data:', error);
+        }
+    };
     useEffect(() => {
         fetchFoodInventory();
         fetchInvoices();
+        fetchHotelData();
     }, []);
 
     // Format date to display
@@ -276,12 +267,10 @@ const ManagementFoodOrder = () => {
 
         // Clear form and refresh invoices
         try {
-            setRoom('');
             setGuest('');
             setReason('');
             setDiscount(0);
             setExtraCharges(0);
-            setTable('');
             setFoodRows([{ foodItem: '', qty: '', qtyType: 'plate' }]);
             await fetchInvoices();
         } catch (error) {
@@ -291,14 +280,16 @@ const ManagementFoodOrder = () => {
             setSubmitting(false);
         }
     };
-    function handlePrint(inv) {
-        // console.log(inv);
+    const handlePrint = (inv) => {
+        // Create a new window for printing
         const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+            return;
+        }
 
         // Calculate amounts
         const roomPrice = parseFloat(inv.roomPrice || 0);
-        const totalDays = parseFloat(inv.totalDays || 0);
-
         // Initialize tax percentages and amounts
         let cgstPercent = parseFloat(inv.cgstPercent || 0);
         let sgstPercent = parseFloat(inv.sgstPercent || 0);
@@ -323,9 +314,9 @@ const ManagementFoodOrder = () => {
         } else {
             sgstAmount = (roomPrice * sgstPercent / 100) || 0;
         }
-        const paidAmount = parseFloat(inv.paidAmount || 0).toFixed(2);
         // Format guest name
         const guestName = `${inv.guestFirst || ''} ${inv.guestMiddle || ''} ${inv.guestLast || ''}`.trim();
+
         // Format dates
         const formatDate = (dateString) => {
             if (!dateString) return 'N/A';
@@ -341,126 +332,152 @@ const ManagementFoodOrder = () => {
                 maximumFractionDigits: 2
             });
         };
-
         const invoiceHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Management Food Invoice</title>
-          <style>
-            @media print {
-              body { -webkit-print-color-adjust: exact; }
-              .no-print { display: none !important; }
-              @page { margin: 0; size: auto; }
-            }
-          </style>
-        </head>
-        <body style="font-family: Arial, sans-serif; margin:0; padding:10px; background:#f8f8f8;">
-          <div style="max-width: 600px; margin: 0 auto;">
-            <button onclick="window.print()" class="no-print" style="position:fixed; top:20px; right:20px; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; z-index:1000;">
-              Print Invoice
-            </button>
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Invoice #${inv.invoiceNo || ''}</title>
+                <style>
+                    @media print {
+                        @page { 
+                            size: 80mm auto;
+                            margin: 0;
+                        }
+                        body { 
+                            margin: 0;
+                            padding: 5mm;
+                            font-family: monospace;
+                            font-size: 12px;
+                            color: #000;
+                        }
+                        .invoice-container {
+                            width: 100%;
+                            max-width: 72mm;
+                            margin: 0 auto;
+                        }
+                        .center { text-align: center; }
+                        .right { text-align: right; }
+                        .line { border-top: 1px dashed #000; margin: 5px 0; }
+                        .title { 
+                            font-size: 14px; 
+                            font-weight: bold; 
+                            margin-bottom: 5px;
+                            text-align: center;
+                        }
+                        table { 
+                            width: 100%; 
+                            border-collapse: collapse;
+                            margin: 5px 0;
+                        }
+                        th, td {
+                            padding: 2px 0;
+                            font-size: 11px;
+                        }
+                        th { 
+                            border-bottom: 1px solid #000;
+                            text-align: left;
+                        }
+                        .footer {
+                            margin-top: 10px;
+                            font-size: 10px;
+                            text-align: center;
+                        }
+                        .text-right {
+                            text-align: right;
+                        }
+                        .text-center {
+                            text-align: center;
+                        }
+                    }
+                </style>
+            </head>
+            <body onload="window.print();window.close()">
+                <div class="invoice-container">
+                    <!-- Hotel Info -->
+                    <div class="">
+                        <div class="title">${hotelData?.hotelName || 'Hotel Shivan Residence'}</div>
+                        <div><b>GSTIN:</b> ${hotelData?.gstNumber || 'XXXXXXXXXXXXXXX'}</div>
+                        <div><b>Address:</b> ${hotelData?.address1 || ''}</div>
+                        <div><b>Contact:</b> ${hotelData?.contactNumber1 || ''}</div>
+                    </div>
+                    <div class="line"></div>
             
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff; border:1px solid #000; border-collapse:collapse; margin-bottom:20px;">
-              <!-- Header -->
-              <tr>
-                <td colspan="6" style="background:#444; color:#fff; font-size:18px; font-weight:bold; padding:10px;">
-                  Management / Complimentary Food Order
-                </td>
-              </tr>
-    
-              <!-- Company Name -->
-              <tr>
-                <td colspan="6" style="background:#5a8c80; color:#fff; text-align:center; font-size:20px; font-weight:bold; padding:8px;">
-                  Hotel Shivan Residence
-                </td>
-              </tr>
-    
-              <!-- Company Info -->
-              <tr>
-                <td colspan="6" style="padding:10px 15px; font-size:14px; border-bottom:1px solid #000;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; white-space: nowrap;">
-                    <div style="font-weight: bold;">Invoice #: ${inv.invoiceNo || 'N/A'}</div>
-                    <div>Date: ${formatDate(inv.createdAt) || 'N/A'}</div>
-                  </div>
-                </td>
-              </tr>
-              <tr style="background:#f2f2f2; font-weight:bold; text-align:left;">
-                <td colspan="6" style="padding:8px 12px; border-bottom:1px solid #000;">Guest Name: ${guestName || 'N/A'}</td>
-              </tr>              
-              <!-- Food Items -->
-              ${inv.foodItems && inv.foodItems.length > 0 ? `
-              <tr style="background:#666; color:#fff; font-weight:bold; text-align:center;">
-                <td style="padding:6px; border:1px solid #000;">S.no</td>
-                <td style="padding:6px; border:1px solid #000;" colspan="2">Item</td>
-                <td style="padding:6px; border:1px solid #000;">Qty</td>
-                <td style="padding:6px; border:1px solid #000;">Rate</td>
-                <td style="padding:6px; border:1px solid #000;">Amount</td>
-              </tr>
-              ${inv.foodItems.map((item, index) => `
-                <tr>
-                  <td style="padding:8px; border:1px solid #000; text-align:center;">${index + 1}</td>
-                  <td style="padding:8px; border:1px solid #000;" colspan="2">
-                  <div style="font-size:16px;">${item.foodItem?.categoryName || ''} (${item.qtyType || ''})</div>
-                  <div style="font-size:14px;">${item.foodItem?.foodName || 'N/A'}</div>
-                  </td>
-                  <td style="padding:8px; border:1px solid #000; text-align:center;">${item.qty || 0}</td>
-                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency(item.price || 0)}</td>
-                  <td style="padding:8px; border:1px solid #000; text-align:right;">${formatCurrency((item.price || 0) * (item.qty || 0))}</td>
-                </tr>
-              `).join('')}
-              ` : ''}
-              <!-- Totals -->
+                    <!-- Guest + Invoice Info -->
+                    <div>
+                        <div><b>Bill To:</b> ${guestName}</div>
+                        <div><b>Invoice:</b> ${inv.invoiceNo || 'N/A'}</div>
+                        <div><b>Date:</b> ${formatDate(inv.invoiceDate || inv.createdAt) || 'N/A'}</div>
+                    </div>
+                    <div class="line"></div>
+            
+                    <!-- Items -->
+                    <table>
                         <tr>
-  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
-    CGST ${inv.cgstAmount != null && inv.cgstAmount !== '' && !isNaN(inv.cgstAmount) && parseFloat(inv.cgstAmount) > 0
-                ? `(₹ ${cgstAmount})`
-                : `(${cgstPercent.toFixed(2)} %)`
-            }
-  </td>
-  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
-    ${formatCurrency(cgstAmount)}
-  </td>
-</tr>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th class="right">Rate</th>
+                            <th class="right">Amount</th>
+                        </tr>
+                        ${(inv.foodItems || []).map(item => `
+                            <tr>
+                                <td>${item.foodName || item.foodItem?.foodName || 'N/A'}</td>
+                                <td class="">${item.qty || 0}</td>
+                                <td class="right">${formatCurrency(item.price || 0)}</td>
+                                <td class="right">${formatCurrency(item.amount || 0)}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                    <div class="line"></div>
+            
+                    <!-- Totals -->
+                    <table>
+                        ${inv.discount > 0 ? `
+                            <tr>
+                                <td colspan="3">Discount</td>
+                                <td class="right">-${formatCurrency(inv.discount)}</td>
+                            </tr>
+                        ` : ''}
+                        ${inv.extraCharges > 0 ? `
+                            <tr>
+                                <td colspan="3">Extra Charges</td>
+                                <td class="right">${formatCurrency(inv.extraCharges)}</td>
+                            </tr>
+                        ` : ''}
+                        ${cgstAmount > 0 ? `
+                            <tr>
+                                <td colspan="3">CGST</td>
+                                <td class="right">${formatCurrency(cgstAmount)}</td>
+                            </tr>
+                        ` : ''}
+                        ${sgstAmount > 0 ? `
+                            <tr>
+                                <td colspan="3">SGST</td>
+                                <td class="right">${formatCurrency(sgstAmount)}</td>
+                            </tr>
+                        ` : ''}
+                        <tr>
+                            <td colspan="3"><b>Total Amount</b></td>
+                            <td class="right"><b>${formatCurrency(inv.totalAmount || 0)}</b></td>
+                        </tr>
+                    </table>
+                    <div class="line"></div>
+                    
+                    <!-- Footer -->
+                    <div class="footer">
+                        Thank you for your visit!<br>
+                        This is a computer-generated invoice.<br>
+                        ${new Date().toLocaleString()}
+                    </div>
+                </div>
+            </body>
+            </html>`;
 
-<tr>
-  <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000;">
-    SGST ${inv.sgstAmount != null && inv.sgstAmount !== '' && !isNaN(inv.sgstAmount) && parseFloat(inv.sgstAmount) > 0
-                ? `(₹ ${sgstAmount})`
-                : `(${sgstPercent.toFixed(2)} %)`
-            }
-  </td>
-  <td style="padding:8px; border:1px solid #000; text-align:right; background:#f0f0f0;">
-    ${formatCurrency(sgstAmount)}
-  </td>
-</tr>
-<tr>
-                <td colspan="5" style="padding:8px; text-align:right; font-weight:bold; border:1px solid #000; background:#e0e0e0;">Total Amount</td>
-                <td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold; background:#5a8c80; color:white;">${formatCurrency(paidAmount)}</td>
-              </tr>
-              <!-- Footer Notes -->
-              <tr>
-                <td colspan="6" style="font-size:11px; padding:8px; border-top:1px solid #000; background:#f9f9f9;">
-                  <b>Note:</b> This is a computer-generated invoice. No signature is required.<br>
-                  <b>Disclaimer:</b> In case of any printing error or discrepancy, we sincerely apologize for the inconvenience.<br>
-                  Please verify all details before leaving the premises.<br>
-                  Thanks for your cooperation in advance.<br>
-                  <b>T&C Apply</b>
-                </td>
-              </tr>
-            </table>
-          </div>
-        </body>
-        </html>
-      `;
-
-        // Write the invoice to the new window
+        // Write the invoice to the new window and trigger print
         printWindow.document.open();
         printWindow.document.write(invoiceHtml);
         printWindow.document.close();
-        setPrintInvoice(null);
-    }
+    };
 
     return (
         <div className="p-4 max-w-5xl mx-auto">
@@ -683,13 +700,13 @@ const ManagementFoodOrder = () => {
                             ) : (
                                 invoices.map((invoice) => (
                                     <tr key={invoice._id} className="hover:bg-gray-50 border border-black">
-                                        <td className="px-2 py-2 whitespace-nowrap text-sm font-medium border border-black text-blue-600">
+                                        <td className="px-2 py-2 whitespace-nowrap text-sm font-medium border border-black text-blue-600 text-center">
                                             {invoice.invoiceNo}
                                         </td>
-                                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-500 border border-black">
+                                        <td className="px-2 py-2 whitespace-nowrap text-sm text-gray-500 border border-black text-center">
                                             {formatDate(invoice.invoiceDate)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black text-center">
                                             {invoice.guestFirst} {invoice.guestLast}
                                         </td>
                                         <td className="px-2 py-4 whitespace-wrap text-sm text-gray-900 text-center border border-black">
@@ -721,14 +738,6 @@ const ManagementFoodOrder = () => {
                     </table>
                 </div>
             </div>
-            {printInvoice && (
-                <div style={{ display: 'none' }}>
-                    <div id="print-section">
-                        <h2>Invoice #{printInvoice.invoiceNo || printInvoice._id}</h2>
-                        <pre>{JSON.stringify(printInvoice, null, 2)}</pre>
-                    </div>
-                </div>
-            )}
         </div>
 
 

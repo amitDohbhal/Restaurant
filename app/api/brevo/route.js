@@ -23,7 +23,6 @@ export async function POST(request) {
             console.error("Brevo error response:", response.status, responseBody);
             throw new Error("Failed to send email")
         }
-
         return NextResponse.json({ success: true })
     } catch (error) {
         console.error("Error sending email:", error)

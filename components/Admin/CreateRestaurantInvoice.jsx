@@ -14,19 +14,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 
 const paymentOptions = [
     { label: "Online Payment", value: "online", color: "bg-pink-500 text-white", icon: "💳" },
     { label: "Cash Payment", value: "cash", color: "bg-cyan-600 text-white", icon: "💵" },
     { label: "Send To Room Account", value: "room", color: "bg-blue-700 text-white", icon: "🏨" },
-    // { label: "Print Invoice", value: "print", color: "bg-blue-700 text-white", icon: "🖨️" },
 ];
 
 const initialFoodRow = {
@@ -542,7 +534,6 @@ const CreateRestaurantInvoice = () => {
             setSubmitting(false);
             return;
         }
-
         if (!selectedPayment) {
             toast.error('Please select a payment method');
             setSubmitting(false);
@@ -953,11 +944,11 @@ const CreateRestaurantInvoice = () => {
         <body onload="window.print();window.close()">
             <div class="invoice-container">
                 <!-- Hotel Info -->
-                <div class="text-center">
+                <div class="">
                     <div class="title">${hotelData?.hotelName || 'Hotel Shivan Residence'}</div>
                     <div><b>GSTIN:</b> ${hotelData?.gstNumber || 'XXXXXXXXXXXXXXX'}</div>
-                    <div>${hotelData?.address1 || ''}</div>
-                    <div>${hotelData?.contactNumber1 || ''}</div>
+                    <div><b>Address:</b> ${hotelData?.address1 || ''}</div>
+                    <div><b>Contact:</b> ${hotelData?.contactNumber1 || ''}</div>
                 </div>
                 <div class="line"></div>
         
@@ -981,7 +972,7 @@ const CreateRestaurantInvoice = () => {
                     ${(inv.foodItems || []).map(item => `
                         <tr>
                             <td>${item.foodName || item.foodItem?.foodName || 'N/A'}</td>
-                            <td class="text-center">${item.qty || 0}</td>
+                            <td class="">${item.qty || 0}</td>
                             <td class="right">${formatCurrency(item.price || 0)}</td>
                             <td class="right">${formatCurrency(item.amount || 0)}</td>
                         </tr>
@@ -1043,6 +1034,7 @@ const CreateRestaurantInvoice = () => {
         printWindow.document.write(invoiceHtml);
         printWindow.document.close();
     };
+
     const handleSendInvoiceEmail = async (invoice) => {
         if (!invoice?.email) {
             toast.error('No email address available for this guest');
@@ -1076,7 +1068,7 @@ const CreateRestaurantInvoice = () => {
                 <html>
                 <head>
                     <meta charset="UTF-8">
-                    <title>Invoice #${invoice.invoiceNo || ''}</title>
+                    <title>Restaurant Invoice #${invoice.invoiceNo || ''}</title>
                     <style>
                         body { 
                             font-family: Arial, sans-serif; 
@@ -1304,6 +1296,7 @@ const CreateRestaurantInvoice = () => {
             setIsSendingEmail(false);
         }
     };
+
     return (
         <div className="p-4 ">
 
@@ -1364,7 +1357,6 @@ const CreateRestaurantInvoice = () => {
                             >
                                 <Plus size={20} />
                             </Button>
-
                         </div>
                     </div>
                 </div>

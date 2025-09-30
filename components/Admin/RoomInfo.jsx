@@ -243,7 +243,7 @@ const RoomInfo = ({ id }) => {
             </form>
             {/* Product Table copied inline */}
             <div className="flex flex-col items-center justify-center gap-8 w-full max-w-xl md:max-w-3xl mx-auto p-4 rounded-lg">
-                <h3 className="text-xl font-semibold mb-4">Product List</h3>
+                <h3 className="text-xl font-semibold mb-4">Room List</h3>
                 <table className="w-full border border-black rounded-lg">
                     <thead>
                         <tr className="bg-gray-200">

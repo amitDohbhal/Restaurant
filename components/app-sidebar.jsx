@@ -38,6 +38,12 @@ const data = {
   projects: [
     // First group: Admin management
     {
+      name: "Upload Basic Info",
+      url: "/admin/upload_basic_info",
+      icon: Image,
+    },
+    { divider: true },
+    {
       name: "Create/Manage Admin",
       url: "/admin/create_user",
       icon: User,
@@ -49,11 +55,6 @@ const data = {
       icon: Image,
     },
     { divider: true },
-    {
-      name: "Upload Basic Info",
-      url: "/admin/upload_basic_info",
-      icon: Image,
-    },
     { divider: true },
     {
       name: "View Running Order",

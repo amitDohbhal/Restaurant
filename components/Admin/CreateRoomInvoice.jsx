@@ -374,11 +374,11 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             // Prepare Razorpay options
             const options = {
                 key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-                amount: orderData.amount || amount,
+                amount: orderData.order.amount || amount,
                 currency: 'INR',
                 name: 'Hotel Shivan Residence',
                 description: 'Room Invoice Payment',
-                order_id: orderData.id,
+                order_id: orderData.order.id,
                 modal: {
                     ondismiss: function () {
                         toast.error('Payment was dismissed');
@@ -395,19 +395,24 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                 },
                 handler: async function (response) {
                     try {
+                        console.log('Razorpay response:', response);
+                        
                         // 1. Verify payment on your server
                         const verifyResponse = await fetch('/api/razorpay', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                type: 'room',
-                                razorpay_payment_id: response.razorpay_payment_id,
+                                type: 'room_invoice',
+                      razorpay_payment_id: response.razorpay_payment_id,
                                 razorpay_order_id: response.razorpay_order_id,
                                 razorpay_signature: response.razorpay_signature,
                                 invoiceId: invoiceData._id
                             })
                         });
+                        
                         const verificationData = await verifyResponse.json();
+                        console.log('Verification response:', verificationData);
+                        
                         if (!verifyResponse.ok || !verificationData.success) {
                             throw new Error(verificationData.error || 'Payment verification failed');
                         }
@@ -442,11 +447,32 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                         toast.success('Payment successful & invoice updated!');
                         await fetchInvoices();
                     } catch (error) {
-                        toast.error('Payment verification failed: ' + error.message);
+                        console.error('Payment error:', error);
+                        toast.error('Payment failed: ' + error.message);
                     }
                 },
-
+          modal: {
+                       ondismiss: function () {
+                           toast.error('Payment was cancelled or window was closed');
+                       }
+                   }
             };
+            
+            // Initialize and open Razorpay payment
+            try {
+                const rzp = new window.Razorpay(options);
+                rzp.open();
+                
+                // Add error handler
+                rzp.on('payment.failed', function (response) {
+                    console.error('Payment failed:', response.error);
+                    toast.error(`Payment failed: ${response.error.description || 'Unknown error'}`);
+                });
+                
+            } catch (error) {
+                console.error('Error initializing Razorpay:', error);
+                toast.error('Failed to initialize payment. Please try again.');
+            }
 
             const rzp = new window.Razorpay(options);
             rzp.open();

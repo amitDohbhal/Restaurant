@@ -134,7 +134,7 @@ const RoomInvoiceLogs = () => {
                             <th className="p-3 text-left">Invoice Date</th>
                             <th className="p-3 text-center">View</th>
                             <th className="p-3 text-center">Delete</th>
-                            <th className="p-3 text-center">Print Invoice</th>
+                            {/* <th className="p-3 text-center">Print Invoice</th> */}
                         </tr>
                     </thead>
                     <tbody>
@@ -161,11 +161,11 @@ const RoomInvoiceLogs = () => {
                                         <Trash2 className="text-white" size={20} />
                                     </button>
                                 </td>
-                                <td className="text-center">
+                                {/* <td className="text-center">
                                     <button className="p-2 rounded bg-green-500">
                                         <Printer className="text-white" size={20} />
                                     </button>
-                                </td>
+                                </td> */}
                             </tr>
                         ))}
                     </tbody>
