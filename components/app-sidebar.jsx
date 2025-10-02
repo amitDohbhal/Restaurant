@@ -55,7 +55,6 @@ const data = {
       icon: Image,
     },
     { divider: true },
-    { divider: true },
     {
       name: "View Running Order",
       url: "/admin/running_order",

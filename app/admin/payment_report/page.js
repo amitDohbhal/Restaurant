@@ -2,7 +2,7 @@ import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, Eye, FileText, Home, Utensils } from "lucide-react";
+import { FileText, Home, Utensils,ShoppingCart } from "lucide-react";
 import { GetAllInvoices } from "@/actions/GetAllInvoices";
 import Link from "next/link";
 
@@ -32,7 +32,8 @@ const getInvoiceTypeBadge = (type) => {
         'restaurant': { label: 'Restaurant', icon: <Utensils className="w-3 h-3 mr-1" /> },
         'direct_food': { label: 'Direct Food', icon: <FileText className="w-3 h-3 mr-1" /> },
         'management': { label: 'Management', icon: <FileText className="w-3 h-3 mr-1" /> },
-        'room_v2': { label: 'Room V2', icon: <Home className="w-3 h-3 mr-1" /> }
+        'room_v2': { label: 'Room V2', icon: <Home className="w-3 h-3 mr-1" /> },
+        'running_order':{label:'Running Order',icon:<ShoppingCart className="w-3 h-3 mr-1" />}
     };
 
     const typeInfo = types[type] || { label: type, icon: <FileText className="w-3 h-3 mr-1" /> };

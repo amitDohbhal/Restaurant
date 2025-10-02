@@ -1,7 +1,7 @@
 "use client"
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeftIcon, FileText, Utensils, Home, Coffee, Search, X } from 'lucide-react';
+import { ArrowLeftIcon, FileText, Utensils, Home, Coffee, Search, X, CarTaxiFront, ShoppingCart } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
     Table,
@@ -46,8 +46,20 @@ const AllInvoiceOverview = () => {
 
     const sectionConfig = [
         {
+            key: 'running_orders',
+            label: 'Running Orders',
+            icon: <ShoppingCart className="w-4 h-4 mr-2" />,
+            apiEndpoint: '/api/runningOrder',
+        },
+        {
             key: 'room',
             label: 'Room Invoices',
+            icon: <Home className="w-4 h-4 mr-2" />,
+            apiEndpoint: '/api/roomInvoice',
+        },
+        {
+            key: 'create_room_invoice',
+            label: 'Create Room Invoice',
             icon: <Home className="w-4 h-4 mr-2" />,
             apiEndpoint: '/api/CreateRoomInvoice',
         },
@@ -101,20 +113,43 @@ const AllInvoiceOverview = () => {
 
                 const response = await fetch(activeSectionConfig.apiEndpoint);
                 const data = await response.json();
+                console.log(data);
 
                 if (data.success) {
-                    // Process invoices to handle food items
-                    const processedInvoices = data.invoices?.map(invoice => ({
-                        ...invoice,
-                        foodItems: invoice.foodItems?.map(item => ({
-                            ...item,
-                            foodItem: typeof item.foodItem === 'string' 
-                                ? foodItemsMap[item.foodItem] || { foodName: 'Unknown Item' }
-                                : item.foodItem
-                        })) || []
-                    })) || [];
-                    
-                    setInvoices(processedInvoices);
+                    if (activeSection === 'running_orders') {
+                        // Process running orders data
+                        const processedOrders = data.data?.map(order => ({
+                            ...order,
+                            invoiceNo: order.orderNumber,
+                            guestFirst: order.customer?.name || 'Walk-in Customer',
+                            totalAmount: order.total,
+                            paymentStatus: order.paymentStatus,
+                            paymentMode: order.paymentMethod || 'cash',
+                            foodItems: order.items?.map(item => ({
+                                foodItem: {
+                                    foodName: item.name,
+                                    price: item.price
+                                },
+                                qty: item.quantity,
+                                amount: item.price * item.quantity
+                            })) || [],
+                            createdAt: order.createdAt,
+                            invoiceDate: order.createdAt
+                        })) || [];
+                        setInvoices(processedOrders);
+                    } else {
+                        // Process regular invoices
+                        const processedInvoices = data.invoices?.map(invoice => ({
+                            ...invoice,
+                            foodItems: invoice.foodItems?.map(item => ({
+                                ...item,
+                                foodItem: typeof item.foodItem === 'string' 
+                                    ? foodItemsMap[item.foodItem] || { foodName: 'Unknown Item' }
+                                    : item.foodItem
+                            })) || []
+                        })) || [];
+                        setInvoices(processedInvoices);
+                    }
                 } else {
                     console.error('Failed to fetch invoices:', data.error);
                     setInvoices([]);
@@ -142,8 +177,18 @@ const AllInvoiceOverview = () => {
     };
 
     const calculateTotal = (invoice) => {
+        // If totalAmount exists, use it
         if (invoice.totalAmount) return invoice.totalAmount;
-        // Fallback calculation if totalAmount is not available
+        
+        // For room invoices with room price and total days
+        if (invoice.roomPrice && invoice.totalDays) {
+            const roomCharges = invoice.roomPrice;
+            const cgst = invoice.cgstAmount || 0;
+            const sgst = invoice.sgstAmount || 0;
+            return roomCharges + cgst + sgst;
+        }
+        
+        // Fallback for food items if no room data
         return invoice.foodItems?.reduce((sum, item) => {
             const qty = parseFloat(item.qty) || 0;
             const price = parseFloat(item.price) || 0;
@@ -330,14 +375,15 @@ const AllInvoiceOverview = () => {
                                         <TableHead>Total</TableHead>
                                         {/* <TableHead>Status</TableHead> */}
                                         <TableHead>Payment</TableHead>
+                                        <TableHead>Payment Mode</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {filteredInvoices.length > 0 ? (
-                                        filteredInvoices.map((invoice) => (
+                                        filteredInvoices.map((invoice,idx) => (
                                             <TableRow key={invoice._id} className="hover:bg-gray-50">
-                                                <TableCell className="font-medium">{invoice.invoiceNo || 'N/A'}</TableCell>
-                                                <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
+                                                <TableCell className="font-medium">{invoice.invoiceNo ||idx+1|| 'N/A'}</TableCell>
+                                                <TableCell>{formatDate(invoice.invoiceDate|| invoice.createdAt)}</TableCell>
                                                 <TableCell>
                                                     {invoice.guestFirst ||
                                                         (activeSection === 'restaurant' ? 'Walk-in Customer' : 'N/A')}
@@ -345,7 +391,7 @@ const AllInvoiceOverview = () => {
                                                 <TableCell>
                                                     {invoice.foodItems?.length > 0
                                                         ? `${invoice.foodItems.length} items`
-                                                        : 'No items'}
+                                                        : '1 item'}
                                                 </TableCell>
                                                 <TableCell>₹ {calculateTotal(invoice).toFixed(2)}</TableCell>
                                                 {/* <TableCell>
@@ -363,7 +409,15 @@ const AllInvoiceOverview = () => {
                                                             ? 'bg-green-100 text-green-800'
                                                             : 'bg-yellow-100 text-yellow-800'
                                                         }`}>
-                                                        {invoice.paymentStatus || 'pending'}
+                                                        {invoice.paymentStatus || 'Complete'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`px-3 py-1 text-sm rounded ${invoice.paymentMode === 'online'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-yellow-100 text-yellow-800'
+                                                        }`}>
+                                                        {invoice.paymentMode || 'Cash'}
                                                     </span>
                                                 </TableCell>
                                             </TableRow>

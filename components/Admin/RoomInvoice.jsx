@@ -1039,7 +1039,7 @@ const RoomInvoice = () => {
               <tr>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">#</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Invoice Number</th>
-                <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Date</th>
+                <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Check In Date</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">View</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Delete</th>
                 <th className="bg-orange-500 text-black font-bold px-4 py-2 border border-white">Print Invoice</th>

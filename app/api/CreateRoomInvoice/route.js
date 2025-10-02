@@ -40,23 +40,23 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    // Calculate food items with taxes
+    // Use the food items with taxes as sent from frontend
     const foodItemsWithTaxes = (body.foodItems || []).map(item => {
       try {
         const qty = parseFloat(item.qty) || 0;
         const price = parseFloat(item.price) || 0;
         const amount = qty * price;
-        const cgstPercent = parseFloat(item.cgstPercent) || 0;
-        const sgstPercent = parseFloat(item.sgstPercent) || 0;
-        const cgstAmount = (amount * cgstPercent) / 100;
-        const sgstAmount = (amount * sgstPercent) / 100;
+        
+        // Use the pre-calculated GST amounts from frontend
+        const cgstAmount = parseFloat(item.cgstAmount) || 0;
+        const sgstAmount = parseFloat(item.sgstAmount) || 0;
         const tax = cgstAmount + sgstAmount;
 
         return {
           ...item,
           amount: parseFloat(amount.toFixed(2)),
-          cgstAmount: parseFloat(cgstAmount.toFixed(2)),
-          sgstAmount: parseFloat(sgstAmount.toFixed(2)),
+          cgstAmount: cgstAmount,
+          sgstAmount: sgstAmount,
           tax: parseFloat(tax.toFixed(2))
         };
       } catch (error) {
@@ -65,11 +65,11 @@ export async function POST(req) {
       }
     });
 
-    // Calculate totals
-    const totalFoodAmount = foodItemsWithTaxes.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const totalCGST = foodItemsWithTaxes.reduce((sum, item) => sum + (item.cgstAmount || 0), 0);
-    const totalSGST = foodItemsWithTaxes.reduce((sum, item) => sum + (item.sgstAmount || 0), 0);
-    const totalGST = totalCGST + totalSGST;
+    // Use the totals calculated in the frontend
+    const totalFoodAmount = parseFloat(body.totalFoodAmount) || 0;
+    const totalCGST = parseFloat(body.cgstAmount) || 0;
+    const totalSGST = parseFloat(body.sgstAmount) || 0;
+    const totalGST = parseFloat(body.gstAmount) || 0;
 
     // Calculate room charges
     const roomCharges = (parseFloat(body.roomPrice) || 0) * (parseInt(body.totalDays) || 1);

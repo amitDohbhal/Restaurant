@@ -470,7 +470,8 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         },
         paymentMethod: 'pay_at_hotel',
         roomNumber: customerData.roomNumber,
-        orderType: customerData.roomNumber ? 'room-service' : 'takeaway',
+        // Only set as room-service if we have both a room number AND a valid guest ID
+        orderType: customerData.roomNumber && customerData._id ? 'room-service' : 'takeaway',
         total: parseFloat(totalAmount).toFixed(2),
         subtotal: cart.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.qty)), 0).toFixed(2),
         tax: cart.reduce((sum, item) => {
@@ -716,7 +717,8 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         // Order details
         paymentMethod: 'online',
         roomNumber: customerData.roomNumber || roomNumber || cart[0]?.roomNumber || null,
-        orderType: (customerData.roomNumber || roomNumber || cart[0]?.roomNumber) ? 'room-service' : 'takeaway',
+        // Only set as room-service if we have both a room number AND a valid guest ID
+        orderType: (customerData.roomNumber || roomNumber || cart[0]?.roomNumber) && customerData._id ? 'room-service' : 'takeaway',
         total: parseFloat(totalAmount).toFixed(2),
         subtotal: cart.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.qty)), 0).toFixed(2),
         tax: cart.reduce((sum, item) => {
@@ -780,7 +782,13 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         })
       });
 
-      const { id: orderId, amount, currency } = await razorpayResponse.json();
+      const razorpayData = await razorpayResponse.json();
+      
+      if (!razorpayResponse.ok || !razorpayData.success) {
+        throw new Error(razorpayData.error || 'Failed to create Razorpay order');
+      }
+      
+      const { id: orderId, amount, currency } = razorpayData.order;
       // Load Razorpay script
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';

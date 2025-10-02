@@ -185,8 +185,12 @@ const DirectFoodOrder = () => {
 
     // Calculate GST for a given amount and GST percentage
     const calculateGST = (amount, percent) => {
-        const gstAmount = (amount * (parseFloat(percent) || 0)) / 100;
-        return parseFloat(gstAmount.toFixed(2));
+        const pct = parseFloat(percent) || 0;
+        if (pct > 0) {
+            const gstAmount = (amount * pct) / 100;
+            return parseFloat(gstAmount.toFixed(2));
+        }
+        return 0;
     };
 
     // Calculate totals whenever food rows change
@@ -199,19 +203,46 @@ const DirectFoodOrder = () => {
             if (row.foodItem && row.qty && row.qtyType) {
                 const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                 const itemTotal = itemPrice * parseFloat(row.qty || 0);
-                const cgst = calculateGST(itemTotal, row.foodItem.cgstPercent || 0);
-                const sgst = calculateGST(itemTotal, row.foodItem.sgstPercent || 0);
+                let cgst = 0;
+                if (row.foodItem.cgstAmount !== null && row.foodItem.cgstAmount !== undefined) {
+                    cgst = parseFloat(row.foodItem.cgstAmount);
+                } else if (row.foodItem.cgstPercent) {
+                    cgst = calculateGST(itemTotal, row.foodItem.cgstPercent);
+                }
 
+                // Calculate SGST - use fixed amount if available, otherwise use percentage
+                let sgst = 0;
+                if (row.foodItem.sgstAmount !== null && row.foodItem.sgstAmount !== undefined) {
+                    sgst = parseFloat(row.foodItem.sgstAmount);
+                } else if (row.foodItem.sgstPercent) {
+                    sgst = calculateGST(itemTotal, row.foodItem.sgstPercent);
+                }
+
+                console.log(`Item: ${row.foodItem.foodName} - Price: ${itemPrice}, Qty: ${row.qty}, Total: ${itemTotal}`);
+                console.log(`CGST: ${cgst} (${row.foodItem.cgstPercent ? row.foodItem.cgstPercent + '%' : 'Fixed: ' + row.foodItem.cgstAmount})`);
+                console.log(`SGST: ${sgst} (${row.foodItem.sgstPercent ? row.foodItem.sgstPercent + '%' : 'Fixed: ' + row.foodItem.sgstAmount})`);
                 foodTotal += itemTotal;
                 totalCGST += cgst;
                 totalSGST += sgst;
             }
         });
 
-        const total = parseFloat((foodTotal + totalCGST + totalSGST).toFixed(2));
+
+        // Calculate the final totals
+        const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
+        const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
+
+        console.log('Final Calculation:');
+        console.log(`Food Total: ${foodTotal}`);
+        console.log(`Total CGST: ${totalCGST}`);
+        console.log(`Total SGST: ${totalSGST}`);
+        console.log(`Total GST: ${totalGST}`);
+        console.log(`Final Total: ${finalTotal}`);
+
+        // Update state
         setTotalAmount(parseFloat(foodTotal.toFixed(2)));
-        setGstAmount(parseFloat((totalCGST + totalSGST).toFixed(2)));
-        setFinalTotal(total);
+        setGstAmount(totalGST);
+        setFinalTotal(finalTotal);
         setCGSTAmount(parseFloat(totalCGST.toFixed(2)));
         setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
     }, [foodRows]);
@@ -375,9 +406,31 @@ const DirectFoodOrder = () => {
             .map(row => {
                 const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                 const amount = itemPrice * parseFloat(row.qty || 0);
+                // Debug log the input values
+                console.log('Item:', row.foodItem.foodName, 'Amount:', amount);
+                console.log('CGST - Percent:', row.foodItem.cgstPercent, 'Fixed:', row.foodItem.cgstAmount);
+                console.log('SGST - Percent:', row.foodItem.sgstPercent, 'Fixed:', row.foodItem.sgstAmount);
 
-                const cgst = calculateGST(amount, row.foodItem.cgstPercent || 0);
-                const sgst = calculateGST(amount, row.foodItem.sgstPercent || 0);
+                // First calculate GST from percentage if percentage is provided
+                const cgstFromPercent = row.foodItem.cgstPercent > 0
+                    ? calculateGST(amount, row.foodItem.cgstPercent, 0)
+                    : 0;
+
+                const sgstFromPercent = row.foodItem.sgstPercent > 0
+                    ? calculateGST(amount, row.foodItem.sgstPercent, 0)
+                    : 0;
+
+                // Then add fixed amounts if they exist
+                const cgstAmount = cgstFromPercent + (parseFloat(row.foodItem.cgstAmount) || 0);
+                const sgstAmount = sgstFromPercent + (parseFloat(row.foodItem.sgstAmount) || 0);
+
+                // Debug log the calculated values
+                console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
+
+                // Get the original percentages for storage
+                const cgstPercent = row.foodItem.cgstPercent || 0;
+                const sgstPercent = row.foodItem.sgstPercent || 0;
+
 
                 return {
                     categoryName: row.foodItem.categoryName,
@@ -386,11 +439,11 @@ const DirectFoodOrder = () => {
                     qty: Number(row.qty),
                     price: itemPrice,
                     amount: amount,
-                    cgstPercent: row.foodItem.cgstPercent || 0,
-                    cgstAmount: cgst,
-                    sgstPercent: row.foodItem.sgstPercent || 0,
-                    sgstAmount: sgst,
-                    tax: cgst + sgst,
+                    cgstPercent: cgstPercent,
+                    cgstAmount: cgstAmount,
+                    sgstPercent: sgstPercent,
+                    sgstAmount: sgstAmount,
+                    tax: cgstAmount + sgstAmount,
                     foodItem: row.foodItem._id // Store reference to the food item
                 };
             });
@@ -420,7 +473,7 @@ const DirectFoodOrder = () => {
             totalFoodAmount: totalAmount,
             gstOnFood: gstAmount,
             totalAmount: finalTotal,
-
+            subtotal: totalAmount, 
             paidAmount: 0, // Update this based on payment
             dueAmount: finalTotal // Update this based on payment
         };
@@ -924,7 +977,7 @@ const DirectFoodOrder = () => {
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Total</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Status</th>
                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 uppercase tracking-wider border border-black">Print Invoice</th>
-                               </tr>
+                            </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {loadingInvoices ? (
@@ -968,7 +1021,7 @@ const DirectFoodOrder = () => {
                                         <td className="p-2 whitespace-nowrap text-right text-sm font-medium border border-black">
                                             <button
                                                 type="button"
-                                                className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 flex items-center justify-center rounded"
+                                                className="bg-blue-500 hover:bg-blue-600 mx-auto text-white px-2 py-1 flex items-center justify-center rounded"
                                                 onClick={() => handlePrint(invoice)}
                                             >
                                                 <Printer className="mr-2" /> Print

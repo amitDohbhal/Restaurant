@@ -344,10 +344,13 @@ const CreateRestaurantInvoice = () => {
 
     // Calculate GST for a given amount and GST percentage
     const calculateGST = (amount, percent) => {
-        const gstAmount = (amount * (parseFloat(percent) || 0)) / 100;
-        return parseFloat(gstAmount.toFixed(2));
+        const pct = parseFloat(percent) || 0;
+        if (pct > 0) {
+            const gstAmount = (amount * pct) / 100;
+            return parseFloat(gstAmount.toFixed(2));
+        }
+        return 0;
     };
-
     // Calculate totals whenever food rows change
     useEffect(() => {
         let foodTotal = 0;
@@ -358,19 +361,42 @@ const CreateRestaurantInvoice = () => {
             if (row.foodItem && row.qty && row.qtyType) {
                 const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                 const itemTotal = itemPrice * parseFloat(row.qty || 0);
-                const cgst = calculateGST(itemTotal, row.foodItem.cgstPercent || 0);
-                const sgst = calculateGST(itemTotal, row.foodItem.sgstPercent || 0);
+                // Calculate CGST - use fixed amount if available, otherwise use percentage
+                let cgst = 0;
+                if (row.foodItem.cgstAmount !== null && row.foodItem.cgstAmount !== undefined) {
+                    cgst = parseFloat(row.foodItem.cgstAmount);
+                } else if (row.foodItem.cgstPercent) {
+                    cgst = calculateGST(itemTotal, row.foodItem.cgstPercent);
+                }
 
+                // Calculate SGST - use fixed amount if available, otherwise use percentage
+                let sgst = 0;
+                if (row.foodItem.sgstAmount !== null && row.foodItem.sgstAmount !== undefined) {
+                    sgst = parseFloat(row.foodItem.sgstAmount);
+                } else if (row.foodItem.sgstPercent) {
+                    sgst = calculateGST(itemTotal, row.foodItem.sgstPercent);
+                }
                 foodTotal += itemTotal;
                 totalCGST += cgst;
                 totalSGST += sgst;
             }
         });
 
-        const total = parseFloat((foodTotal + totalCGST + totalSGST).toFixed(2));
+        // Calculate the final totals
+        const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
+        const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
+
+        console.log('Final Calculation:');
+        console.log(`Food Total: ${foodTotal}`);
+        console.log(`Total CGST: ${totalCGST}`);
+        console.log(`Total SGST: ${totalSGST}`);
+        console.log(`Total GST: ${totalGST}`);
+        console.log(`Final Total: ${finalTotal}`);
+
+        // Update state
         setTotalAmount(parseFloat(foodTotal.toFixed(2)));
-        setGstAmount(parseFloat((totalCGST + totalSGST).toFixed(2)));
-        setFinalTotal(total);
+        setGstAmount(totalGST);
+        setFinalTotal(finalTotal);
         setCGSTAmount(parseFloat(totalCGST.toFixed(2)));
         setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
     }, [foodRows]);
@@ -456,7 +482,7 @@ const CreateRestaurantInvoice = () => {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                id:invoiceData._id,
+                                id: invoiceData._id,
                                 paymentStatus: 'completed',
                                 paymentMode: 'online',
                                 paidAmount: invoiceData.finalTotal || invoiceData.totalAmount,
@@ -552,8 +578,25 @@ const CreateRestaurantInvoice = () => {
                 const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                 const amount = itemPrice * parseFloat(row.qty || 0);
 
-                const cgst = calculateGST(amount, row.foodItem.cgstPercent || 0);
-                const sgst = calculateGST(amount, row.foodItem.sgstPercent || 0);
+                // First calculate GST from percentage if percentage is provided
+                const cgstFromPercent = row.foodItem.cgstPercent > 0
+                    ? calculateGST(amount, row.foodItem.cgstPercent, 0)
+                    : 0;
+
+                const sgstFromPercent = row.foodItem.sgstPercent > 0
+                    ? calculateGST(amount, row.foodItem.sgstPercent, 0)
+                    : 0;
+
+                // Then add fixed amounts if they exist
+                const cgstAmount = cgstFromPercent + (parseFloat(row.foodItem.cgstAmount) || 0);
+                const sgstAmount = sgstFromPercent + (parseFloat(row.foodItem.sgstAmount) || 0);
+
+                // Debug log the calculated values
+                console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
+
+                // Get the original percentages for storage
+                const cgstPercent = row.foodItem.cgstPercent || 0;
+                const sgstPercent = row.foodItem.sgstPercent || 0;
 
                 return {
                     categoryName: row.foodItem.categoryName,
@@ -562,11 +605,11 @@ const CreateRestaurantInvoice = () => {
                     qty: Number(row.qty),
                     price: itemPrice,
                     amount: amount,
-                    cgstPercent: row.foodItem.cgstPercent || 0,
-                    cgstAmount: cgst,
-                    sgstPercent: row.foodItem.sgstPercent || 0,
-                    sgstAmount: sgst,
-                    tax: cgst + sgst,
+                    cgstPercent: cgstPercent,
+                    cgstAmount: cgstAmount,
+                    sgstPercent: sgstPercent,
+                    sgstAmount: sgstAmount,
+                    tax: cgstAmount + sgstAmount,
                     foodItem: row.foodItem._id // Store reference to the food item
                 };
             });
@@ -629,6 +672,7 @@ const CreateRestaurantInvoice = () => {
             cgstAmount: cgstAmount,
             sgstAmount: sgstAmount,
             totalAmount: finalTotal,
+            subtotal: totalAmount,
             paidAmount: selectedPayment === 'room' ? 0 : finalTotal,
             dueAmount: selectedPayment === 'room' ? finalTotal : 0,
             // Ensure all guest info is included

@@ -232,7 +232,7 @@ export async function PUT(req) {
             }
 
             // Update order status
-            order.paymentStatus = 'completed';
+            order.paymentStatus = 'paid';
             order.paymentDetails = {
                 paymentId: razorpay_payment_id,
                 orderId: razorpay_order_id,

@@ -117,6 +117,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         try {
             const res = await fetch('/api/foodInventory');
             const data = await res.json();
+            console.log(data);
             if (data) {
                 setFoodInventoryData(data);
             }
@@ -287,8 +288,12 @@ const CreateRoomInvoice = ({ onSuccess }) => {
 
     // Calculate GST for a given amount and GST percentage
     const calculateGST = (amount, percent) => {
-        const gstAmount = (amount * (parseFloat(percent) || 0)) / 100;
-        return parseFloat(gstAmount.toFixed(2));
+        const pct = parseFloat(percent) || 0;
+        if (pct > 0) {
+            const gstAmount = (amount * pct) / 100;
+            return parseFloat(gstAmount.toFixed(2));
+        }
+        return 0;
     };
 
     // Calculate totals whenever food rows change
@@ -301,8 +306,26 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             if (row.foodItem && row.qty && row.qtyType) {
                 const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                 const itemTotal = itemPrice * parseFloat(row.qty || 0);
-                const cgst = calculateGST(itemTotal, row.foodItem.cgstPercent || 0);
-                const sgst = calculateGST(itemTotal, row.foodItem.sgstPercent || 0);
+
+                // Calculate CGST - use fixed amount if available, otherwise use percentage
+                let cgst = 0;
+                if (row.foodItem.cgstAmount !== null && row.foodItem.cgstAmount !== undefined) {
+                    cgst = parseFloat(row.foodItem.cgstAmount);
+                } else if (row.foodItem.cgstPercent) {
+                    cgst = calculateGST(itemTotal, row.foodItem.cgstPercent);
+                }
+
+                // Calculate SGST - use fixed amount if available, otherwise use percentage
+                let sgst = 0;
+                if (row.foodItem.sgstAmount !== null && row.foodItem.sgstAmount !== undefined) {
+                    sgst = parseFloat(row.foodItem.sgstAmount);
+                } else if (row.foodItem.sgstPercent) {
+                    sgst = calculateGST(itemTotal, row.foodItem.sgstPercent);
+                }
+
+                console.log(`Item: ${row.foodItem.foodName} - Price: ${itemPrice}, Qty: ${row.qty}, Total: ${itemTotal}`);
+                console.log(`CGST: ${cgst} (${row.foodItem.cgstPercent ? row.foodItem.cgstPercent + '%' : 'Fixed: ' + row.foodItem.cgstAmount})`);
+                console.log(`SGST: ${sgst} (${row.foodItem.sgstPercent ? row.foodItem.sgstPercent + '%' : 'Fixed: ' + row.foodItem.sgstAmount})`);
 
                 foodTotal += itemTotal;
                 totalCGST += cgst;
@@ -310,10 +333,21 @@ const CreateRoomInvoice = ({ onSuccess }) => {
             }
         });
 
-        const total = parseFloat((foodTotal + totalCGST + totalSGST).toFixed(2));
+        // Calculate the final totals
+        const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
+        const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
+
+        console.log('Final Calculation:');
+        console.log(`Food Total: ${foodTotal}`);
+        console.log(`Total CGST: ${totalCGST}`);
+        console.log(`Total SGST: ${totalSGST}`);
+        console.log(`Total GST: ${totalGST}`);
+        console.log(`Final Total: ${finalTotal}`);
+
+        // Update state
         setTotalAmount(parseFloat(foodTotal.toFixed(2)));
-        setGstAmount(parseFloat((totalCGST + totalSGST).toFixed(2)));
-        setFinalTotal(total);
+        setGstAmount(totalGST);
+        setFinalTotal(finalTotal);
         setCGSTAmount(parseFloat(totalCGST.toFixed(2)));
         setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
     }, [foodRows]);
@@ -396,23 +430,23 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                 handler: async function (response) {
                     try {
                         console.log('Razorpay response:', response);
-                        
+
                         // 1. Verify payment on your server
                         const verifyResponse = await fetch('/api/razorpay', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 type: 'room_invoice',
-                      razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
                                 razorpay_order_id: response.razorpay_order_id,
                                 razorpay_signature: response.razorpay_signature,
                                 invoiceId: invoiceData._id
                             })
                         });
-                        
+
                         const verificationData = await verifyResponse.json();
                         console.log('Verification response:', verificationData);
-                        
+
                         if (!verifyResponse.ok || !verificationData.success) {
                             throw new Error(verificationData.error || 'Payment verification failed');
                         }
@@ -451,31 +485,34 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                         toast.error('Payment failed: ' + error.message);
                     }
                 },
-          modal: {
-                       ondismiss: function () {
-                           toast.error('Payment was cancelled or window was closed');
-                       }
-                   }
+                modal: {
+                    ondismiss: function () {
+                        toast.error('Payment was cancelled or window was closed');
+                    }
+                }
             };
-            
+
             // Initialize and open Razorpay payment
             try {
-                const rzp = new window.Razorpay(options);
-                rzp.open();
-                
-                // Add error handler
-                rzp.on('payment.failed', function (response) {
-                    console.error('Payment failed:', response.error);
-                    toast.error(`Payment failed: ${response.error.description || 'Unknown error'}`);
-                });
-                
+                if (!window.rzp) {
+                    const rzp = new window.Razorpay(options);
+
+                    // Add event handlers
+                    rzp.on('payment.failed', function (response) {
+                        console.error('Payment failed:', response.error);
+                        toast.error(`Payment failed: ${response.error.description}`);
+                    });
+
+                    // Open the Razorpay payment modal
+                    rzp.open();
+
+                    window.rzp = rzp;
+                }
+
             } catch (error) {
                 console.error('Error initializing Razorpay:', error);
                 toast.error('Failed to initialize payment. Please try again.');
             }
-
-            const rzp = new window.Razorpay(options);
-            rzp.open();
 
         } catch (error) {
             // Only show error if not already shown by a more specific handler
@@ -523,8 +560,30 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                 const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                 const amount = itemPrice * parseFloat(row.qty || 0);
 
-                const cgst = calculateGST(amount, row.foodItem.cgstPercent || 0);
-                const sgst = calculateGST(amount, row.foodItem.sgstPercent || 0);
+                // Debug log the input values
+                console.log('Item:', row.foodItem.foodName, 'Amount:', amount);
+                console.log('CGST - Percent:', row.foodItem.cgstPercent, 'Fixed:', row.foodItem.cgstAmount);
+                console.log('SGST - Percent:', row.foodItem.sgstPercent, 'Fixed:', row.foodItem.sgstAmount);
+
+                // First calculate GST from percentage if percentage is provided
+                const cgstFromPercent = row.foodItem.cgstPercent > 0
+                    ? calculateGST(amount, row.foodItem.cgstPercent, 0)
+                    : 0;
+
+                const sgstFromPercent = row.foodItem.sgstPercent > 0
+                    ? calculateGST(amount, row.foodItem.sgstPercent, 0)
+                    : 0;
+
+                // Then add fixed amounts if they exist
+                const cgstAmount = cgstFromPercent + (parseFloat(row.foodItem.cgstAmount) || 0);
+                const sgstAmount = sgstFromPercent + (parseFloat(row.foodItem.sgstAmount) || 0);
+
+                // Debug log the calculated values
+                console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
+
+                // Get the original percentages for storage
+                const cgstPercent = row.foodItem.cgstPercent || 0;
+                const sgstPercent = row.foodItem.sgstPercent || 0;
 
                 return {
                     categoryName: row.foodItem.categoryName,
@@ -533,11 +592,11 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                     qty: Number(row.qty),
                     price: itemPrice,
                     amount: amount,
-                    cgstPercent: row.foodItem.cgstPercent || 0,
-                    cgstAmount: cgst,
-                    sgstPercent: row.foodItem.sgstPercent || 0,
-                    sgstAmount: sgst,
-                    tax: cgst + sgst,
+                    cgstPercent: cgstPercent,
+                    cgstAmount: cgstAmount,
+                    sgstPercent: sgstPercent,
+                    sgstAmount: sgstAmount,
+                    tax: cgstAmount + sgstAmount,
                     foodItem: row.foodItem._id // Store reference to the food item
                 };
             });
@@ -596,11 +655,12 @@ const CreateRoomInvoice = ({ onSuccess }) => {
 
             // Food items and totals
             foodItems,
-            totalFoodAmount: totalAmount,
+            totalFoodAmount: totalAmount, // This is the subtotal before GST
             gstOnFood: gstAmount,
             cgstAmount: cgstAmount,
             sgstAmount: sgstAmount,
-            totalAmount: finalTotal,
+            totalAmount: finalTotal, // This is the final total including GST
+            subtotal: totalAmount,   // Explicitly set subtotal (food only)
             paidAmount: selectedPayment === 'room' ? 0 : finalTotal,
             dueAmount: selectedPayment === 'room' ? finalTotal : 0,
             // Ensure all guest info is included
@@ -1555,7 +1615,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                             >
                                                 {isSendingEmail ? (
                                                     <>
-                                      <Loader/>
+                                                        <Loader />
                                                         Sending...
                                                     </>
                                                 ) : (

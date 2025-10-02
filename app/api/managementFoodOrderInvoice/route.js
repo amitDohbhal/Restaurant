@@ -36,27 +36,25 @@ export async function GET() {
 
 export async function POST(req) {
   await connectDB();
-  
+
   try {
     const body = await req.json();
-   
+
     // Calculate food items with taxes
     const foodItemsWithTaxes = (body.foodItems || []).map(item => {
       try {
         const qty = parseFloat(item.qty) || 0;
         const price = parseFloat(item.price) || 0;
         const amount = qty * price;
-        const cgstPercent = parseFloat(item.cgstPercent) || 0;
-        const sgstPercent = parseFloat(item.sgstPercent) || 0;
-        const cgstAmount = (amount * cgstPercent) / 100;
-        const sgstAmount = (amount * sgstPercent) / 100;
+        const cgstAmount = parseFloat(item.cgstAmount) || 0;
+        const sgstAmount = parseFloat(item.sgstAmount) || 0;
         const tax = cgstAmount + sgstAmount;
-        
+
         return {
           ...item,
           amount: parseFloat(amount.toFixed(2)),
-          cgstAmount: parseFloat(cgstAmount.toFixed(2)),
-          sgstAmount: parseFloat(sgstAmount.toFixed(2)),
+          cgstAmount: cgstAmount,
+          sgstAmount: sgstAmount,
           tax: parseFloat(tax.toFixed(2))
         };
       } catch (error) {
@@ -64,26 +62,26 @@ export async function POST(req) {
         throw new Error(`Invalid food item data: ${error.message}`);
       }
     });
-    
+
     // Calculate totals
     const totalFoodAmount = foodItemsWithTaxes.reduce((sum, item) => sum + (item.amount || 0), 0);
     const totalCGST = foodItemsWithTaxes.reduce((sum, item) => sum + (item.cgstAmount || 0), 0);
     const totalSGST = foodItemsWithTaxes.reduce((sum, item) => sum + (item.sgstAmount || 0), 0);
     const totalGST = totalCGST + totalSGST;
 
-    
+
     // Calculate room charges
     const roomCharges = (parseFloat(body.roomPrice) || 0) * (parseInt(body.totalDays) || 1);
-    
+
     // Calculate final total
     const subTotal = roomCharges + totalFoodAmount;
     const extraCharges = parseFloat(body.extraCharges) || 0;
     const discount = parseFloat(body.discount) || 0;
     const finalTotal = subTotal + totalGST + extraCharges - discount;
-    
+
     // Create invoice data with a new ObjectId to prevent duplicate key errors
     const { _id, ...invoiceBody } = body; // Remove any existing _id from the request
-    
+
     const invoiceData = {
       ...invoiceBody,
       foodItems: foodItemsWithTaxes,
@@ -103,30 +101,30 @@ export async function POST(req) {
       createdAt: new Date(),
       _id: new mongoose.Types.ObjectId() // Generate a new ObjectId
     };
-    
+
     // Remove any undefined or null values
     Object.keys(invoiceData).forEach(key => {
       if (invoiceData[key] === undefined || invoiceData[key] === null) {
         delete invoiceData[key];
       }
     });
-    
- 
-    
+
+
+
     // Create and save the invoice
     const invoice = new CreateManagementInvoice(invoiceData);
     await invoice.save();
-    
+
     const responseData = {
       success: true,
       message: 'Invoice created successfully',
       invoice: invoice.toObject()
     };
-    
 
-    
+
+
     return NextResponse.json(responseData);
-    
+
   } catch (error) {
     return handleError(error, 'Failed to create invoice');
   }
@@ -134,10 +132,10 @@ export async function POST(req) {
 
 export async function PATCH(req) {
   await connectDB();
-  
+
   try {
     const { id, ...updateData } = await req.json();
-    
+
     // If updating food items, recalculate totals
     if (updateData.foodItems) {
       const foodItemsWithTaxes = updateData.foodItems.map(item => {
@@ -145,7 +143,7 @@ export async function PATCH(req) {
         const cgstAmount = (amount * (item.cgstPercent || 0)) / 100;
         const sgstAmount = (amount * (item.sgstPercent || 0)) / 100;
         const tax = cgstAmount + sgstAmount;
-        
+
         return {
           ...item,
           amount: parseFloat(amount.toFixed(2)),
@@ -154,47 +152,47 @@ export async function PATCH(req) {
           tax: parseFloat(tax.toFixed(2))
         };
       });
-      
+
       const totalFoodAmount = foodItemsWithTaxes.reduce((sum, item) => sum + item.amount, 0);
       const totalCGST = foodItemsWithTaxes.reduce((sum, item) => sum + item.cgstAmount, 0);
       const totalSGST = foodItemsWithTaxes.reduce((sum, item) => sum + item.sgstAmount, 0);
       const totalGST = totalCGST + totalSGST;
-      
+
       updateData.foodItems = foodItemsWithTaxes;
       updateData.totalFoodAmount = parseFloat(totalFoodAmount.toFixed(2));
       updateData.cgstAmount = parseFloat(totalCGST.toFixed(2));
       updateData.sgstAmount = parseFloat(totalSGST.toFixed(2));
       updateData.gstAmount = parseFloat(totalGST.toFixed(2));
-      
+
       // Recalculate total amount if room price or days are being updated
       if (updateData.roomPrice || updateData.totalDays) {
         const existingInvoice = await CreateManagementInvoice.findById(id);
-        const roomCharges = parseFloat(updateData.roomPrice || existingInvoice.roomPrice) * 
-                          parseInt(updateData.totalDays || existingInvoice.totalDays);
+        const roomCharges = parseFloat(updateData.roomPrice || existingInvoice.roomPrice) *
+          parseInt(updateData.totalDays || existingInvoice.totalDays);
         const subTotal = roomCharges + totalFoodAmount;
-        const finalTotal = subTotal + totalGST + 
-                         parseFloat(updateData.extraCharges || existingInvoice.extraCharges || 0) - 
-                         parseFloat(updateData.discount || existingInvoice.discount || 0);
-        
+        const finalTotal = subTotal + totalGST +
+          parseFloat(updateData.extraCharges || existingInvoice.extraCharges || 0) -
+          parseFloat(updateData.discount || existingInvoice.discount || 0);
+
         updateData.totalAmount = parseFloat(finalTotal.toFixed(2));
       }
     }
-    
+
     const updatedInvoice = await CreateManagementInvoice.findByIdAndUpdate(id, updateData, { new: true });
-    
+
     if (!updatedInvoice) {
       return NextResponse.json(
         { success: false, error: 'Invoice not found' },
         { status: 404 }
       );
     }
-    
+
     return NextResponse.json({
       success: true,
       message: 'Invoice updated successfully',
       invoice: updatedInvoice
     });
-    
+
   } catch (error) {
     return handleError(error, 'Failed to update invoice');
   }
@@ -202,10 +200,10 @@ export async function PATCH(req) {
 
 export async function DELETE(req) {
   await connectDB();
-  
+
   try {
     const { id } = await req.json();
-    
+
     // Find the invoice first
     const invoice = await CreateManagementInvoice.findById(id);
     if (!invoice) {
@@ -214,15 +212,15 @@ export async function DELETE(req) {
         { status: 404 }
       );
     }
-    
+
     // Delete invoice from database
     await CreateManagementInvoice.findByIdAndDelete(id);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Invoice deleted successfully'
     });
-    
+
   } catch (error) {
     return handleError(error, 'Failed to delete invoice');
   }
