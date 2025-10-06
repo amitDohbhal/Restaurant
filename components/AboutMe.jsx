@@ -181,7 +181,7 @@ const AboutMe = () => {
 
       {/* Get In Touch Section */}
       <section className="w-full bg-black py-5 text-white flex flex-col md:flex-row items-center justify-between  md:px-24 gap-6 ">
-        <div className="md:mb-6 md:mb-0 md:px-3">
+        <div className="md:mb-0 md:px-3">
           <h3 className="text-xl md:text-3xl font-bold gap-2 text-center md:text-start">Questions?
             <br className="md:hidden" />
             <span className="text-sm md:text-lg font-normal px-2">Our experts will help find the gear that’s right for you</span>

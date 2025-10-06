@@ -29,19 +29,26 @@ export async function POST(request) {
       );
     }
 
-    // In runningOrder/route.js - Update the item processing
+    // Process each item in the order
     let processedItems = items.map(item => {
       const price = parseFloat(item.price) || 0;
       const qty = parseInt(item.qty) || 1;
       const itemSubtotal = price * qty;
 
-      // Get tax rates (convert from percentage to decimal)
-      const cgstRate = parseFloat(item.cgstPercent) || 0;
-      const sgstRate = parseFloat(item.sgstPercent) || 0;
+      // Get tax rates and amounts (both percentage and fixed amounts)
+      const cgstPercent = parseFloat(item.cgstPercent) || 0;
+      const sgstPercent = parseFloat(item.sgstPercent) || 0;
+      let cgstAmount = parseFloat(item.cgstAmount) || 0;
+      let sgstAmount = parseFloat(item.sgstAmount) || 0;
 
-      // Calculate tax amounts based on rates
-      const cgstAmount = (itemSubtotal * cgstRate) / 100;
-      const sgstAmount = (itemSubtotal * sgstRate) / 100;
+      // If tax amounts are not provided but percentages are, calculate the amounts
+      if (!cgstAmount && cgstPercent > 0) {
+        cgstAmount = (itemSubtotal * cgstPercent) / 100;
+      }
+      if (!sgstAmount && sgstPercent > 0) {
+        sgstAmount = (itemSubtotal * sgstPercent) / 100;
+      }
+
       const itemTax = cgstAmount + sgstAmount;
       const itemTotal = itemSubtotal + itemTax;
 
@@ -49,6 +56,8 @@ export async function POST(request) {
         ...item,
         price,
         quantity: qty,
+        cgstPercent: cgstPercent,
+        sgstPercent: sgstPercent,
         cgstAmount: parseFloat(cgstAmount.toFixed(2)),
         sgstAmount: parseFloat(sgstAmount.toFixed(2)),
         tax: parseFloat(itemTax.toFixed(2)),

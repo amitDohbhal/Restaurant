@@ -7,7 +7,6 @@ const paymentOptions = [
     { label: "Online Payment", value: "online", color: "bg-pink-500 text-white", icon: "💳" },
     { label: "Cash Payment", value: "cash", color: "bg-cyan-600 text-white", icon: "💵" },
     { label: "Send To Room Account", value: "room", color: "bg-blue-700 text-white", icon: "🏨" },
-    // { label: "Print Invoice", value: "print", color: "bg-blue-700 text-white", icon: "🖨️" },
 ];
 
 const initialFoodRow = {
@@ -19,7 +18,7 @@ const initialFoodRow = {
     tax: '',
 };
 
-const CreateRoomInvoice = ({ onSuccess }) => {
+const CreateRoomInvoice = () => {
     const router = useRouter();
     const [room, setRoom] = useState('');
     const [guest, setGuest] = useState('');
@@ -334,22 +333,22 @@ const CreateRoomInvoice = ({ onSuccess }) => {
         });
 
         // Calculate the final totals
-        const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
-        const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
+    const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
+    const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
 
-        console.log('Final Calculation:');
-        console.log(`Food Total: ${foodTotal}`);
-        console.log(`Total CGST: ${totalCGST}`);
-        console.log(`Total SGST: ${totalSGST}`);
-        console.log(`Total GST: ${totalGST}`);
-        console.log(`Final Total: ${finalTotal}`);
+    console.log('Final Calculation:');
+    console.log(`Food Total: ${foodTotal}`);
+    console.log(`Total CGST: ${totalCGST}`);
+    console.log(`Total SGST: ${totalSGST}`);
+    console.log(`Total GST: ${totalGST}`);
+    console.log(`Final Total: ${finalTotal}`);
 
-        // Update state
-        setTotalAmount(parseFloat(foodTotal.toFixed(2)));
-        setGstAmount(totalGST);
-        setFinalTotal(finalTotal);
-        setCGSTAmount(parseFloat(totalCGST.toFixed(2)));
-        setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
+    // Update state with all tax information
+    setTotalAmount(parseFloat(foodTotal.toFixed(2)));
+    setGstAmount(totalGST);
+    setFinalTotal(finalTotal);
+    setCGSTAmount(parseFloat(totalCGST.toFixed(2)));
+    setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
     }, [foodRows]);
 
     const processRazorpayPayment = async (invoiceData) => {
@@ -1570,19 +1569,19 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                             ) : (
                                 invoices.map((invoice) => (
                                     <tr key={invoice._id} className="hover:bg-gray-50 border border-black">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium border border-black text-blue-600">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium border border-black text-blue-600 text-center">
                                             {invoice.invoiceNo}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black text-center">
                                             {formatDate(invoice.invoiceDate)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black text-center">
                                             {invoice.roomNumber}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border border-black text-center">
                                             {invoice.guestFirst} {invoice.guestLast}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-black text-center">
                                             {invoice.paymentMode === 'room' ? (
                                                 <div className="flex flex-col">
                                                     <span>Room Account</span>
@@ -1594,7 +1593,7 @@ const CreateRoomInvoice = ({ onSuccess }) => {
                                                 paymentOptions.find(opt => opt.value === invoice.paymentMode)?.label || invoice.paymentMode
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right border border-black">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center border border-black">
                                             {formatCurrency(invoice.totalAmount)}
                                         </td>
                                         <td className="p-2 whitespace-nowrap text-right text-sm font-medium border border-black ">

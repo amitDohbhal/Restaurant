@@ -84,10 +84,9 @@ const CheckOutGuest = () => {
     }
   };
 
-  const handleCheckout = async () => {
+  const completeCheckout = async () => {
     if (!selectedGuest) return;
 
-    setIsCheckingOut(true);
     try {
       const response = await fetch(`/api/addGuestToRoom`, {
         method: 'PUT',
@@ -128,6 +127,37 @@ const CheckOutGuest = () => {
       toast.success('Guest checked out successfully');
     } catch (error) {
       console.error('Error during checkout:', error);
+      throw error;
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!selectedGuest) return;
+    setIsCheckingOut(true);
+
+    try {
+      // Check for unpaid invoices
+      const hasUnpaidOrders = selectedGuest.unpaidOrders?.length > 0;
+      const hasUnpaidRoomInvoices = selectedGuest.unpaidRoomInvoices?.length > 0;
+      const hasUnpaidInvoices = hasUnpaidOrders || hasUnpaidRoomInvoices;
+
+      if (hasUnpaidInvoices) {
+        // Calculate total amount from both orders and room invoices
+        const ordersTotal = calculateTotal(selectedGuest.unpaidOrders || []);
+        const roomInvoicesTotal = selectedGuest.unpaidRoomInvoices?.reduce((sum, invoice) => {
+          const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) =>
+            itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+          return sum + invoiceTotal;
+        }, 0) || 0;
+
+        const totalAmount = ordersTotal + roomInvoicesTotal;
+
+      }
+
+      // If no unpaid invoices or total amount is zero, proceed with checkout
+      await completeCheckout();
+    } catch (error) {
+      console.error('Error during checkout:', error);
       toast.error(error.message || 'Failed to process checkout');
     } finally {
       setIsCheckingOut(false);
@@ -164,10 +194,35 @@ const CheckOutGuest = () => {
     });
   }, []);
 
-  const processRazorpayPayment = async (orderIds) => {
+  const processRazorpayPayment = async () => {
     if (!selectedGuest) return;
 
+    setIsProcessingPayment(true);
+
     try {
+      // Get all unpaid orders and invoices
+      const orderIdsToProcess = selectedGuest.unpaidOrders?.map(order => order.orderId) || [];
+      const roomInvoiceIdsToProcess = selectedGuest.unpaidRoomInvoices?.map(invoice => invoice._id?.toString()) || [];
+      
+      console.log('Processing orders:', orderIdsToProcess, 'and invoices:', roomInvoiceIdsToProcess);
+
+      // Calculate total amount from both orders and room invoices
+      const ordersTotal = calculateTotal(selectedGuest.unpaidOrders || []);
+
+      const roomInvoicesTotal = selectedGuest.unpaidRoomInvoices?.reduce((sum, invoice) => {
+        const invoiceTotal = (invoice.foodItems || []).reduce((itemSum, item) => 
+          itemSum + (item?.totalAmount || 0), 0) || invoice.totalAmount || 0;
+        return sum + invoiceTotal;
+      }, 0) || 0;
+
+      const amount = Math.round((ordersTotal + roomInvoicesTotal) * 100); // Convert to paise and round
+
+      if (amount <= 0) {
+        // No payment needed, complete checkout directly
+        await completeCheckout();
+        return;
+      }
+
       // Check if Razorpay is loaded
       if (!window.Razorpay) {
         await new Promise((resolve, reject) => {
@@ -179,36 +234,24 @@ const CheckOutGuest = () => {
         });
       }
 
-      // Get all unpaid order and room invoice IDs
-      const orderIdsToProcess = selectedGuest.unpaidOrders?.map(order => order.orderId) || [];
-      const roomInvoiceIdsToProcess = selectedGuest.unpaidRoomInvoices?.map(invoice => invoice._id?.toString()) || [];
-      
-      // Calculate total amount from both orders and room invoices
-      const ordersTotal = calculateTotal(selectedGuest.unpaidOrders || []);
-      const roomInvoicesTotal = selectedGuest.unpaidRoomInvoices?.reduce((sum, invoice) => {
-        const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) => 
-          itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
-        return sum + invoiceTotal;
-      }, 0) || 0;
-      
-      const amount = Math.round((ordersTotal + roomInvoicesTotal) * 100); // Convert to paise and round to avoid decimal issues
-      
       // Generate a shorter receipt ID (max 40 chars for Razorpay)
       const receipt = `INV-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-      console.log('Generated receipt ID:', receipt, 'Length:', receipt.length);
-      console.log('Processing payment for:', {
-        orderIds: orderIdsToProcess,
-        roomInvoiceIds: roomInvoiceIdsToProcess,
-        amount: (amount / 100).toFixed(2)
-      });
+      console.log('Generated receipt ID:', receipt);
 
+      // Determine the primary order type for Razorpay description
+      let primaryType = '';
+      if (roomInvoiceIdsToProcess.length > 0) {
+        primaryType = 'room_invoice';
+      } else if (orderIdsToProcess.length > 0) {
+        primaryType = 'running_order';
+      }
+
+      // Create the Razorpay order with all order and invoice IDs in the notes
       const orderResponse = await fetch('/api/razorpay', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount,
+          amount: amount,
           currency: 'INR',
           receipt,
           notes: {
@@ -220,102 +263,138 @@ const CheckOutGuest = () => {
       });
 
       const orderData = await orderResponse.json();
-      console.log('Razorpay order response:', {
-        status: orderResponse.status,
-        data: orderData,
-        ok: orderResponse.ok
-      });
 
       if (!orderResponse.ok) {
-        console.error('Failed to create payment order:', {
-          status: orderResponse.status,
-          error: orderData.error,
-          details: orderData.details
-        });
-        throw new Error(orderData.error?.description ||
-          orderData.error?.message ||
-          'Failed to create payment order. Please check the server logs for more details.');
+        console.error('Failed to create payment order:', orderData);
+        throw new Error(orderData.error?.description || 'Failed to create payment order');
       }
 
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: orderData.amount,
+        amount: amount,
         currency: 'INR',
         name: 'Hotel Shivan Residence',
-        description: `Payment for Order #${receipt}`,
-        order_id: orderData.id,
+        description: `Payment for ${orderIdsToProcess.length} order(s) and ${roomInvoiceIdsToProcess.length} invoice(s)`,
+        order_id: orderData.order.id,
         handler: async function (response) {
           try {
-            // Verify the payment on the server
-            const verifyResponse = await fetch('/api/razorpay', {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                guestId: selectedGuest._id,
-                orderId: orderIds[0], // Use the first order ID for verification
-                orderIds: orderIds
-              })
-            });
-
-            if (!verifyResponse.ok) throw new Error('Payment verification failed');
-
-            // Update the room account with the payment for both orders and room invoices
-            const processPaymentResponse = await fetch('/api/processPayment', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                guestId: selectedGuest._id,
-                paymentMethod: 'online',
-                orderIds: orderIdsToProcess,
-                roomInvoiceIds: roomInvoiceIdsToProcess
-              })
-            });
-
-            const paymentResult = await processPaymentResponse.json();
-
-            if (!processPaymentResponse.ok) {
-              throw new Error(paymentResult.message || 'Failed to update room account');
+            if (!response.razorpay_payment_id || !response.razorpay_order_id || !response.razorpay_signature) {
+              throw new Error('Payment response is incomplete');
             }
 
-            // Update local state to reflect the payment
-            setSelectedGuest(prev => ({
-              ...prev,
-              unpaidOrders: [],
-              paidOrders: [...(prev.paidOrders || []), ...prev.unpaidOrders]
-            }));
+            // Prepare the verification payload based on what we're processing
+            const verificationPayload = {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              guestId: selectedGuest._id,
+              // Only include what's actually being processed
+              ...(orderIdsToProcess.length > 0 && { orderIds: orderIdsToProcess }),
+              ...(roomInvoiceIdsToProcess.length > 0 && { roomInvoiceIds: roomInvoiceIdsToProcess }),
+              // For backward compatibility
+              orderId: orderIdsToProcess[0] || roomInvoiceIdsToProcess[0],
+              // Only set type if we have a clear primary type
+              ...(primaryType && { type: primaryType })
+            };
+            
+            // Clean up the payload to remove undefined values
+            Object.keys(verificationPayload).forEach(key => 
+              verificationPayload[key] === undefined && delete verificationPayload[key]
+            );
 
+            console.log('Verifying payment with payload:', verificationPayload);
+
+            const verifyResponse = await fetch('/api/razorpay', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(verificationPayload)
+            });
+            
+            const verifyResult = await verifyResponse.json();
+            
+            if (!verifyResponse.ok) {
+              throw new Error(verifyResult.error || 'Payment verification failed');
+            }
+
+            // On successful payment verification, update the local state
+            const updatedGuest = { ...selectedGuest };
+            
+            // Only update what was actually processed
+            if (orderIdsToProcess.length > 0) {
+              // Process orders
+              updatedGuest.paidOrders = [
+                ...(updatedGuest.paidOrders || []),
+                ...(updatedGuest.unpaidOrders || [])
+                  .filter(order => orderIdsToProcess.includes(order.orderId))
+                  .map(order => ({
+                    ...order,
+                    paymentStatus: 'paid',
+                    paidAt: new Date().toISOString(),
+                    paymentMethod: 'online',
+                    razorpayPaymentId: response.razorpay_payment_id,
+                    razorpayOrderId: response.razorpay_order_id
+                  }))
+              ];
+              
+              // Remove processed orders from unpaid
+              updatedGuest.unpaidOrders = (updatedGuest.unpaidOrders || [])
+                .filter(order => !orderIdsToProcess.includes(order.orderId));
+            }
+            
+            if (roomInvoiceIdsToProcess.length > 0) {
+              // Process room invoices
+              updatedGuest.paidRoomInvoices = [
+                ...(updatedGuest.paidRoomInvoices || []),
+                ...(updatedGuest.unpaidRoomInvoices || [])
+                  .filter(invoice => roomInvoiceIdsToProcess.includes(invoice._id?.toString()))
+                  .map(invoice => ({
+                    ...invoice,
+                    paymentStatus: 'completed',
+                    paidAt: new Date().toISOString(),
+                    paymentMethod: 'online',
+                    razorpayPaymentId: response.razorpay_payment_id,
+                    razorpayOrderId: response.razorpay_order_id
+                  }))
+              ];
+              
+              // Remove processed invoices from unpaid
+              updatedGuest.unpaidRoomInvoices = (updatedGuest.unpaidRoomInvoices || [])
+                .filter(invoice => !roomInvoiceIdsToProcess.includes(invoice._id?.toString()));
+            }
+            
+            // Update the selected guest in state
+            setSelectedGuest(updatedGuest);
+            
             // Set invoice data for PDF generation
             setInvoiceData({
-              guest: {
-                ...selectedGuest,
-                unpaidOrders: [],
-                paidOrders: [...(selectedGuest.paidOrders || []), ...selectedGuest.unpaidOrders]
-              },
-              orderIds: orderIds,
+              guest: updatedGuest,
+              orderIds: orderIdsToProcess,
+              invoiceIds: roomInvoiceIdsToProcess,
               paymentId: response.razorpay_payment_id,
               timestamp: new Date().toISOString()
             });
 
-            toast.success('Payment processed and room account updated successfully. Click the download button to get your invoice.');
+            toast.success('Payment processed successfully!');
+
           } catch (error) {
             console.error('Payment processing error:', error);
-            toast.error(error.message || 'Payment processing failed');
+            toast.error(error.message || 'Failed to process payment');
+          } finally {
+            setIsProcessingPayment(false);
           }
         },
         prefill: {
-          name: selectedGuest.name,
+          name: selectedGuest.name || 'Guest',
           email: selectedGuest.email || '',
           contact: selectedGuest.phone || ''
         },
-        theme: {
-          color: '#4f46e5'
+        theme: { color: '#4f46e5' },
+        modal: {
+          ondismiss: function() {
+            console.log('Payment modal dismissed');
+            toast.error('Payment was cancelled');
+            setIsProcessingPayment(false);
+          }
         }
       };
 
@@ -325,37 +404,54 @@ const CheckOutGuest = () => {
     } catch (error) {
       console.error('Payment processing error:', error);
       toast.error(error.message || 'Failed to process payment');
-    } finally {
       setIsProcessingPayment(false);
     }
   };
 
   const handleProcessPayment = async () => {
-    if (!selectedGuest || !selectedGuest.unpaidOrders?.length) {
-      toast.error('No unpaid orders found');
+    if (!selectedGuest) {
+      toast.error('No guest selected');
+      return;
+    }
+
+    const hasUnpaidOrders = selectedGuest.unpaidOrders?.length > 0;
+    const hasUnpaidRoomInvoices = selectedGuest.unpaidRoomInvoices?.length > 0;
+
+    if (!hasUnpaidOrders && !hasUnpaidRoomInvoices) {
+      toast.error('No unpaid invoices found');
       return;
     }
 
     setIsProcessingPayment(true);
 
     try {
-      const orderIds = selectedGuest.unpaidOrders.map(order => order.orderId);
-      console.log('Processing payment for order IDs:', orderIds);
+      const orderIds = selectedGuest.unpaidOrders?.map(order => order.orderId) || [];
+      const roomInvoiceIds = selectedGuest.unpaidRoomInvoices?.map(invoice => invoice._id?.toString()) || [];
 
+      console.log('Processing payment for:', {
+        orderIds,
+        roomInvoiceIds,
+        paymentMethod
+      });
+
+      // Process both orders and room invoices in a single transaction
       if (paymentMethod === 'online') {
+        // Pass both orderIds and roomInvoiceIds to the payment processor
         await processRazorpayPayment(orderIds);
         return;
       }
 
-      // For cash payments
+      // For cash payments - single API call for both orders and invoices
       const response = await fetch('/api/processPayment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guestId: selectedGuest._id,
-          orderIds,
-          paymentMethod: 'cash'
-        }),
+          orderIds: orderIds.length > 0 ? orderIds : undefined,
+          roomInvoiceIds: roomInvoiceIds.length > 0 ? roomInvoiceIds : undefined,
+          paymentMethod: 'cash',
+          isCheckout: true // Indicate this is part of checkout
+        })
       });
 
       const data = await response.json();
@@ -365,31 +461,61 @@ const CheckOutGuest = () => {
         throw new Error(data.message || 'Failed to process payment');
       }
 
-      // Only update local state if the server confirmed the update
-      setSelectedGuest(prev => {
-        const newUnpaidOrders = prev.unpaidOrders.filter(
-          order => !orderIds.includes(order.orderId)
-        );
-        const paidOrders = [
-          ...(prev.paidOrders || []),
-          ...prev.unpaidOrders.filter(order =>
-            orderIds.includes(order.orderId)
-          ).map(order => ({
-            ...order,
-            paymentMethod: 'cash',
-            paymentStatus: 'paid',
-            paidAt: new Date().toISOString()
-          }))
-        ];
+      // Update local state to reflect the payment
+      if (data.success) {
+        // First update the local state for immediate UI feedback
+        setSelectedGuest(prev => {
+          const updatedState = { ...prev };
 
-        return {
-          ...prev,
-          unpaidOrders: newUnpaidOrders,
-          paidOrders
-        };
-      });
+          // Mark orders as paid
+          if (data.updatedOrders?.length > 0) {
+            updatedState.unpaidOrders = prev.unpaidOrders?.filter(
+              order => !data.updatedOrders.includes(order.orderId)
+            ) || [];
 
-      toast.success('Payment processed successfully');
+            updatedState.paidOrders = [
+              ...(prev.paidOrders || []),
+              ...(prev.unpaidOrders?.filter(order =>
+                data.updatedOrders.includes(order.orderId)
+              ) || []).map(order => ({
+                ...order,
+                paymentMethod: 'cash',
+                paymentStatus: 'paid',
+                paidAt: new Date().toISOString()
+              }))
+            ];
+          }
+
+          // Mark room invoices as paid
+          if (data.updatedRoomInvoices?.length > 0) {
+            updatedState.unpaidRoomInvoices = prev.unpaidRoomInvoices?.filter(
+              invoice => !data.updatedRoomInvoices.includes(invoice._id)
+            ) || [];
+
+            updatedState.paidRoomInvoices = [
+              ...(prev.paidRoomInvoices || []),
+              ...(prev.unpaidRoomInvoices?.filter(invoice =>
+                data.updatedRoomInvoices.includes(invoice._id)
+              ) || []).map(invoice => ({
+                ...invoice,
+                paymentMethod: 'cash',
+                paymentStatus: 'paid',
+                paidAt: new Date().toISOString()
+              }))
+            ];
+          }
+
+          return updatedState;
+        });
+
+        toast.success('Payment processed successfully');
+        
+        // Refetch the guest data to ensure we have the latest from the server
+        if (selectedGuest?.phone) {
+          setSearchTerm(selectedGuest.phone);
+          handleSearch();
+        }
+      }
     } catch (error) {
       console.error('Payment error:', error);
       toast.error(error.message || 'Failed to process payment');
@@ -696,7 +822,7 @@ const CheckOutGuest = () => {
       try {
         const response = await fetch('/api/addBasicInfo');
         const data = await response.json();
-        console.log('Hotel Data:', data);
+        // console.log('Hotel Data:', data);
         if (data && data[0]) {
           setHotelData(data[0]);
         } else {
@@ -1249,8 +1375,11 @@ const CheckOutGuest = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {selectedGuest.paidRoomInvoices.map((invoice) => {
-                          const totalAmount = invoice.foodItems?.reduce((sum, item) => sum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+                        {(selectedGuest?.paidRoomInvoices || []).map((invoice) => {
+                          if (!invoice) return null; // Skip if invoice is null/undefined
+                          const totalAmount = Array.isArray(invoice.foodItems) 
+                            ? invoice.foodItems.reduce((sum, item) => sum + (item?.totalAmount || 0), 0) 
+                            : (invoice?.totalAmount || 0);
 
                           return (
                             <tr key={invoice.invoiceId || invoice._id}>
@@ -1290,9 +1419,13 @@ const CheckOutGuest = () => {
                     {selectedGuest?.paidRoomInvoices?.length > 0 && (
                       <div className="text-sm text-muted-foreground">
                         Room Invoices: ₹{(
-                          selectedGuest.paidRoomInvoices.reduce((sum, invoice) => {
-                            const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) =>
-                              itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+                          (selectedGuest.paidRoomInvoices || []).reduce((sum, invoice) => {
+                            if (!invoice) return sum;
+                            const itemsTotal = Array.isArray(invoice.foodItems) 
+                              ? invoice.foodItems.reduce((itemSum, item) => 
+                                  itemSum + (item?.totalAmount || 0), 0)
+                              : 0;
+                            const invoiceTotal = itemsTotal || invoice?.totalAmount || 0;
                             return sum + invoiceTotal;
                           }, 0)
                         ).toLocaleString('en-IN')}
@@ -1300,10 +1433,14 @@ const CheckOutGuest = () => {
                     )}
                     <div className="text-lg font-semibold mt-1">
                       Grand Total: ₹{(
-                        calculateTotal(selectedGuest.paidOrders || []) +
-                        (selectedGuest.paidRoomInvoices?.reduce((sum, invoice) => {
-                          const invoiceTotal = invoice.foodItems?.reduce((itemSum, item) =>
-                            itemSum + (item.totalAmount || 0), 0) || invoice.totalAmount || 0;
+                        calculateTotal(selectedGuest?.paidOrders || []) +
+                        ((selectedGuest?.paidRoomInvoices || []).reduce((sum, invoice) => {
+                          if (!invoice) return sum;
+                          const itemsTotal = Array.isArray(invoice.foodItems) 
+                            ? invoice.foodItems.reduce((itemSum, item) =>
+                                itemSum + (item?.totalAmount || 0), 0)
+                            : 0;
+                          const invoiceTotal = itemsTotal || invoice?.totalAmount || 0;
                           return sum + invoiceTotal;
                         }, 0) || 0)
                       ).toLocaleString('en-IN')}

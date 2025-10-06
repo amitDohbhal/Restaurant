@@ -69,7 +69,7 @@ export async function POST(req) {
     const totalFoodAmount = parseFloat(body.totalFoodAmount) || 0;
     const totalCGST = parseFloat(body.cgstAmount) || 0;
     const totalSGST = parseFloat(body.sgstAmount) || 0;
-    const totalGST = parseFloat(body.gstAmount) || 0;
+    const totalGST = parseFloat(body.gstOnFood) || 0;
 
     // Calculate room charges
     const roomCharges = (parseFloat(body.roomPrice) || 0) * (parseInt(body.totalDays) || 1);

@@ -471,7 +471,7 @@ const InstaBlog = () => {
             )}
 
             {/* Reviews Section */}
-            <div className="w-full mx-auto relative md:min-h-[650px] min-h-[450px] flex items-center justify-end relative">
+            <div className="w-full mx-auto md:min-h-[650px] min-h-[450px] flex items-center justify-end relative">
                 {/* Background Image */}
                 <div className="hidden md:flex absolute inset-0 w-full h-full z-0">
                     <img
@@ -483,7 +483,7 @@ const InstaBlog = () => {
                 </div>
 
                 {/* Review Card Overlay */}
-                <div className="hidden md:flex absolute right-1 gap-2 top-[30%] z-10 flex flex-col justify-start w-full md:w-1/2 items-end pr-1">
+                <div className="hidden md:flex absolute right-1 gap-2 top-[30%] z-10 flex-col justify-start w-full md:w-1/2 items-end pr-1">
                     <div className="px-20">
                         <Button className="bg-white text-black hover:bg-black hover:text-white transition-colors duration-300" onClick={() => setShowReviewModal(true)}>Write Reviews</Button>
                     </div>
@@ -546,7 +546,7 @@ const InstaBlog = () => {
                 </div>
 
                 {/* Review Card (Mobile) */}
-                <div className="block md:hidden gap-2 flex flex-col justify-start w-full md:w-1/2 items-end pr-1">
+                <div className="block md:hidden gap-2 flex-col justify-start w-full md:w-1/2 items-end pr-1">
                     <div className="button">
                         <Button
                             className="bg-white text-black hover:bg-black hover:text-white transition-colors duration-300"

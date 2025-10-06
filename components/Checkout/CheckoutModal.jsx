@@ -116,7 +116,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       }
     }
   }, [currentStep, orderConfirmation]);
-
+  console.log(orderConfirmation)
   // Handle input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -431,16 +431,16 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
           // Get the price and quantity
           const price = parseFloat(item.price);
           const qty = parseInt(item.qty);
-          
+
           // Calculate tax amounts based on what's available
           let cgstPercent, sgstPercent, cgstAmount, sgstAmount;
-          
+
           // Get the tax rates and amounts as they are
           cgstPercent = parseFloat(item.cgstPercent || 0);
           sgstPercent = parseFloat(item.sgstPercent || 0);
           cgstAmount = parseFloat(item.cgstAmount || 0);
           sgstAmount = parseFloat(item.sgstAmount || 0);
-          
+
           const itemSubtotal = price * qty;
           const itemTax = (cgstAmount + sgstAmount) * qty;
           const itemTotal = itemSubtotal + itemTax;
@@ -542,7 +542,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                 cgstAmount: cgstAmount,
                 sgstAmount: sgstAmount,
                 itemTotal: itemTotal,
-                total: itemTotal,  
+                total: itemTotal,
               };
             }),
             subtotal: orderData.items.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.qty)), 0),
@@ -550,11 +550,11 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
               // Calculate tax amount for each item
               const price = parseFloat(item.price) || 0;
               const qty = parseInt(item.qty) || 1;
-              
+
               // If tax amounts are provided directly, use them
               let cgstAmount = parseFloat(item.cgstAmount) || 0;
               let sgstAmount = parseFloat(item.sgstAmount) || 0;
-              
+
               // If tax percentages are provided, calculate amounts
               if (!cgstAmount && item.cgstPercent) {
                 cgstAmount = (price * parseFloat(item.cgstPercent) / 100);
@@ -562,18 +562,18 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
               if (!sgstAmount && item.sgstPercent) {
                 sgstAmount = (price * parseFloat(item.sgstPercent) / 100);
               }
-              
+
               // Calculate total tax for this item (sum of all taxes * quantity)
               return sum + ((cgstAmount + sgstAmount) * qty);
             }, 0),
             totalAmount: orderData.items.reduce((sum, item) => {
               const price = parseFloat(item.price) || 0;
               const qty = parseInt(item.qty) || 1;
-              
+
               // Calculate tax amounts from percentages if needed
               let cgstAmount = parseFloat(item.cgstAmount) || 0;
               let sgstAmount = parseFloat(item.sgstAmount) || 0;
-              
+
               // If tax amounts are not provided but percentages are, calculate them
               if (!cgstAmount && item.cgstPercent) {
                 cgstAmount = (price * parseFloat(item.cgstPercent) / 100);
@@ -581,7 +581,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
               if (!sgstAmount && item.sgstPercent) {
                 sgstAmount = (price * parseFloat(item.sgstPercent) / 100);
               }
-              
+
               // Calculate total for this item (price + all taxes) * quantity
               return sum + ((price + cgstAmount + sgstAmount) * qty);
             }, 0),
@@ -604,7 +604,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
 
       // Show success message
       toast.success('Order placed successfully! Please pay at the hotel.');
-
+      console.log(orderResponseData)
       // Show order confirmation
       setOrderConfirmation({
         orderNumber: orderResponseData.orderNumber,
@@ -783,11 +783,11 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       });
 
       const razorpayData = await razorpayResponse.json();
-      
+
       if (!razorpayResponse.ok || !razorpayData.success) {
         throw new Error(razorpayData.error || 'Failed to create Razorpay order');
       }
-      
+
       const { id: orderId, amount, currency } = razorpayData.order;
       // Load Razorpay script
       const script = document.createElement('script');
@@ -827,20 +827,16 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
             });
 
             const result = await verificationResponse.json();
+            console.log(result)
 
             if (result.success) {
-              toast.success('Payment successful! Order #' + result.orderNumber);
-
-              // Clear the cart
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('cart');
-
-              }
+              const orderNumber = result.order?.orderNumber || Date.now();
+              toast.success('Payment successful! Order #' + orderNumber);
 
               // Show order confirmation
               setOrderConfirmation({
-                orderNumber: result.orderNumber,
-                orderId: verificationData.orderId,
+                orderNumber: orderNumber,
+                orderId: result.order?._id || verificationData.orderId,
                 paymentMethod: 'Online',
                 status: 'pending',
                 paymentId: verificationData.razorpay_payment_id,
@@ -856,9 +852,13 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                 timestamp: new Date().toISOString(),
                 promoDiscount: cart.reduce((sum, item) => sum + (parseFloat(item.discountAmount) || 0) * item.qty, 0).toFixed(2)
               });
-
               // Move to confirmation step
               setCurrentStep(3);
+              // Clear the cart
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('cart');
+
+              }
             } else {
               toast.error('Payment verification failed');
             }
@@ -1211,10 +1211,15 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                         </div>
                       `;
 
+                      // Get order number from the order data
+                      const orderNumber = orderConfirmation?._id ||
+                        orderConfirmation?.orderNumber ||
+                        `temp-${Date.now()}`;
+
                       // Generate PDF
                       const opt = {
                         margin: 10,
-                        filename: `invoice-${orderConfirmation.orderNumber}.pdf`,
+                        filename: `invoice-${orderNumber}.pdf`,
                         image: { type: 'jpeg', quality: 0.98 },
                         html2canvas: { scale: 2 },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -1272,18 +1277,18 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                   <h3 className="font-bold mb-2">Order Summary</h3>
                   {cart.map((item, index) => (
                     <>
-                      <div key={index} className="flex justify-between py-2 md:border-b">
+                      <div key={`${index + 1}`} className="flex justify-between py-2 md:border-b">
                         <div className='flex items-center gap-5'>
                           <p className="font-medium">{item.name}</p>
                           <p className="text-sm text-black">Qty: {item.qty}</p>
                           <div className='hidden md:flex items-center gap-2'>
                             {item.cgstPercent ? (
-                              <p className="text-sm text-black">CGST: {item.cgstPercent}%</p>
+                              <p className="text-sm text-black">CGST: ₹{((item.price * item.cgstPercent / 100) * item.qty).toFixed(2)}</p>
                             ) : (
                               <p className="text-sm text-black">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
                             )}
                             {item.sgstPercent ? (
-                              <p className="text-sm text-black">SGST: {item.sgstPercent}%</p>
+                              <p className="text-sm text-black">SGST: ₹{((item.price * item.sgstPercent / 100) * item.qty).toFixed(2)}</p>
                             ) : (
                               <p className="text-sm text-black">SGST: ₹{(item.sgstAmount * item.qty).toFixed(2)}</p>
                             )}
@@ -1293,12 +1298,12 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                       </div>
                       <div className='md:hidden flex items-center gap-2 pb-2'>
                         {item.cgstPercent ? (
-                          <p className="text-sm text-black">CGST: {item.cgstPercent}%</p>
+                          <p className="text-sm text-black">CGST: ₹{((item.price * item.cgstPercent / 100) * item.qty).toFixed(2)}</p>
                         ) : (
                           <p className="text-sm text-black">CGST: ₹{(item.cgstAmount * item.qty).toFixed(2)}</p>
                         )}
                         {item.sgstPercent ? (
-                          <p className="text-sm text-black">SGST: {item.sgstPercent}%</p>
+                          <p className="text-sm text-black">SGST: ₹{((item.price * item.sgstPercent / 100) * item.qty).toFixed(2)}</p>
                         ) : (
                           <p className="text-sm text-black">SGST: ₹{(item.sgstAmount * item.qty).toFixed(2)}</p>
                         )}
@@ -1385,7 +1390,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
                 <div className="flex justify-between pt-4 border-t border-black">
                   <button
                     onClick={() => setCurrentStep(1)}
-                    className="text-blue-500 hover:underline"
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded hover:text-white"
                   >
                     ← Back to Guest Info
                   </button>

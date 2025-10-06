@@ -91,7 +91,7 @@ const WhatWeDo = () => {
             {/* Left Side */}
             <div className="lg:w-7/12 w-full">
               <div className="md:p-8 mb-8">
-                <h4 className="text-xl md:text-2xl md:text-3xl font-bold mb-4 text-amber-700">The Difference is in the Detail — Crafted for the Wild, Built on Trust.</h4>
+                <h4 className="text-xl md:text-3xl font-bold mb-4 text-amber-700">The Difference is in the Detail — Crafted for the Wild, Built on Trust.</h4>
                 <p className="text-sm md:text-base text-gray-700 mb-4">
                   What Makes the Difference
                   At Adventure Axis, we go beyond just supplying gear — we create complete outdoor solutions rooted in experience, precision, and purpose. What sets us apart is our deep understanding of the adventure world — not just as suppliers, but as explorers ourselves.

@@ -18,7 +18,7 @@ import { useSession } from "next-auth/react";
 const CartDetails = () => {
   // 2. Get price after discount
   const getAfterDiscount = (item) => {
-    const base = item.originalPrice ?? item.price;
+    const base = item.price;
     if (item.discountPercent) return base * (1 - item.discountPercent / 100);
     if (item.discountAmount) return base - item.discountAmount;
     return base;
@@ -153,7 +153,7 @@ const CartDetails = () => {
   // 5. For entire cart
   const subTotal = Array.isArray(cart)
     ? cart.reduce(
-      (sum, item) => sum + (item.originalPrice ?? item.price) * item.qty,
+      (sum, item) => sum + (item.price) * item.qty,
       0
     )
     : 0;
@@ -162,7 +162,7 @@ const CartDetails = () => {
       (sum, item) =>
         sum +
         (item.discountPercent
-          ? (item.originalPrice ?? item.price) * (item.discountPercent / 100)
+          ? (item.price) * (item.discountPercent / 100)
           : item.discountAmount || 0) *
         item.qty,
       0
@@ -208,7 +208,7 @@ const CartDetails = () => {
   // Calculate total taxes from cart items
   // Calculate the subtotal without taxes
   const subtotal = cart.reduce((sum, item) => {
-    return sum + (parseFloat(item.originalPrice || item.price) * item.qty);
+    return sum + (parseFloat(item.price) * item.qty);
   }, 0);
 
   // Calculate total taxes - handle both percentage and amount based taxes
@@ -219,7 +219,7 @@ const CartDetails = () => {
     }
     // If cgstPercent is provided, calculate from price
     else if (item.cgstPercent) {
-      const price = parseFloat(item.originalPrice || item.price) || 0;
+      const price = parseFloat(item.price) || 0;
       return total + ((price * parseFloat(item.cgstPercent) / 100) * item.qty) || 0;
     }
     return total;
@@ -232,7 +232,7 @@ const CartDetails = () => {
     }
     // If sgstPercent is provided, calculate from price
     else if (item.sgstPercent) {
-      const price = parseFloat(item.originalPrice || item.price) || 0;
+      const price = parseFloat(item.price) || 0;
       return total + ((price * parseFloat(item.sgstPercent) / 100) * item.qty) || 0;
     }
     return total;
@@ -290,7 +290,7 @@ const CartDetails = () => {
                       <td className="border p-2 text-center">
                         <div className="font-bold text-base leading-tight">{item.name}</div>
                       </td>
-                      <td className="border p-2 text-center">₹{item.originalPrice ?? item.price}</td>
+                      <td className="border p-2 text-center">₹{item.price}</td>
                       {/* <td className="border p-2 text-center">{getDiscount(item)}</td> */}
                       {/* <td className="border p-2 text-center">₹{getAfterDiscount(item)}</td> */}
                       <td className="border p-2 text-center">
@@ -298,10 +298,9 @@ const CartDetails = () => {
                           <div className="flex flex-col">
                             <span>₹{parseFloat(item.cgstAmount).toFixed(2)}</span>
                           </div>
-                        ) : ''}
-                        {item.cgstPercent ? (
+                        ) : item.cgstPercent ? (
                           <div className="flex flex-col">
-                            <span>{parseFloat(item.cgstPercent).toFixed(2)}%</span>
+                            <span>₹{((parseFloat(item.price || 0) * parseFloat(item.cgstPercent || 0)) / 100).toFixed(2)}</span>
                           </div>
                         ) : ''}
                       </td>
@@ -310,10 +309,9 @@ const CartDetails = () => {
                           <div className="flex flex-col">
                             <span>₹{parseFloat(item.sgstAmount).toFixed(2)}</span>
                           </div>
-                        ) : ''}
-                        {item.sgstPercent ? (
+                        ) : item.sgstPercent ? (
                           <div className="flex flex-col">
-                            <span>{parseFloat(item.sgstPercent).toFixed(2)}%</span>
+                            <span>₹{((parseFloat(item.price || 0) * parseFloat(item.sgstPercent || 0)) / 100).toFixed(2)}</span>
                           </div>
                         ) : ''}
                       </td>
@@ -375,7 +373,7 @@ const CartDetails = () => {
                           <span className="font-semibold">Name:</span> {item.name}
                         </div>
                         <div>
-                          <span className="font-semibold">Base Price:</span> ₹{item.originalPrice ?? item.price}
+                          <span className="font-semibold">Base Price:</span> ₹{item.price}
                         </div>
                         <div>
                           <span className="font-semibold flex items-center gap-1">CGST :{item.cgstAmount ? (
@@ -459,10 +457,10 @@ const CartDetails = () => {
               <hr className="my-2" />
 
               {/* Promo Code Section */}
-              <div className="text-center font-semibold text-lg mb-2">
+              {/* <div className="text-center font-semibold text-lg mb-2">
                 Have a promo code?
-              </div>
-              {appliedPromo && (
+              </div> 
+               {appliedPromo && (
                 <div className="text-green-700 text-xs mt-1">
                   Promo code "{appliedPromo}" applied successfully!
                 </div>
@@ -487,15 +485,15 @@ const CartDetails = () => {
                 >
                   Apply
                 </button>
-              </div>
+              </div> */}
 
 
               {/* Note about coupons */}
-              <div className="text-xs text-red-600 mb-2">
+              {/* <div className="text-xs text-red-600 mb-2">
                 Note : If discount promo code already applied extra additional
                 coupon not applicable
-              </div>
-              {/* Nice! You saved... */}
+              </div> 
+
               {totalDiscount > 0 && (
                 <div className="bg-gray-100 rounded px-2 py-1 text-center text-sm font-semibold text-black mb-2">
                   🎉 Nice! You saved{" "}
@@ -505,19 +503,19 @@ const CartDetails = () => {
               )}
               {promoError && (
                 <div className="text-xs text-red-600 mt-1">{promoError}</div>
-              )}
+              )} */}
               {/* Total CGST/SGST */}
               <div className="flex justify-between items-center text-sm mb-2">
                 <span className="text-gray-600">
                   Total CGST
-                  {cart.some(item => item.cgstPercent) && `(${cart[0]?.cgstPercent || 0}%)`}
+                  
                 </span>
                 <span className="text-gray-900 font-medium">
                   ₹{cart.reduce((total, item) => {
                     if (item.cgstAmount) {
                       return total + (parseFloat(item.cgstAmount) * item.qty) || 0;
                     } else if (item.cgstPercent) {
-                      const price = parseFloat(item.originalPrice || item.price) || 0;
+                      const price = parseFloat(item.price) || 0;
                       return total + ((price * parseFloat(item.cgstPercent) / 100) * item.qty) || 0;
                     }
                     return total;
@@ -527,14 +525,14 @@ const CartDetails = () => {
               <div className="flex justify-between items-center text-sm mb-2">
                 <span className="text-gray-600">
                   Total SGST
-                  {cart.some(item => item.sgstPercent) && `(${cart[0]?.sgstPercent || 0}%)`}
+                 
                 </span>
                 <span className="text-gray-900 font-medium">
                   ₹{cart.reduce((total, item) => {
                     if (item.sgstAmount) {
                       return total + (parseFloat(item.sgstAmount) * item.qty) || 0;
                     } else if (item.sgstPercent) {
-                      const price = parseFloat(item.originalPrice || item.price) || 0;
+                      const price = parseFloat(item.price) || 0;
                       return total + ((price * parseFloat(item.sgstPercent) / 100) * item.qty) || 0;
                     }
                     return total;

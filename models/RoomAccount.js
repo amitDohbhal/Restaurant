@@ -99,7 +99,8 @@ const roomAccountSchema = new mongoose.Schema({
     paymentMethod: String,
     paymentStatus: {
       type: String,
-      default: 'pending'
+      default: 'pending',
+      enum: ['pending', 'paid', 'completed']
     },
     paidAt: Date,
     createdAt: {
@@ -238,20 +239,20 @@ const roomAccountSchema = new mongoose.Schema({
     invoiceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'RoomInvoice',
-      required: true
+      default: null
     },
     invoiceNo: {
       type: String,
-      required: true
+      default: ''
     },
     invoiceDate: {
       type: Date,
-      required: true
+      default: Date.now
     },
     paymentStatus: {
       type: String,
       default: 'paid',
-      enum: ['paid']
+      enum: ['paid','completed']
     },
     paymentMode: {
       type: String,
