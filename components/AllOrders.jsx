@@ -154,9 +154,6 @@ const AllOrders = ({ orders = [], loading = false, error = null }) => {
         setSelectedOrder(null);
     };
 
-    // Debug log to see the structure of orders
-    console.log('Orders in AllOrders:', JSON.stringify(orders, null, 2));
-
     if (loading) {
         return <div className="p-4 text-center">Loading orders...</div>;
     }
@@ -172,7 +169,7 @@ const AllOrders = ({ orders = [], loading = false, error = null }) => {
     return (
         <>
             {/* Desktop Cards */}
-            <div className="hidden sm:block flex flex-col">
+            <div className="hidden sm:block flex-col">
                 <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
                     <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
                         <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
@@ -197,7 +194,7 @@ const AllOrders = ({ orders = [], loading = false, error = null }) => {
                                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">
                                             Status
                                         </th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">
+                                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-black uppercase tracking-wider">
                                             Action
                                         </th>
                                     </tr>
@@ -242,12 +239,12 @@ const AllOrders = ({ orders = [], loading = false, error = null }) => {
                                                     {order.status.replace('_', ' ') || 'pending'}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 flex items-center flex-row whitespace-nowrap text-sm font-medium">
+                                            <td className="px-5 py-5 flex items-center justify-center">
                                                 <button
                                                     onClick={() => handleViewOrder(order)}
                                                     className="text-blue-600 hover:text-blue-900"
                                                 >
-                                                    <Eye />
+                                                    <Eye  size={30}/>
                                                 </button>
                                             </td>
                                         </tr>

@@ -333,22 +333,14 @@ const CreateRoomInvoice = () => {
         });
 
         // Calculate the final totals
-    const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
-    const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
-
-    console.log('Final Calculation:');
-    console.log(`Food Total: ${foodTotal}`);
-    console.log(`Total CGST: ${totalCGST}`);
-    console.log(`Total SGST: ${totalSGST}`);
-    console.log(`Total GST: ${totalGST}`);
-    console.log(`Final Total: ${finalTotal}`);
-
-    // Update state with all tax information
-    setTotalAmount(parseFloat(foodTotal.toFixed(2)));
-    setGstAmount(totalGST);
-    setFinalTotal(finalTotal);
-    setCGSTAmount(parseFloat(totalCGST.toFixed(2)));
-    setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
+        const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
+        const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
+        // Update state with all tax information
+        setTotalAmount(parseFloat(foodTotal.toFixed(2)));
+        setGstAmount(totalGST);
+        setFinalTotal(finalTotal);
+        setCGSTAmount(parseFloat(totalCGST.toFixed(2)));
+        setSGSTAmount(parseFloat(totalSGST.toFixed(2)));
     }, [foodRows]);
 
     const processRazorpayPayment = async (invoiceData) => {
@@ -844,7 +836,7 @@ const CreateRoomInvoice = () => {
             setSelectedPayment('');
             setDiscount(0);
             setExtraCharges(0);
-            setFoodRows([{ foodItem: '', qty: '', qtyType: 'plate' }]);
+            setFoodRows([{foodItem: '', qty: '', qtyType: 'plate' }]);
             await fetchInvoices();
         } catch (error) {
             console.error('Error clearing form:', error);

@@ -98,13 +98,7 @@ export async function POST(request, { params }) {
     
     const totalAmount = parseFloat(orderData.totalAmount) || (subtotal + taxAmount);
     
-    console.log('Calculated totals:', { 
-      subtotal, 
-      taxAmount, 
-      totalAmount,
-      itemCount: processedItems.length 
-    });
-    
+
     // Find the room account by room number
     const roomAccount = await RoomAccount.findOne({ roomNumber });
     
@@ -130,25 +124,31 @@ export async function POST(request, { params }) {
         createdAt: new Date(),
         updatedAt: new Date()
       };
-      
-      console.log('Adding unpaid order:', JSON.stringify(unpaidOrder, null, 2));
-      
+
+  
       // Initialize unpaidOrders array if it doesn't exist
       if (!roomAccount.unpaidOrders) {
         roomAccount.unpaidOrders = [];
       }
       
-      // Add the unpaid order to the room account
-      roomAccount.unpaidOrders.push(unpaidOrder);
+      // Check if order with the same orderId already exists
+      const existingOrderIndex = roomAccount.unpaidOrders.findIndex(
+        order => order.orderId === unpaidOrder.orderId || order.orderNumber === unpaidOrder.orderNumber
+      );
+      
+      if (existingOrderIndex >= 0) {
+        // Update existing order instead of adding a new one
+        roomAccount.unpaidOrders[existingOrderIndex] = unpaidOrder;
+      } else {
+        // Add new unpaid order
+        roomAccount.unpaidOrders.push(unpaidOrder);
+      }
       
       // Mark as modified to ensure Mongoose saves the changes
       roomAccount.markModified('unpaidOrders');
       
       // Save the updated room account
-      await roomAccount.save();
-      
-      console.log('Successfully added order to room account');
-      
+      await roomAccount.save();      
       return NextResponse.json({
         success: true,
         message: 'Order added to room account',

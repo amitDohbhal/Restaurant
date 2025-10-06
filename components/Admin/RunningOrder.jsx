@@ -96,6 +96,41 @@ export default function RunningOrder() {
       }
 
       const { data } = await response.json();
+      console.log(data)
+      
+      // Check for new orders
+      if (orders.length > 0 && data?.length > 0) {
+        const newOrders = data.filter(
+          newOrder => !orders.some(existingOrder => existingOrder._id === newOrder._id)
+        );
+        console.log(newOrders)
+        
+        // Show toast for each new order
+        newOrders.forEach(order => {
+          const customerName = order.customer?.name || 'Guest';
+          const roomNumber = order.customer?.roomNumber ? `(Room ${order.customer.roomNumber})` : '';
+          const itemCount = order.items?.length || 0;
+          const totalAmount = order.total || 0;
+          
+          toast.success(
+            <div className="space-y-1">
+              <p className="font-medium">New Order #{order.orderNumber || order._id}</p>
+              <p className="text-sm">{customerName} {roomNumber}</p>
+              <p className="text-sm">{itemCount} items • ₹{totalAmount.toFixed(2)}</p>
+            </div>,
+            {
+              duration: 8000,
+              position: 'top-right',
+              icon: '🍽️',
+              style: {
+                borderLeft: '4px solid #10B981',
+                minWidth: '250px'
+              },
+            }
+          );
+        });
+      }
+      
       setOrders(data || []);
     } catch (error) {
       console.error('Error in fetchOrders:', {

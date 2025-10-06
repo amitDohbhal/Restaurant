@@ -339,7 +339,7 @@ const Dashboard = () => {
         <div className={`flex flex-col items-center py-4 md:py-8 border-b transition-all duration-300 ${isSidebarCollapsed ? 'px-2' : 'px-6'}`}>
           <div className="w-16 h-16 md:w-20 md:h-20 mb-2 rounded-full border-4 border-white shadow-lg overflow-hidden">
             <Image 
-              src={user.image} 
+              src={user.image || "/placeholder.jpeg"} 
               alt="avatar" 
               width={80} 
               height={80} 

@@ -203,14 +203,14 @@ const CheckOutGuest = () => {
       // Get all unpaid orders and invoices
       const orderIdsToProcess = selectedGuest.unpaidOrders?.map(order => order.orderId) || [];
       const roomInvoiceIdsToProcess = selectedGuest.unpaidRoomInvoices?.map(invoice => invoice._id?.toString()) || [];
-      
+
       console.log('Processing orders:', orderIdsToProcess, 'and invoices:', roomInvoiceIdsToProcess);
 
       // Calculate total amount from both orders and room invoices
       const ordersTotal = calculateTotal(selectedGuest.unpaidOrders || []);
 
       const roomInvoicesTotal = selectedGuest.unpaidRoomInvoices?.reduce((sum, invoice) => {
-        const invoiceTotal = (invoice.foodItems || []).reduce((itemSum, item) => 
+        const invoiceTotal = (invoice.foodItems || []).reduce((itemSum, item) =>
           itemSum + (item?.totalAmount || 0), 0) || invoice.totalAmount || 0;
         return sum + invoiceTotal;
       }, 0) || 0;
@@ -296,9 +296,9 @@ const CheckOutGuest = () => {
               // Only set type if we have a clear primary type
               ...(primaryType && { type: primaryType })
             };
-            
+
             // Clean up the payload to remove undefined values
-            Object.keys(verificationPayload).forEach(key => 
+            Object.keys(verificationPayload).forEach(key =>
               verificationPayload[key] === undefined && delete verificationPayload[key]
             );
 
@@ -309,16 +309,16 @@ const CheckOutGuest = () => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(verificationPayload)
             });
-            
+
             const verifyResult = await verifyResponse.json();
-            
+
             if (!verifyResponse.ok) {
               throw new Error(verifyResult.error || 'Payment verification failed');
             }
 
             // On successful payment verification, update the local state
             const updatedGuest = { ...selectedGuest };
-            
+
             // Only update what was actually processed
             if (orderIdsToProcess.length > 0) {
               // Process orders
@@ -335,12 +335,12 @@ const CheckOutGuest = () => {
                     razorpayOrderId: response.razorpay_order_id
                   }))
               ];
-              
+
               // Remove processed orders from unpaid
               updatedGuest.unpaidOrders = (updatedGuest.unpaidOrders || [])
                 .filter(order => !orderIdsToProcess.includes(order.orderId));
             }
-            
+
             if (roomInvoiceIdsToProcess.length > 0) {
               // Process room invoices
               updatedGuest.paidRoomInvoices = [
@@ -356,15 +356,15 @@ const CheckOutGuest = () => {
                     razorpayOrderId: response.razorpay_order_id
                   }))
               ];
-              
+
               // Remove processed invoices from unpaid
               updatedGuest.unpaidRoomInvoices = (updatedGuest.unpaidRoomInvoices || [])
                 .filter(invoice => !roomInvoiceIdsToProcess.includes(invoice._id?.toString()));
             }
-            
+
             // Update the selected guest in state
             setSelectedGuest(updatedGuest);
-            
+
             // Set invoice data for PDF generation
             setInvoiceData({
               guest: updatedGuest,
@@ -390,7 +390,7 @@ const CheckOutGuest = () => {
         },
         theme: { color: '#4f46e5' },
         modal: {
-          ondismiss: function() {
+          ondismiss: function () {
             console.log('Payment modal dismissed');
             toast.error('Payment was cancelled');
             setIsProcessingPayment(false);
@@ -509,11 +509,30 @@ const CheckOutGuest = () => {
         });
 
         toast.success('Payment processed successfully');
-        
-        // Refetch the guest data to ensure we have the latest from the server
-        if (selectedGuest?.phone) {
-          setSearchTerm(selectedGuest.phone);
-          handleSearch();
+
+        // Trigger a new search to refresh the table data
+        if (searchTerm) {
+          try {
+            // First, reset the search results to show loading state
+            setSearchResults([]);
+
+            // Then perform a new search with the current search term
+            const response = await fetch(`/api/addGuestToRoom?search=${encodeURIComponent(searchTerm)}`);
+            if (!response.ok) throw new Error('Failed to refresh data');
+
+            const guests = await response.json();
+            const checkedInGuests = guests.filter(guest => guest.status === 'checked-in');
+            setSearchResults(checkedInGuests);
+
+            // If the selected guest is in the results, update it
+            const updatedGuest = checkedInGuests.find(g => g._id === selectedGuest._id);
+            if (updatedGuest) {
+              setSelectedGuest(updatedGuest);
+            }
+          } catch (error) {
+            console.error('Error refreshing data:', error);
+            // Silently fail - the payment was still successful
+          }
         }
       }
     } catch (error) {
@@ -533,7 +552,29 @@ const CheckOutGuest = () => {
 
     try {
       // Get all items from all orders
-      const allItems = (guest.paidOrders || []).flatMap(order => order.items || []);
+      // Add this after the existing allItems mapping:
+      const allItems = [
+        // Paid orders items
+        ...(guest.paidOrders || []).flatMap(order =>
+          (order.items || []).map(item => ({
+            ...item,
+            _orderType: 'restaurant',
+            _orderNumber: order.orderNumber,
+            _orderDate: order.createdAt || new Date().toISOString()
+          }))
+        ),
+        // Paid room invoices items
+        ...(guest.paidRoomInvoices || []).flatMap(invoice => {
+          if (!invoice) return [];
+          const items = (invoice.foodItems || invoice.items || []).filter(Boolean);
+          return items.map(item => ({
+            ...item,
+            _orderType: 'room_service',
+            _orderNumber: invoice.orderNumber || invoice.invoiceNumber || 'N/A',
+            _orderDate: invoice.createdAt || new Date().toISOString()
+          }));
+        })
+      ];
 
       const itemsWithTaxes = allItems.map(item => {
         const price = parseFloat(item.price || 0);
@@ -848,14 +889,18 @@ const CheckOutGuest = () => {
       const totalNights = checkInDate && checkOutDate ?
         Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24)) : 0;
 
-      // Get orders (use paidOrders if available, otherwise use empty array)
-      const orders = guest.paidOrders || [];
-
-      // Update the itemsWithTaxes mapping to ensure tax data is properly calculated
-      const itemsWithTaxes = orders.flatMap(order => {
-        return (order.items || []).map(item => {
+      // Process both paidOrders and paidRoomInvoices
+      const processOrder = (order, type) => {
+        if (!order) return [];
+        const items = type === 'restaurant' 
+          ? order.items || []
+          : (order.foodItems || order.items || []);
+          
+        return items.map(item => {
+          if (!item) return null;
+          
           const price = parseFloat(item.price || 0);
-          const quantity = parseInt(item.quantity) || 1;
+          const quantity = parseInt(item.quantity || item.qty || 1);
           const itemSubtotal = price * quantity;
 
           // Get tax rates - use the item's tax data if available, otherwise default to 0
@@ -895,17 +940,29 @@ const CheckOutGuest = () => {
             _cgstAmount: cgstAmount,
             _sgstAmount: sgstAmount,
             _itemSubtotal: itemSubtotal,
-            _itemTotal: itemTotal
+            _itemTotal: itemTotal,
+            _orderType: type,
+            _orderNumber: order.orderNumber || order.invoiceNumber,
+            _orderDate: order.createdAt || new Date().toISOString()
           };
-        });
-      });
+        }).filter(Boolean); // Remove any null items
+      };
+
+      // Process all orders and invoices
+      const allItems = [
+        ...(guest.paidOrders || []).flatMap(order => processOrder(order, 'restaurant')),
+        ...(guest.paidRoomInvoices || []).flatMap(invoice => processOrder(invoice, 'room_service'))
+      ];
+
+      // Filter out any null/undefined items that might have snuck through
+      const itemsWithTaxes = allItems.filter(Boolean);
 
       // Calculate totals
-      const subtotal = itemsWithTaxes.reduce((sum, item) => sum + item._itemSubtotal, 0);
-      const totalCGST = itemsWithTaxes.reduce((sum, item) => sum + item._cgstAmount, 0);
-      const totalSGST = itemsWithTaxes.reduce((sum, item) => sum + item._sgstAmount, 0);
+      const subtotal = itemsWithTaxes.reduce((sum, item) => sum + (item._itemSubtotal || 0), 0);
+      const totalCGST = itemsWithTaxes.reduce((sum, item) => sum + (item._cgstAmount || 0), 0);
+      const totalSGST = itemsWithTaxes.reduce((sum, item) => sum + (item._sgstAmount || 0), 0);
       const grandTotal = subtotal + totalCGST + totalSGST;
-
+         
       // Create invoice HTML
       const invoiceHtml = `
         <div style="width: 100%; max-width: 800px; margin: 0 auto; border: 1px solid #eee; border-radius: 5px; overflow: hidden;">
@@ -1035,7 +1092,7 @@ const CheckOutGuest = () => {
       // Generate PDF
       const opt = {
         margin: 10,
-        filename: `invoice-${guest.bookingId || guest._id || 'guest'}-${Date.now()}.pdf`,
+        filename: `invoice-${Date.now()}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
           scale: 2,
@@ -1064,7 +1121,7 @@ const CheckOutGuest = () => {
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
-          link.download = `invoice-${guest.bookingId || guest._id || 'guest'}-${Date.now()}.pdf`;
+          link.download = `invoice-${Date.now()}.pdf`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -1377,8 +1434,8 @@ const CheckOutGuest = () => {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {(selectedGuest?.paidRoomInvoices || []).map((invoice) => {
                           if (!invoice) return null; // Skip if invoice is null/undefined
-                          const totalAmount = Array.isArray(invoice.foodItems) 
-                            ? invoice.foodItems.reduce((sum, item) => sum + (item?.totalAmount || 0), 0) 
+                          const totalAmount = Array.isArray(invoice.foodItems)
+                            ? invoice.foodItems.reduce((sum, item) => sum + (item?.totalAmount || 0), 0)
                             : (invoice?.totalAmount || 0);
 
                           return (
@@ -1421,9 +1478,9 @@ const CheckOutGuest = () => {
                         Room Invoices: ₹{(
                           (selectedGuest.paidRoomInvoices || []).reduce((sum, invoice) => {
                             if (!invoice) return sum;
-                            const itemsTotal = Array.isArray(invoice.foodItems) 
-                              ? invoice.foodItems.reduce((itemSum, item) => 
-                                  itemSum + (item?.totalAmount || 0), 0)
+                            const itemsTotal = Array.isArray(invoice.foodItems)
+                              ? invoice.foodItems.reduce((itemSum, item) =>
+                                itemSum + (item?.totalAmount || 0), 0)
                               : 0;
                             const invoiceTotal = itemsTotal || invoice?.totalAmount || 0;
                             return sum + invoiceTotal;
@@ -1436,9 +1493,9 @@ const CheckOutGuest = () => {
                         calculateTotal(selectedGuest?.paidOrders || []) +
                         ((selectedGuest?.paidRoomInvoices || []).reduce((sum, invoice) => {
                           if (!invoice) return sum;
-                          const itemsTotal = Array.isArray(invoice.foodItems) 
+                          const itemsTotal = Array.isArray(invoice.foodItems)
                             ? invoice.foodItems.reduce((itemSum, item) =>
-                                itemSum + (item?.totalAmount || 0), 0)
+                              itemSum + (item?.totalAmount || 0), 0)
                             : 0;
                           const invoiceTotal = itemsTotal || invoice?.totalAmount || 0;
                           return sum + invoiceTotal;
@@ -1570,9 +1627,18 @@ const CheckOutGuest = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">
-                          {guest.paidOrders?.length > 0 && (
+                          {(guest.paidOrders?.length > 0 || guest.paidRoomInvoices?.length > 0) && (
                             <div className="font-medium">
-                              Total: ₹{guest.paidOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)}
+                              Total: ₹{
+                                (guest.paidOrders?.reduce((sum, order) => sum + (order.totalAmount || 0), 0) || 0) +
+                                (guest.paidRoomInvoices?.reduce((sum, invoice) => {
+                                  if (!invoice) return sum;
+                                  const invoiceTotal = Array.isArray(invoice?.foodItems)
+                                    ? invoice.foodItems.reduce((sum, item) => sum + (item?.totalAmount || 0), 0)
+                                    : (invoice?.totalAmount || 0);
+                                  return sum + (invoiceTotal || 0);
+                                }, 0) || 0)
+                              }
                             </div>
                           )}
                         </div>
