@@ -386,12 +386,12 @@ const CreateRestaurantInvoice = () => {
         const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
         const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
 
-        console.log('Final Calculation:');
-        console.log(`Food Total: ${foodTotal}`);
-        console.log(`Total CGST: ${totalCGST}`);
-        console.log(`Total SGST: ${totalSGST}`);
-        console.log(`Total GST: ${totalGST}`);
-        console.log(`Final Total: ${finalTotal}`);
+        // console.log('Final Calculation:');
+        // console.log(`Food Total: ${foodTotal}`);
+        // console.log(`Total CGST: ${totalCGST}`);
+        // console.log(`Total SGST: ${totalSGST}`);
+        // console.log(`Total GST: ${totalGST}`);
+        // console.log(`Final Total: ${finalTotal}`);
 
         // Update state
         setTotalAmount(parseFloat(foodTotal.toFixed(2)));
@@ -438,7 +438,7 @@ const CreateRestaurantInvoice = () => {
             });
 
             const orderData = await orderResponse.json();
-            console.log('Order creation response:', orderData);
+            // console.log('Order creation response:', orderData);
 
             if (!orderResponse.ok || !orderData.success) {
                 const errorMsg = orderData.error || 'Failed to create payment order';
@@ -455,7 +455,7 @@ const CreateRestaurantInvoice = () => {
                 order_id: orderData.order.id,
                 handler: async function (response) {
                     try {
-                        console.log('Razorpay payment response:', response);
+                        // console.log('Razorpay payment response:', response);
 
                         // Verify payment on your server
                         const verifyResponse = await fetch('/api/razorpay', {
@@ -471,8 +471,7 @@ const CreateRestaurantInvoice = () => {
                         });
 
                         const verifyData = await verifyResponse.json();
-                        console.log('Verification response:', verifyData);
-
+                        // console.log('Verification response:', verifyData);
                         if (!verifyResponse.ok) {
                             throw new Error(verifyData.error || 'Payment verification failed');
                         }
@@ -592,7 +591,7 @@ const CreateRestaurantInvoice = () => {
                 const sgstAmount = sgstFromPercent + (parseFloat(row.foodItem.sgstAmount) || 0);
 
                 // Debug log the calculated values
-                console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
+                // console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
 
                 // Get the original percentages for storage
                 const cgstPercent = row.foodItem.cgstPercent || 0;

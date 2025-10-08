@@ -104,13 +104,13 @@ export async function POST(request) {
 
     const total = subtotal + tax;
 
-    console.log('Order totals:', {
-      subtotal,
-      tax,
-      total,
-      itemCount: processedItems.length,
-      firstItem: processedItems[0] // Log first item for debugging
-    });
+    // console.log('Order totals:', {
+    //   subtotal,
+    //   tax,
+    //   total,
+    //   itemCount: processedItems.length,
+    //   firstItem: processedItems[0] // Log first item for debugging
+    // });
 
     // For room-service or room-account payments, verify room number
     if ((orderType === 'room-service' || paymentMethod === 'room-account') && !roomNumber) {
@@ -160,12 +160,12 @@ export async function POST(request) {
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Log incoming customer data for debugging
-    console.log('Creating order with customer data:', {
-      customerId: customer._id,
-      guestId: customer.guestId,
-      roomNumber,
-      customer
-    });
+    // console.log('Creating order with customer data:', {
+    //   customerId: customer._id,
+    //   guestId: customer.guestId,
+    //   roomNumber,
+    //   customer
+    // });
 
     // Validate userId is present
     if (!customer.userId) {
@@ -336,9 +336,9 @@ export async function POST(request) {
         );
 
         if (result) {
-          console.log(`Order ${order.orderNumber} added to room ${roomNumberToUse}'s ${isPaidOrder ? 'paidOrders' : 'unpaidOrders'}`);
+          // console.log(`Order ${order.orderNumber} added to room ${roomNumberToUse}'s ${isPaidOrder ? 'paidOrders' : 'unpaidOrders'}`);
           if (paymentMethod === 'pay_at_hotel') {
-            console.log(`Order ${order.orderNumber} also added to unpaidOrders for tracking`);
+            // console.log(`Order ${order.orderNumber} also added to unpaidOrders for tracking`);
           }
         } else {
           console.warn(`Room ${roomNumberToUse} not found, could not link order`);
@@ -369,11 +369,11 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
-    console.log('PATCH /api/runningOrder - Connecting to DB...');
+    // console.log('PATCH /api/runningOrder - Connecting to DB...');
     await connectDB();
 
     const requestData = await request.json();
-    console.log('PATCH /api/runningOrder - Request data:', JSON.stringify(requestData, null, 2));
+    // console.log('PATCH /api/runningOrder - Request data:', JSON.stringify(requestData, null, 2));
 
     const { orderId, status } = requestData;
 
@@ -395,7 +395,7 @@ export async function PATCH(request) {
       );
     }
 
-    console.log(`PATCH /api/runningOrder - Updating order ${orderId} to status: ${status}`);
+    // console.log(`PATCH /api/runningOrder - Updating order ${orderId} to status: ${status}`);
 
     const updateData = {
       status,
@@ -404,7 +404,7 @@ export async function PATCH(request) {
       ...(status === 'cancelled' && { cancelledAt: new Date() })
     };
 
-    console.log('PATCH /api/runningOrder - Update data:', JSON.stringify(updateData, null, 2));
+    // console.log('PATCH /api/runningOrder - Update data:', JSON.stringify(updateData, null, 2));
 
     const updatedOrder = await RunningOrder.findByIdAndUpdate(
       orderId,
@@ -420,7 +420,7 @@ export async function PATCH(request) {
       );
     }
 
-    console.log(`PATCH /api/runningOrder - Successfully updated order ${orderId}`);
+    // console.log(`PATCH /api/runningOrder - Successfully updated order ${orderId}`);
     return NextResponse.json({
       success: true,
       data: updatedOrder

@@ -25,7 +25,7 @@ export async function GetAllInvoices(page = 1, itemsPerPage = 15) {
             RoomInvoice.find({}).sort({ createdAt: -1 }).lean(),
             RunningOrder.find({}).sort({ createdAt: -1 }).lean()
         ]);
-        console.log(managementInvoices)
+        // console.log(managementInvoices)
 
         // Get total counts for pagination
         const [

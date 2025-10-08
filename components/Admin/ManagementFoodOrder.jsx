@@ -179,9 +179,9 @@ const ManagementFoodOrder = () => {
                     sgst = calculateGST(itemTotal, row.foodItem.sgstPercent);
                 }
 
-                console.log(`Item: ${row.foodItem.foodName} - Price: ${itemPrice}, Qty: ${row.qty}, Total: ${itemTotal}`);
-                console.log(`CGST: ${cgst} (${row.foodItem.cgstPercent ? row.foodItem.cgstPercent + '%' : 'Fixed: ' + row.foodItem.cgstAmount})`);
-                console.log(`SGST: ${sgst} (${row.foodItem.sgstPercent ? row.foodItem.sgstPercent + '%' : 'Fixed: ' + row.foodItem.sgstAmount})`);
+                // console.log(`Item: ${row.foodItem.foodName} - Price: ${itemPrice}, Qty: ${row.qty}, Total: ${itemTotal}`);
+                // console.log(`CGST: ${cgst} (${row.foodItem.cgstPercent ? row.foodItem.cgstPercent + '%' : 'Fixed: ' + row.foodItem.cgstAmount})`);
+                // console.log(`SGST: ${sgst} (${row.foodItem.sgstPercent ? row.foodItem.sgstPercent + '%' : 'Fixed: ' + row.foodItem.sgstAmount})`);
 
                 foodTotal += itemTotal;
                 totalCGST += cgst;
@@ -193,12 +193,12 @@ const ManagementFoodOrder = () => {
         const totalGST = parseFloat((totalCGST + totalSGST).toFixed(2));
         const finalTotal = parseFloat((foodTotal + totalGST).toFixed(2));
 
-        console.log('Final Calculation:');
-        console.log(`Food Total: ${foodTotal}`);
-        console.log(`Total CGST: ${totalCGST}`);
-        console.log(`Total SGST: ${totalSGST}`);
-        console.log(`Total GST: ${totalGST}`);
-        console.log(`Final Total: ${finalTotal}`);
+        // console.log('Final Calculation:');
+        // console.log(`Food Total: ${foodTotal}`);
+        // console.log(`Total CGST: ${totalCGST}`);
+        // console.log(`Total SGST: ${totalSGST}`);
+        // console.log(`Total GST: ${totalGST}`);
+        // console.log(`Final Total: ${finalTotal}`);
 
         // Update state
         setTotalAmount(parseFloat(foodTotal.toFixed(2)));
@@ -235,11 +235,11 @@ const ManagementFoodOrder = () => {
             .map(row => {
                 const itemPrice = getPriceForQtyType(row.foodItem, row.qtyType);
                 const amount = itemPrice * parseFloat(row.qty || 0);
-                console.log('Item:', row.foodItem.foodName, 'Amount:', amount);
-                console.log('CGST - Percent:', row.foodItem.cgstPercent, 'Fixed:', row.foodItem.cgstAmount);
-                console.log('SGST - Percent:', row.foodItem.sgstPercent, 'Fixed:', row.foodItem.sgstAmount);
+                // console.log('Item:', row.foodItem.foodName, 'Amount:', amount);
+                // console.log('CGST - Percent:', row.foodItem.cgstPercent, 'Fixed:', row.foodItem.cgstAmount);
+                // console.log('SGST - Percent:', row.foodItem.sgstPercent, 'Fixed:', row.foodItem.sgstAmount);
 
-                // First calculate GST from percentage if percentage is provided
+                // // First calculate GST from percentage if percentage is provided
                 const cgstFromPercent = row.foodItem.cgstPercent > 0
                     ? calculateGST(amount, row.foodItem.cgstPercent, 0)
                     : 0;
@@ -253,7 +253,7 @@ const ManagementFoodOrder = () => {
                 const sgstAmount = sgstFromPercent + (parseFloat(row.foodItem.sgstAmount) || 0);
 
                 // Debug log the calculated values
-                console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
+                // console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
 
                 // Get the original percentages for storage
                 const cgstPercent = row.foodItem.cgstPercent || 0;

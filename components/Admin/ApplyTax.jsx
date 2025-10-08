@@ -117,7 +117,7 @@ const ApplyTax = ({ productData, productId }) => {
   // Save handler with detailed debug logs
   const handleSaveTax = async () => {
     // console.log('[ApplyTax] handleSaveTax called');
-    console.log('[ApplyTax] productId:', productId, 'cgst:', cgst, 'sgst:', sgst);
+    // console.log('[ApplyTax] productId:', productId, 'cgst:', cgst, 'sgst:', sgst);
     if (!productId) {
       toast.error('Product ID is missing or invalid!');
       return;

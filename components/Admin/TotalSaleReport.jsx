@@ -85,7 +85,7 @@ const TotalSaleReport = () => {
 
                 const response = await fetch(activeSectionConfig.apiEndpoint);
                 const data = await response.json();
-                console.log(data);
+                // console.log(data);
 
                 if (data.success) {
                     if (activeSection === 'running_orders' && data.data) {
@@ -175,7 +175,7 @@ const TotalSaleReport = () => {
 
         return true;
     });
-    console.log(filteredInvoices);
+    // console.log(filteredInvoices);
    return (
         <div className="min-h-[85vh] bg-white p-4">
             <div className="flex flex-col lg:flex-row gap-6">

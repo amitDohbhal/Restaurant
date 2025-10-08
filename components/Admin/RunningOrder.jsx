@@ -96,14 +96,14 @@ export default function RunningOrder() {
       }
 
       const { data } = await response.json();
-      console.log(data)
+      // console.log(data)
       
       // Check for new orders
       if (orders.length > 0 && data?.length > 0) {
         const newOrders = data.filter(
           newOrder => !orders.some(existingOrder => existingOrder._id === newOrder._id)
         );
-        console.log(newOrders)
+        // console.log(newOrders)
         
         // Show toast for each new order
         newOrders.forEach(order => {
@@ -159,7 +159,7 @@ export default function RunningOrder() {
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       setIsUpdating(true);
-      console.log(`Updating order ${orderId} to status: ${newStatus}`);
+      // console.log(`Updating order ${orderId} to status: ${newStatus}`);
 
       // Make API call to update status
       const response = await fetch('/api/runningOrder', {
@@ -200,7 +200,7 @@ export default function RunningOrder() {
       );
 
       toast.success(`Order #${orderId} has been marked as ${newStatus}.`);
-      console.log('Order status updated successfully');
+      // console.log('Order status updated successfully');
     } catch (error) {
       console.error('Error updating order status:', {
         error,

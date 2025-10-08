@@ -80,7 +80,7 @@ function SectionContent({ section, orderId, onViewOrder, onBackHome, showOrderDe
           }
           
           const ordersData = await res.json();
-          console.log('Fetched user orders:', ordersData);
+          // console.log('Fetched user orders:', ordersData);
           
           setOrders(Array.isArray(ordersData) ? ordersData : []);
           setError(null);

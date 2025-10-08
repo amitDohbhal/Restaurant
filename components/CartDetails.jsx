@@ -25,7 +25,7 @@ const CartDetails = () => {
   };
   const { cart: rawCart, updateCartQty, removeFromCart } = useCart();
   const cart = Array.isArray(rawCart) ? rawCart : [];
-  console.log(cart)
+  // console.log(cart)
 
   // Scroll to top when component mounts
   useEffect(() => {

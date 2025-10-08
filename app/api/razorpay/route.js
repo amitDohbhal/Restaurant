@@ -70,7 +70,7 @@ export async function PUT(req) {
             roomInvoiceIds = []
         } = body;
 
-        console.log('Received payment verification request:', JSON.stringify(body, null, 2));
+        // console.log('Received payment verification request:', JSON.stringify(body, null, 2));
 
         // Verify the payment signature
         const crypto = require('crypto');
@@ -80,14 +80,14 @@ export async function PUT(req) {
             .update(text)
             .digest('hex');
 
-        console.log('Verifying payment signature:', {
-            orderId: razorpay_order_id,
-            paymentId: razorpay_payment_id,
-            receivedSignature: razorpay_signature,
-            generatedSignature,
-            keySecret: process.env.RAZORPAY_KEY_SECRET ? 'present' : 'missing',
-            signatureMatches: generatedSignature === razorpay_signature
-        });
+        // console.log('Verifying payment signature:', {
+        //     orderId: razorpay_order_id,
+        //     paymentId: razorpay_payment_id,
+        //     receivedSignature: razorpay_signature,
+        //     generatedSignature,
+        //     keySecret: process.env.RAZORPAY_KEY_SECRET ? 'present' : 'missing',
+        //     signatureMatches: generatedSignature === razorpay_signature
+        // });
 
         if (generatedSignature !== razorpay_signature) {
             return NextResponse.json(
@@ -124,7 +124,7 @@ export async function PUT(req) {
         const { orderId } = body;
         // Handle different payment types
         if (type === 'room_invoice' && invoiceId) {
-            console.log('Processing room invoice payment for invoice ID:', invoiceId);
+            // console.log('Processing room invoice payment for invoice ID:', invoiceId);
 
             const updateData = {
                 paymentStatus: 'completed',
@@ -157,7 +157,7 @@ export async function PUT(req) {
             });
         }
         else if (type === 'restaurant' && invoiceId){
-            console.log('Processing restaurant invoice payment for invoice ID:', invoiceId);
+            // console.log('Processing restaurant invoice payment for invoice ID:', invoiceId);
 
             const updateData = {
                 paymentStatus: 'completed',
@@ -190,7 +190,7 @@ export async function PUT(req) {
             });
         }
         else if (type === 'direct_food_order' && invoiceId) {
-            console.log('Processing direct food order payment for invoice ID:', invoiceId);
+            // console.log('Processing direct food order payment for invoice ID:', invoiceId);
 
             // Common update data for all invoice types
             const commonUpdateData = {
@@ -223,7 +223,7 @@ export async function PUT(req) {
             });
         }
         else if (orderId || (orderIds && orderIds.length > 0) || (roomInvoiceIds && roomInvoiceIds.length > 0)) {
-            console.log('Processing payment with:', { orderId, orderIds, roomInvoiceIds });
+            // console.log('Processing payment with:', { orderId, orderIds, roomInvoiceIds });
             
             try {
                 const results = [];
@@ -315,7 +315,7 @@ export async function PUT(req) {
                                 const pushField = invoiceType === 'room_invoice' ? 'paidRoomInvoices' : 'paidInvoices';
                                 
                                 try {
-                                    console.log(`Processing ${invoiceType} for RoomAccount ${invoice.roomAccountId}, Invoice ID: ${invoice._id}`);
+                                    // console.log(`Processing ${invoiceType} for RoomAccount ${invoice.roomAccountId}, Invoice ID: ${invoice._id}`);
                                     
                                     // 1. Pull from unpaid array
                                     const pullResult = await RoomAccount.updateOne(
@@ -326,7 +326,7 @@ export async function PUT(req) {
                                             } 
                                         }
                                     );
-                                    console.log(`Pull result for ${invoice._id}:`, pullResult);
+                                    // console.log(`Pull result for ${invoice._id}:`, pullResult);
 
                                     // 2. Add to paid array
                                     const paidInvoice = {
@@ -346,9 +346,9 @@ export async function PUT(req) {
                                             $inc: { totalPaid: paidInvoice.totalAmount || 0 }
                                         }
                                     );
-                                    console.log(`Push result for ${invoice._id}:`, pushResult);
+                                    // console.log(`Push result for ${invoice._id}:`, pushResult);
                                     
-                                    console.log(`Successfully processed ${invoiceType} ${invoice._id} for RoomAccount ${invoice.roomAccountId}`);
+                                    // console.log(`Successfully processed ${invoiceType} ${invoice._id} for RoomAccount ${invoice.roomAccountId}`);
                                     
                                 } catch (error) {
                                     console.error(`Error processing ${invoiceType} ${invoice._id}:`, error);
@@ -392,7 +392,7 @@ export async function PUT(req) {
                             // Update RoomAccount for room invoices
                             if (invoice.roomAccountId) {
                                 try {
-                                    console.log(`Processing room invoice for RoomAccount ${invoice.roomAccountId}, Invoice ID: ${invoice._id}`);
+                                    // console.log(`Processing room invoice for RoomAccount ${invoice.roomAccountId}, Invoice ID: ${invoice._id}`);
                                     
                                     // 1. First, find the room account with the unpaid invoice
                                     const roomAccount = await RoomAccount.findOne({
@@ -428,11 +428,11 @@ export async function PUT(req) {
                                     };
 
                                     // 4. Perform atomic update to move invoice from unpaid to paid
-                                    console.log('Attempting to update RoomAccount with paid invoice:', {
-                                        roomAccountId: invoice.roomAccountId,
-                                        invoiceId: invoice._id,
-                                        amount: unpaidInvoice.totalAmount
-                                    });
+                                    // console.log('Attempting to update RoomAccount with paid invoice:', {
+                                    //     roomAccountId: invoice.roomAccountId,
+                                    //     invoiceId: invoice._id,
+                                    //     amount: unpaidInvoice.totalAmount
+                                    // });
 
                                     // First, verify the document exists and has the unpaid invoice
                                     const docExists = await RoomAccount.findOne({
@@ -462,7 +462,7 @@ export async function PUT(req) {
                                         }
                                     );
 
-                                    console.log('Add to paid result:', addToPaid);
+                                    // console.log('Add to paid result:', addToPaid);
 
                                     // 2. Remove from unpaid invoices
                                     const removeFromUnpaid = await RoomAccount.updateOne(
@@ -474,13 +474,13 @@ export async function PUT(req) {
                                         }
                                     );
 
-                                    console.log('Remove from unpaid result:', removeFromUnpaid);
+                                    // console.log('Remove from unpaid result:', removeFromUnpaid);
 
                                     if (addToPaid.modifiedCount === 0 || removeFromUnpaid.modifiedCount === 0) {
                                         throw new Error(`Failed to update room account. Add Paid: ${addToPaid.modifiedCount}, Remove Unpaid: ${removeFromUnpaid.modifiedCount}`);
                                     }
                                     
-                                    console.log(`Successfully processed room invoice ${invoice._id} for RoomAccount ${invoice.roomAccountId}`);
+                                    // console.log(`Successfully processed room invoice ${invoice._id} for RoomAccount ${invoice.roomAccountId}`);
                                     
                                 } catch (error) {
                                     console.error(`Error processing room invoice ${invoice._id}:`, error);

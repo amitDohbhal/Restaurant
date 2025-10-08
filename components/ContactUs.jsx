@@ -12,6 +12,16 @@ import toast from "react-hot-toast"
 import { useSession } from "next-auth/react"
 const ContactUs = () => {
     const { data: session } = useSession();
+    const [contactInfo, setContactInfo] = useState({
+        phoneNumbers: [],
+        emails: [],
+        address1: '',
+        address2: '',
+        city1: '',
+        state1: '',
+        pincode1: '',
+        googleMap1: ''
+    });
     const [formData, setFormData] = useState({
         name: "",
         email: "",
@@ -22,8 +32,40 @@ const ContactUs = () => {
 
     const [phoneError, setPhoneError] = useState("");
 
-    // Auto-fill form when user signs in
+    // Fetch contact info from API
     useEffect(() => {
+        const fetchContactInfo = async () => {
+            try {
+                const response = await fetch('/api/addBasicInfo');
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const info = data[0];
+                    setContactInfo({
+                        phoneNumbers: [
+                            info.contactNumber1,
+                            info.contactNumber2,
+                            info.contactNumber3
+                        ].filter(Boolean),
+                        emails: [
+                            info.email1,
+                            info.email2
+                        ].filter(Boolean),
+                        address1: info.address1 || '',
+                        address2: info.address2 || '',
+                        city1: info.city1 || '',
+                        state1: info.state1 || '',
+                        pincode1: info.pincode1 || '',
+                        googleMap1: info.googleMap1 || ''
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to fetch contact info:', error);
+            }
+        };
+
+        fetchContactInfo();
+
+        // Auto-fill form when user signs in
         if (session?.user) {
             setFormData(prev => ({
                 ...prev,
@@ -111,27 +153,33 @@ const ContactUs = () => {
                         <div className="mb-4">
                             <h3 className="font-bold text-xl md:text-2xl mb-2">Call Us</h3>
                             <ul className="mb-2">
-                                <li className='flex flex-row gap-2'>
-                                    <a href="tel:+9107669280002" className="hover:underline text-xl">+91 07669280002</a>
-                                    <a href="tel:+919897468886" className="hover:underline text-xl">+91 9897468886</a>
+                                <li className='flex flex-wrap gap-4'>
+                                    {contactInfo.phoneNumbers.length > 0 ? (
+                                        contactInfo.phoneNumbers.map((phone, index) => (
+                                            <a key={index} href={`tel:${phone}`} className="hover:underline text-xl">
+                                                {phone}
+                                            </a>
+                                        ))
+                                    ) : (
+                                        <span className="text-xl">No phone numbers available</span>
+                                    )}
                                 </li>
                             </ul>
                         </div>
                         <div className=''>
-                            <h3 className="font-bold text-xl md:text-2xl mb-2 ">E-mail</h3>
-                            <ul className="mb-2">
-                                <li className='text-xl'>
-                                    For Sales:
-                                    <a href="mailto:digitalservicesinrishikesh@gmail.com" className="hover:underline text-md md:text-xl"> digitalservicesinrishikesh@gmail.com</a>
-                                </li>
-                                <li className='text-xl'>
-                                    For Support:
-                                    <a href="mailto:Accounts@adventureaxis.in" className="hover:underline text-md md:text-xl"> Accounts@adventureaxis.in</a>
-                                </li>
-                                <li className='text-xl'>
-                                    For Official:
-                                    <a href="mailto:Sales@adventureaxis.in" className="hover:underline text-md md:text-xl"> Sales@adventureaxis.in</a>
-                                </li>
+                            <h3 className="font-bold text-xl md:text-2xl mb-2">E-mail</h3>
+                            <ul className="mb-2 space-y-2">
+                                {contactInfo.emails.length > 0 ? (
+                                    contactInfo.emails.map((email, index) => (
+                                        <li key={index} className='text-xl'>
+                                            <a href={`mailto:${email}`} className="hover:underline text-md md:text-xl">
+                                                {email}
+                                            </a>
+                                        </li>
+                                    ))
+                                ) : (
+                                    <li className='text-xl'>No email available</li>
+                                )}
                             </ul>
                         </div>
                     </div>
@@ -209,14 +257,22 @@ const ContactUs = () => {
                 </div>
             </div>
             {/* Google Maps */}
-            <div className="w-full mt-10 flex justify-center">
-                <div className="w-full h-[200px md:h-[400px]  overflow-hidden ">
-                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3450.807271918314!2d78.32066657501376!3d30.128327914592454!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39093e6896b55a3f%3A0xe5c76dc9610b2d2d!2sAdventure%20Axis!5e0!3m2!1sen!2sin!4v1753099742860!5m2!1sen!2sin" width="100%"
-                        height="100%"
-                        style={{ border: 0 }} allowFullScreen="" loading="lazy" 
-                    title="Adventure Axix Location" referrerPolicy="no-referrer-when-downgrade"></iframe>
+            {contactInfo.googleMap1 && (
+                <div className="w-full mt-10 flex justify-center">
+                    <div className="w-full h-[300px] md:h-[500px] overflow-hidden">
+                        <iframe 
+                            src={contactInfo.googleMap1}
+                            width="100%"
+                            height="100%"
+                            style={{ border: 0 }} 
+                            allowFullScreen 
+                            loading="lazy" 
+                            title="Location Map" 
+                            referrerPolicy="no-referrer-when-downgrade"
+                        ></iframe>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };

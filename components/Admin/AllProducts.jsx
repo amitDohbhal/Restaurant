@@ -129,7 +129,7 @@ const AllProducts = () => {
     if (sort === "priceHigh") return b.price - a.price;
     return 0;
   });
-  console.log(sortedProducts)
+  // console.log(sortedProducts)
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">

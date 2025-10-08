@@ -49,7 +49,7 @@ const CheckOutGuest = () => {
       if (!response.ok) throw new Error('Failed to search guests');
 
       const guests = await response.json();
-      console.log(searchResults)
+      // console.log(searchResults)
       // Filter for checked-in guests only
       const checkedInGuests = guests.filter(guest => guest.status === 'checked-in');
       setSearchResults(checkedInGuests);
@@ -204,7 +204,7 @@ const CheckOutGuest = () => {
       const orderIdsToProcess = selectedGuest.unpaidOrders?.map(order => order.orderId) || [];
       const roomInvoiceIdsToProcess = selectedGuest.unpaidRoomInvoices?.map(invoice => invoice._id?.toString()) || [];
 
-      console.log('Processing orders:', orderIdsToProcess, 'and invoices:', roomInvoiceIdsToProcess);
+      // console.log('Processing orders:', orderIdsToProcess, 'and invoices:', roomInvoiceIdsToProcess);
 
       // Calculate total amount from both orders and room invoices
       const ordersTotal = calculateTotal(selectedGuest.unpaidOrders || []);
@@ -236,7 +236,7 @@ const CheckOutGuest = () => {
 
       // Generate a shorter receipt ID (max 40 chars for Razorpay)
       const receipt = `INV-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-      console.log('Generated receipt ID:', receipt);
+      // console.log('Generated receipt ID:', receipt);
 
       // Determine the primary order type for Razorpay description
       let primaryType = '';
@@ -302,7 +302,7 @@ const CheckOutGuest = () => {
               verificationPayload[key] === undefined && delete verificationPayload[key]
             );
 
-            console.log('Verifying payment with payload:', verificationPayload);
+            // console.log('Verifying payment with payload:', verificationPayload);
 
             const verifyResponse = await fetch('/api/razorpay', {
               method: 'PUT',
@@ -391,7 +391,7 @@ const CheckOutGuest = () => {
         theme: { color: '#4f46e5' },
         modal: {
           ondismiss: function () {
-            console.log('Payment modal dismissed');
+            // console.log('Payment modal dismissed');
             toast.error('Payment was cancelled');
             setIsProcessingPayment(false);
           }
@@ -428,11 +428,11 @@ const CheckOutGuest = () => {
       const orderIds = selectedGuest.unpaidOrders?.map(order => order.orderId) || [];
       const roomInvoiceIds = selectedGuest.unpaidRoomInvoices?.map(invoice => invoice._id?.toString()) || [];
 
-      console.log('Processing payment for:', {
-        orderIds,
-        roomInvoiceIds,
-        paymentMethod
-      });
+      // console.log('Processing payment for:', {
+      //   orderIds,
+      //   roomInvoiceIds,
+      //   paymentMethod
+      // });
 
       // Process both orders and room invoices in a single transaction
       if (paymentMethod === 'online') {
@@ -455,7 +455,7 @@ const CheckOutGuest = () => {
       });
 
       const data = await response.json();
-      console.log('Payment API response:', data);
+      // console.log('Payment API response:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to process payment');
@@ -867,7 +867,7 @@ const CheckOutGuest = () => {
         if (data && data[0]) {
           setHotelData(data[0]);
         } else {
-          console.log('No hotel data found in the response');
+          // console.log('No hotel data found in the response');
         }
       } catch (error) {
         console.error('Error fetching hotel data:', error);
@@ -1139,7 +1139,7 @@ const CheckOutGuest = () => {
       setLoadingStates(prev => ({ ...prev, downloadInvoice: false }));
     }
   };
-  console.log(checkedOutGuests)
+  // console.log(checkedOutGuests)
   return (
     <div className="space-y-6">
       <InvoiceTemplate />

@@ -14,8 +14,47 @@ import CurrentYear from './CurrentYear';
 const Footer = () => {
     const pathName = usePathname()
     const [pages, setPages] = useState([])
+    const [contactInfo, setContactInfo] = useState({
+        phoneNumbers: [],
+        emails: [],
+        address1: '',
+        address2: '',
+        city1: '',
+        state1: '',
+        pincode1: ''
+    })
 
     useEffect(() => {
+        const fetchContactInfo = async () => {
+            try {
+                const response = await fetch('/api/addBasicInfo');
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    // Assuming the first document contains the contact info
+                    const info = data[0];
+                    console.log('Contact Info:', info);
+                    setContactInfo({
+                        phoneNumbers: [
+                            info.contactNumber1,
+                            info.contactNumber2,
+                            info.contactNumber3
+                        ].filter(Boolean), // This removes any empty/undefined numbers
+                        emails: [
+                            info.email1,
+                            info.email2
+                        ].filter(Boolean), // This removes any empty/undefined emails
+                        address1: info.address1 || '',
+                        address2: info.address2 || '',
+                        city1: info.city1 || '',
+                        state1: info.state1 || '',
+                        pincode1: info.pincode1 || ''
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to fetch contact info:', error);
+            }
+        };
+
         const fetchPages = async () => {
             try {
                 const response = await fetch("/api/getAllPages")
@@ -25,7 +64,8 @@ const Footer = () => {
                 // console.error("Error fetching pages:", error)
             }
         }
-        fetchPages()
+        fetchPages();
+        fetchContactInfo();
     }, [])
 
     const handleSubmit = async (e) => {
@@ -81,39 +121,45 @@ const Footer = () => {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <h1 className="font-semibold text-xl flex items-center gap-2"> More Inquiry</h1>
+                    <h1 className="font-semibold text-xl flex items-center gap-2">More Inquiry</h1>
                     <div className="flex items-start gap-2">
-                        <Link href={'tel:+9107669280002'} className="my-2 block rounded-full py-1 font-barlow text-white flex items-center gap-2">
-                            <Phone size={20} className="text-blue-600" />
-                            +91 07669280002
-                        </Link>
-                        <Link href={'tel:+919897468886'} className="my-2  block rounded-full py-1 font-barlow text-white flex items-center gap-2">
-                            +91 9897468886
-                        </Link>
+                        {contactInfo.phoneNumbers && contactInfo.phoneNumbers.length > 0 ? (
+                            contactInfo.phoneNumbers.map((phone, index) => (
+                                <Link key={index} href={`tel:${phone}`} className="my-2 rounded-full py-1 font-barlow text-white flex items-center gap-2">
+                                    {index === 0 && <Phone size={20} className="text-blue-600" />}
+                                    {phone}
+                                </Link>
+                            ))
+                        ) : (
+                           null
+                        )}
                     </div>
-                    <div className="flex items-start  gap-2">
+                    <div className="flex items-start gap-2">
                         <div className="py-2">
-
                             <Send className="text-blue-600" size={20} />
                         </div>
                         <div className="flex items-start flex-col gap-1 py-2">
-                            <Link href={'mailto:support@adventureaxis.in'} className="block rounded-full font-barlow text-white flex items-center gap-2">
-                                support@adventureaxis.in
-                            </Link>
-                            <Link href={'mailto:Accounts@adventureaxis.in'} className=" block rounded-full font-barlow text-white flex items-center gap-2">
-                                Accounts@adventureaxis.in
-                            </Link>
-                            <Link href={'mailto:Sales@adventureaxis.in'} className="block rounded-full font-barlow text-white flex items-center gap-2">
-                                Sales@adventureaxis.in
-                            </Link>
+                            {contactInfo.emails && contactInfo.emails.length > 0 ? (
+                                contactInfo.emails.map((email, index) => (
+                                    <Link key={index} href={`mailto:${email}`} className="rounded-full font-barlow text-white flex items-center gap-2">
+                                        {email}
+                                    </Link>
+                                ))
+                            ) : (
+                                null
+                            )}
                         </div>
                     </div>
-                    <p className="gap-2 my-2 font-barlow text-white mb-5 flex items-center">
-                        <MapPin className="text-blue-600" size={20} />
-                        Regd. Or Branch Office: Badrinath Road,
-                        <br />
-                        Tapovan, Laxmanjhula, Uttarakhand
-                    </p>
+                    <div className="gap-2 my-2 font-barlow text-white mb-5">
+                        <div className="flex items-start gap-2">
+                            <MapPin className="text-blue-600 mt-1 flex-shrink-0" size={20} />
+                            <div>
+                                <p>{contactInfo.address1}</p>
+                                {contactInfo.address2 && <p>{contactInfo.address2}</p>}
+                                <p>{contactInfo.city1}, {contactInfo.state1} - {contactInfo.pincode1}</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div className="md:hidden flex items-center gap-2 justify-start px-5">
@@ -139,42 +185,45 @@ const Footer = () => {
                 </div>
             </div>
             <div className="md:hidden flex flex-col gap-1 p-5">
-                <h1 className="font-semibold text-xl flex items-center gap-2"> More Inquiry</h1>
+                <h1 className="font-semibold text-xl flex items-center gap-2">More Inquiry</h1>
                 <div className="flex items-start gap-2">
-                    <Link href={'tel:+9107669280002'} className="my-2 text-sm block rounded-full py-1 font-barlow text-white flex items-center gap-2">
-                        <Phone size={20} className="text-blue-600" />
-                        +91 07669280002
-                    </Link>
-                    <Link href={'tel:+919897468886'} className="my-2 text-sm block rounded-full py-1 font-barlow text-white flex items-center gap-2">
-                        +91 9897468886
-                    </Link>
+                    {contactInfo.phoneNumbers && contactInfo.phoneNumbers.length > 0 ? (
+                        contactInfo.phoneNumbers.map((phone, index) => (
+                            <Link key={index} href={`tel:${phone}`} className="my-2 text-sm rounded-full py-1 font-barlow text-white flex items-center gap-2">
+                                {index === 0 && <Phone size={20} className="text-blue-600" />}
+                                {phone}
+                            </Link>
+                        ))
+                    ) : (
+                        null
+                    )}
                 </div>
-                <div className="flex items-start  gap-2">
+                <div className="flex items-start gap-2">
                     <div className="py-2">
-
                         <Send className="text-blue-600" size={20} />
                     </div>
                     <div className="flex items-start flex-col gap-1 py-2">
-
-                        <Link href={'mailto:support@adventureaxis.in'} className="text-sm block rounded-full font-barlow text-white flex items-center gap-2">
-                            support@adventureaxis.in
-                        </Link>
-                        <Link href={'mailto:Accounts@adventureaxis.in'} className=" text-sm block rounded-full font-barlow text-white flex items-center gap-2">
-
-                            Accounts@adventureaxis.in
-                        </Link>
-                        <Link href={'mailto:Sales@adventureaxis.in'} className=" text-sm block rounded-full font-barlow text-white flex items-center gap-2">
-
-                            Sales@adventureaxis.in
-                        </Link>
+                        {contactInfo.emails && contactInfo.emails.length > 0 ? (
+                            contactInfo.emails.map((email, index) => (
+                                <Link key={index} href={`mailto:${email}`} className="text-sm rounded-full font-barlow text-white flex items-center gap-2">
+                                    {email}
+                                </Link>
+                            ))
+                        ) : (
+                            null
+                        )}
                     </div>
                 </div>
-                <p className="my-2 text-sm font-barlow text-white mb-5 flex items-center gap-2">
-                    <MapPin className="text-blue-600" size={20} />
-                    Regd. Or Branch Office: Badrinath Road,
-                    <br />
-                    Tapovan, Laxmanjhula, Uttarakhand
-                </p>
+                <div className="my-2 text-sm font-barlow text-white mb-5">
+                    <div className="flex items-start gap-2">
+                        <MapPin className="text-blue-600 mt-1 flex-shrink-0" size={20} />
+                        <div>
+                            <p>{contactInfo.address1}</p>
+                            {contactInfo.address2 && <p>{contactInfo.address2}</p>}
+                            <p>{contactInfo.city1}, {contactInfo.state1} - {contactInfo.pincode1}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Accordance Section */}
@@ -322,7 +371,7 @@ const Footer = () => {
             </Card>
             <div className="flex flex-col lg:flex-row items-center justify-center max-w-[25rem] md:max-w-[60rem] xl:max-w-6xl mx-auto font-barlow">
                 <p className="text-white font-bold text-center my-4">
-                    &copy; <CurrentYear /> <Link href={'/'} className="font-bold text-white">Adventure Axis</Link>. All rights reserved
+                    &copy; <CurrentYear /> <Link href={'/'} className="font-bold text-white">Hotel Royal Shivam</Link>. All rights reserved
                 </p>
             </div>
         </footer >

@@ -116,7 +116,7 @@ const CreateRoomInvoice = () => {
         try {
             const res = await fetch('/api/foodInventory');
             const data = await res.json();
-            console.log(data);
+            // console.log(data);
             if (data) {
                 setFoodInventoryData(data);
             }
@@ -322,9 +322,9 @@ const CreateRoomInvoice = () => {
                     sgst = calculateGST(itemTotal, row.foodItem.sgstPercent);
                 }
 
-                console.log(`Item: ${row.foodItem.foodName} - Price: ${itemPrice}, Qty: ${row.qty}, Total: ${itemTotal}`);
-                console.log(`CGST: ${cgst} (${row.foodItem.cgstPercent ? row.foodItem.cgstPercent + '%' : 'Fixed: ' + row.foodItem.cgstAmount})`);
-                console.log(`SGST: ${sgst} (${row.foodItem.sgstPercent ? row.foodItem.sgstPercent + '%' : 'Fixed: ' + row.foodItem.sgstAmount})`);
+                // console.log(`Item: ${row.foodItem.foodName} - Price: ${itemPrice}, Qty: ${row.qty}, Total: ${itemTotal}`);
+                // console.log(`CGST: ${cgst} (${row.foodItem.cgstPercent ? row.foodItem.cgstPercent + '%' : 'Fixed: ' + row.foodItem.cgstAmount})`);
+                // console.log(`SGST: ${sgst} (${row.foodItem.sgstPercent ? row.foodItem.sgstPercent + '%' : 'Fixed: ' + row.foodItem.sgstAmount})`);
 
                 foodTotal += itemTotal;
                 totalCGST += cgst;
@@ -420,7 +420,7 @@ const CreateRoomInvoice = () => {
                 },
                 handler: async function (response) {
                     try {
-                        console.log('Razorpay response:', response);
+                        // console.log('Razorpay response:', response);
 
                         // 1. Verify payment on your server
                         const verifyResponse = await fetch('/api/razorpay', {
@@ -436,7 +436,7 @@ const CreateRoomInvoice = () => {
                         });
 
                         const verificationData = await verifyResponse.json();
-                        console.log('Verification response:', verificationData);
+                        // console.log('Verification response:', verificationData);
 
                         if (!verifyResponse.ok || !verificationData.success) {
                             throw new Error(verificationData.error || 'Payment verification failed');
@@ -552,9 +552,9 @@ const CreateRoomInvoice = () => {
                 const amount = itemPrice * parseFloat(row.qty || 0);
 
                 // Debug log the input values
-                console.log('Item:', row.foodItem.foodName, 'Amount:', amount);
-                console.log('CGST - Percent:', row.foodItem.cgstPercent, 'Fixed:', row.foodItem.cgstAmount);
-                console.log('SGST - Percent:', row.foodItem.sgstPercent, 'Fixed:', row.foodItem.sgstAmount);
+                // console.log('Item:', row.foodItem.foodName, 'Amount:', amount);
+                // console.log('CGST - Percent:', row.foodItem.cgstPercent, 'Fixed:', row.foodItem.cgstAmount);
+                // console.log('SGST - Percent:', row.foodItem.sgstPercent, 'Fixed:', row.foodItem.sgstAmount);
 
                 // First calculate GST from percentage if percentage is provided
                 const cgstFromPercent = row.foodItem.cgstPercent > 0
@@ -570,7 +570,7 @@ const CreateRoomInvoice = () => {
                 const sgstAmount = sgstFromPercent + (parseFloat(row.foodItem.sgstAmount) || 0);
 
                 // Debug log the calculated values
-                console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
+                // console.log('Calculated CGST:', cgstAmount, 'SGST:', sgstAmount);
 
                 // Get the original percentages for storage
                 const cgstPercent = row.foodItem.cgstPercent || 0;

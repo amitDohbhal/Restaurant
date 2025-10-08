@@ -19,7 +19,7 @@ export async function POST(request, { params }) {
     
     // Get the order data from the request body
     const orderData = await request.json();
-    console.log('Received order data:', JSON.stringify(orderData, null, 2));
+    // console.log('Received order data:', JSON.stringify(orderData, null, 2));
     
     // Validate required fields
     if (!orderData.orderNumber || !orderData.items) {

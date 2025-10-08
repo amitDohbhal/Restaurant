@@ -11,16 +11,6 @@ export async function POST(request) {
     await connectDB();
     const { guestId, orderIds = [], roomInvoiceIds = [], paymentMethod = 'cash' } = await request.json();
 
-    // Debug log
-    console.log('Payment request received:', { 
-      guestId, 
-      orderIds,
-      roomInvoiceIds,
-      orderIdsType: orderIds?.map(id => ({
-        value: id,
-        type: typeof id
-      }))
-    });
 
     if (!guestId || (orderIds.length === 0 && roomInvoiceIds.length === 0)) {
       return NextResponse.json(
@@ -115,7 +105,7 @@ export async function POST(request) {
       processedInvoices = invoicesToProcess.map(i => i._id);
     }
 
-    console.log('Update operations:', JSON.stringify(updateOperations, null, 2));
+    // console.log('Update operations:', JSON.stringify(updateOperations, null, 2));
 
     // Update the guest document
     const result = await RoomAccount.findByIdAndUpdate(
@@ -124,10 +114,10 @@ export async function POST(request) {
       { session, new: true }
     );
 
-    console.log('Update result:', {
-      matchedCount: result?.modifiedCount,
-      isSuccess: !!result
-    });
+    // console.log('Update result:', {
+    //   matchedCount: result?.modifiedCount,
+    //   isSuccess: !!result
+    // });
 
     await session.commitTransaction();
     session.endSession();

@@ -252,11 +252,11 @@ const ArtisanDetails = ({ artisan }) => {
       {/* Top section: Image left, details right */}
       <div className="relative w-full overflow-visible mb-10">
         {/* Banner Background Image */}
-        <div className="inset-0 h-[100px] md:h-[300px] w-full object-cover object-center brightness-100 z-0 overflow-hidden object-cover">
+        <div className="inset-0 h-[100px] md:h-[300px] w-full  object-center brightness-100 z-0 overflow-hidden object-cover">
           <img src={artisan.artisanBanner?.image?.url || artisan.artisanBanner?.image || "/placeholder.jpeg"} className="w-full h-full object-cover brightness-100 " alt="Office" />
         </div>
         {/* Overlay Content */}
-        <div className="relative bg-[##FCF7F1] w-full px-2 md:w-full justify-center mx-auto flex flex-col md:flex-row md:items-start items-center pt-0 px-0 pb-8">
+        <div className="relative bg-[##FCF7F1] w-full md:w-full justify-center mx-auto flex flex-col md:flex-row md:items-start items-center pt-0 px-0 pb-8">
           {/* Profile Image: Overlapping Banner */}
           <div className="hidden md:flex absoute flex-shrink-0 -mt-32 ml-12 mr-10">
             <div className="bg-white rounded-lg shadow-xl border-4 border-white overflow-hidden w-72 md:h-[350px] flex items-center justify-center">
@@ -739,7 +739,7 @@ const ArtisanDetails = ({ artisan }) => {
               />
             </div>
             {/* Right: Detail Description */}
-            <div className="w-1/2 flex flex-col h-full justify-between w-full">
+            <div className="flex flex-col h-full justify-between w-full">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold mb-2 underline">Detail Description</h3>
                 <div className="text-md font-sans mb-5">
@@ -1292,7 +1292,7 @@ const ArtisanDetails = ({ artisan }) => {
           </div>
 
           {/* Review Card Overlay */}
-          <div className="hidden md:flex flex flex-col justify-start w-full items-end ">
+          <div className="hidden md:flex flex-col justify-start w-full items-end ">
             <div className="button px-10 mb-2">
               <Button className="bg-white text-black hover:bg-black hover:text-white transition-colors duration-300" onClick={() => setShowReviewModal(true)}>Write Reviews</Button>
             </div>
@@ -1416,7 +1416,7 @@ const ArtisanDetails = ({ artisan }) => {
           <div className="bg-white rounded-2xl shadow-xl mx-auto md:max-w-4xl w-full relative overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
             {/* Close Button */}
             <button
-              className="absolute top-4 right-4 text-2xl font-bold text-gray-500 z-50 rounded-full w-8 h-8 border border-black bg-black text-white flex items-center justify-center hover:bg-gray-100 hover:text-black focus:outline-none"
+              className="absolute top-4 right-4 text-2xl font-bold z-50 rounded-full w-8 h-8 border border-black bg-black text-white flex items-center justify-center hover:bg-gray-100 hover:text-black focus:outline-none"
               onClick={() => setQuickViewProduct(null)}
               aria-label="Close quick view"
             >

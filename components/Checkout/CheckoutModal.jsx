@@ -116,7 +116,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       }
     }
   }, [currentStep, orderConfirmation]);
-  console.log(orderConfirmation)
+  // console.log(orderConfirmation)
   // Handle input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -133,7 +133,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
 
     setIsSearching(true);
     try {
-      console.log('Searching guest by phone:', phone);
+      // console.log('Searching guest by phone:', phone);
       const response = await fetch(`/api/addGuestToRoom?search=${encodeURIComponent(phone)}`);
 
       if (!response.ok) {
@@ -141,14 +141,14 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       }
 
       const data = await response.json();
-      console.log('Phone search results:', data);
+      // console.log('Phone search results:', data);
 
       if (Array.isArray(data) && data.length > 0) {
         // The API now does exact phone matching, so we can use the first result
         const guest = data[0];
 
         if (guest) {
-          console.log('Found guest by phone:', guest);
+          // console.log('Found guest by phone:', guest);
           // Map the guest data to the expected format
           const formattedGuest = {
             _id: guest._id,
@@ -177,7 +177,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         }
       }
 
-      console.log('No guest found with phone:', phone);
+      // console.log('No guest found with phone:', phone);
       return { found: false, guest: null };
 
     } catch (error) {
@@ -193,7 +193,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
     if (!email) return { found: false, guest: null };
 
     try {
-      console.log('Searching guest by email:', email);
+      // console.log('Searching guest by email:', email);
       const response = await fetch(`/api/addGuestToRoom?search=${encodeURIComponent(email)}`);
 
       if (!response.ok) {
@@ -201,14 +201,14 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
       }
 
       const data = await response.json();
-      console.log('Search results:', data);
+      // console.log('Search results:', data);
 
       if (Array.isArray(data) && data.length > 0) {
         // Find exact email match
         const guest = data.find(g => g.email?.toLowerCase() === email.toLowerCase());
 
         if (guest) {
-          console.log('Found guest by email:', guest);
+          // console.log('Found guest by email:', guest);
           // Map the guest data to the expected format
           const formattedGuest = {
             _id: guest._id,
@@ -226,7 +226,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         }
       }
 
-      console.log('No guest found with email:', email);
+      // console.log('No guest found with email:', email);
       return { found: false, guest: null };
 
     } catch (error) {
@@ -604,7 +604,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
 
       // Show success message
       toast.success('Order placed successfully! Please pay at the hotel.');
-      console.log(orderResponseData)
+      // console.log(orderResponseData)
       // Show order confirmation
       setOrderConfirmation({
         orderNumber: orderResponseData.orderNumber,
@@ -667,7 +667,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         ...(selectedGuest && { isDummy: false })
       };
 
-      console.log('Using customer data:', customerData);
+      // console.log('Using customer data:', customerData);
 
       // Get user ID from session
       const userId = session?.user?.id;
@@ -740,7 +740,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
         ...(selectedGuest?.reservationId && { reservationId: selectedGuest.reservationId })
       };
 
-      console.log('Submitting order with data:', orderData);
+      // console.log('Submitting order with data:', orderData);
 
       // Create order in database
       const orderResponse = await fetch('/api/runningOrder', {
@@ -810,7 +810,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
               orderId: orderResponseData.orderId || orderResponseData._id || orderId
             };
 
-            console.log('Verifying payment with data:', verificationData);
+            // console.log('Verifying payment with data:', verificationData);
 
             // Verify payment on your server
             const verificationResponse = await fetch('/api/razorpay', {
@@ -827,7 +827,7 @@ const CheckoutModal = ({ isOpen, onClose, cart: initialCart, totalAmount: initia
             });
 
             const result = await verificationResponse.json();
-            console.log(result)
+            // console.log(result)
 
             if (result.success) {
               const orderNumber = result.order?.orderNumber || Date.now();

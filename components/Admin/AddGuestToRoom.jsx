@@ -29,7 +29,7 @@ const AddGuestToRoom = () => {
         checkIn: undefined,
         checkOut: undefined,
     });
-    console.log(rooms)
+    // console.log(rooms)
     const fetchRoomsData = async () => {
         try {
             setIsLoading(true);
